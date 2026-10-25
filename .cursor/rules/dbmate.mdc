@@ -1,0 +1,13 @@
+---
+description: Schema changes only through dbmate migrations
+globs: "backend/migrations/**/*.sql"
+alwaysApply: false
+---
+
+# dbmate
+
+- One new timestamped SQL file per change. Never edit a migration that has been applied.
+- Include `-- migrate:up` and `-- migrate:down`. Down is required and must be real.
+- Composite FKs `(workspace_id, id)`, `FORCE ROW LEVEL SECURITY` on tenant tables.
+- Roles: `outreach` owns tables (migrations only); `outreach_app` is what api/worker use.
+- Do not put DDL in Go, sqlc, or app startup.

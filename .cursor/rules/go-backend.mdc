@@ -1,0 +1,19 @@
+---
+description: Idiomatic, production-grade Go for api and worker
+globs: "**/*.go"
+alwaysApply: false
+---
+
+# Go
+
+Follow Effective Go and the standard library. SOLID here means small packages and small interfaces, not Java-shaped layers.
+
+- `context.Context` is the first argument. Honor cancel; do not store Context on structs.
+- Wrap errors with `%w`; add context in the message. Sentinel or `errors.Is`/`As` at boundaries. Never `panic` in request or job paths.
+- Accept interfaces, return concrete types. Define interfaces where they are **used**, usually one or two methods.
+- One package, one job (`send`, `mailbox`, `auth`). No `utils`/`helpers` dumping grounds. Composition over embedding for behavior.
+- Dependencies (DB, clock, mail, LLM) injected on constructors. No globals except `main` wiring.
+- After the behavior works: table-driven unit tests in `foo_test.go`. Automated tests (testcontainers or Compose) for DB, RLS, dbmate up/down, send/lock, Mailpit. Test invariants from the LLD, not framework internals.
+- Schema: dbmate migrations only; sqlc generates from the migrated schema.
+- River handlers are idempotent. Job payload includes `workspace_id`; set/reset `app.workspace_id` on the conn.
+- `gofmt` / `goimports`. Explicit is better than clever. No premature generics or interface{} soup.

@@ -1,0 +1,18 @@
+---
+description: Small slices so Anmol can learn Go; do not finish large subsystems in one go
+alwaysApply: true
+---
+
+# Build cadence
+
+Anmol is learning Go on this codebase. Prefer teaching by shipping a thin, working slice over completing a layer.
+
+- One slice per turn (or until Anmol says continue). Propose the slice, implement it, explain the Go that appeared, stop.
+- Do not implement an entire domain (send ledger, IMAP, AI compose, full campaign UI) in one pass.
+- Follow PRD/HLD/LLD **Now** only. No Next/Later unless asked.
+- Vertical over horizontal: a working path through api + db + a stub UI beats a complete package with nothing runnable.
+- After a slice: what was added, which files, how to run it, one thing to notice in the Go.
+- After **significant** work (a slice with behavior, or the end of a milestone): unit tests for the new package, then automated tests for the invariant. Do not pile a whole milestone of code and test it only at the end.
+- Schema changes: **dbmate only**. SQL in `backend/migrations`, `-- migrate:up` and `-- migrate:down`, in git. Never GORM/sqlc auto-migrate, never edit an already-applied file.
+- Theme is locked in `docs/design/theme.css`. Do not invent colors. Do not build the Stitch dashboard layout until the web slice.
+- Commit messages: Go-style imperative, no `feat:`/`fix:` prefix. Subject says what and why in one line (e.g. `Add dbmate tenancy schema with FORCE RLS.`). Anmol runs `git commit`; do not run it.

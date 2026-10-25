@@ -1,0 +1,14 @@
+---
+description: shadcn UI; Outreach theme from docs/design/theme.css
+globs: "apps/web/**/*.{ts,tsx,css}"
+alwaysApply: false
+---
+
+# Web UI
+
+- shadcn/ui for primitives. Compose pages from those; do not restyle each instance with hex.
+- Tokens live in `docs/design/theme.css`. On scaffold, copy into `globals.css` (`:root` + font imports).
+- Colors/radii: cool gray canvas `#F4F4F6`, white cards, primary `#D9643A` with **white** label text, secondary `#296194`, tertiary `#006A61`, radius `0.25rem` (cards and controls). Pills stay full.
+- Fonts: Noto Serif headlines, IBM Plex Sans body, Fira Sans labels. `tabular-nums` on metrics and timestamps.
+- No Geist. No warm-ivory palette. No charcoal-on-terracotta primary buttons.
+- App Router; server components by default. Talk to Go over OpenAPI; no business rules in Next.

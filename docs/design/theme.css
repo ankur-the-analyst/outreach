@@ -1,0 +1,136 @@
+/* Outreach theme.
+ * Color + radius: Stitch dashboard variation (cool gray canvas, terracotta #D9643A).
+ * Type: Noto Serif / IBM Plex Sans / Fira Sans.
+ * Map these onto shadcn :root in apps/web. Do not hard-code hex in components.
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Serif:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap");
+
+:root {
+  /* Surfaces — cool gray, not warm ivory */
+  --background: #f4f4f6;
+  --foreground: #1e2024;
+  --card: #ffffff;
+  --card-foreground: #1e2024;
+  --popover: #ffffff;
+  --popover-foreground: #1e2024;
+  --surface: #ffffff;
+  --surface-dim: #dfdfe5;
+  --surface-bright: #ffffff;
+  --surface-container-lowest: #ffffff;
+  --surface-container-low: #f8f8fa;
+  --surface-container: #f0f0f3;
+  --surface-container-high: #eaeaef;
+  --surface-container-highest: #e4e4eb;
+  --surface-variant: #e2e2e8;
+  --surface-tint: #d9643a;
+  --inverse-surface: #2a2c32;
+  --inverse-on-surface: #f1f1f4;
+
+  /* Brand */
+  --primary: #d9643a;
+  --primary-foreground: #ffffff;
+  --primary-container: #d9643a;
+  --on-primary-container: #ffffff;
+  --primary-fixed: #fdeee9;
+  --primary-fixed-dim: #f5b59e;
+  --on-primary-fixed: #451505;
+  --on-primary-fixed-variant: #783117;
+  --inverse-primary: #ffb59d;
+
+  /* Secondary / tertiary — Warm Editorial (design.md), not the HTML slate/teal */
+  --secondary: #296194;
+  --secondary-foreground: #ffffff;
+  --secondary-container: #92c5fe;
+  --on-secondary-container: #125283;
+  --secondary-fixed: #d0e4ff;
+  --secondary-fixed-dim: #9ccaff;
+  --on-secondary-fixed: #001d35;
+  --on-secondary-fixed-variant: #00497b;
+
+  --tertiary: #006a61;
+  --tertiary-foreground: #ffffff;
+  --tertiary-container: #36afa1;
+  --on-tertiary-container: #003d36;
+  --tertiary-fixed: #85f6e6;
+  --tertiary-fixed-dim: #67d9ca;
+  --on-tertiary-fixed: #00201c;
+  --on-tertiary-fixed-variant: #005049;
+
+  /* Muted / shadcn aliases */
+  --muted: #f0f0f3;
+  --muted-foreground: #6b7280;
+  --accent: #fdeee9;
+  --accent-foreground: #d9643a;
+  --destructive: #ba1a1a;
+  --destructive-foreground: #ffffff;
+  --error: #ba1a1a;
+  --error-container: #ffdad6;
+  --on-error-container: #93000a;
+
+  --border: #e2e2e8;
+  --input: #e2e2e8;
+  --ring: #d9643a;
+  --outline: #949ba5;
+  --outline-variant: #e2e2e8;
+  --on-surface: #1e2024;
+  --on-surface-variant: #6b7280;
+
+  /* Health (from the dashboard, not in MD3 core) */
+  --success: #3f7652;
+  --on-success: #2f5e3e;
+  --success-container: #f1f6f3;
+  --success-border: #d5e4d9;
+
+  /* Radius: near-square cards; pills stay full */
+  --radius-sm: 0.125rem;
+  --radius: 0.25rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.25rem;
+  --radius-full: 9999px;
+
+  /* Spacing */
+  --space-xs: 0.25rem;
+  --space-sm: 0.5rem;
+  --space-md: 0.75rem;
+  --space-lg: 1.25rem;
+  --space-xl: 2rem;
+  --gutter: 1rem;
+  --gutter-desktop: 1.25rem;
+  --margin: 1rem;
+  --margin-desktop: 1.5rem;
+
+  /* Type */
+  --font-headline: "Noto Serif", ui-serif, Georgia, serif;
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-label: "Fira Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-body);
+
+  /* Elevation: 1px planes; shadow only on overlays */
+  --shadow-none: none;
+  --shadow-overlay: 0 4px 16px rgba(30, 32, 36, 0.04);
+  --shadow-modal: 0 12px 32px rgba(30, 32, 36, 0.08);
+}
+
+.dark {
+  /* Not designed yet; keep light-only until we have a Stitch dark pass. */
+}
+
+/* Type scale */
+.font-headline-xl { font-family: var(--font-headline); font-size: 32px; font-weight: 600; line-height: 40px; letter-spacing: -0.025em; }
+.font-headline-lg { font-family: var(--font-headline); font-size: 24px; font-weight: 600; line-height: 32px; letter-spacing: -0.02em; }
+.font-headline-md { font-family: var(--font-headline); font-size: 18px; font-weight: 600; line-height: 26px; letter-spacing: -0.015em; }
+.font-headline-sm { font-family: var(--font-headline); font-size: 15px; font-weight: 600; line-height: 22px; letter-spacing: -0.01em; }
+.font-body-lg { font-family: var(--font-body); font-size: 16px; font-weight: 400; line-height: 26px; letter-spacing: -0.005em; }
+.font-body-md { font-family: var(--font-body); font-size: 14px; font-weight: 400; line-height: 22px; letter-spacing: 0; }
+.font-body-sm { font-family: var(--font-body); font-size: 13px; font-weight: 400; line-height: 19px; letter-spacing: 0; }
+.font-label-md { font-family: var(--font-label); font-size: 13px; font-weight: 500; line-height: 18px; letter-spacing: 0.005em; }
+.font-label-sm { font-family: var(--font-label); font-size: 11px; font-weight: 500; line-height: 16px; letter-spacing: 0.02em; }
+.font-numeric-metric {
+  font-family: var(--font-body);
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
