@@ -17,3 +17,4 @@ Follow Effective Go and the standard library. SOLID here means small packages an
 - Schema: dbmate migrations only; sqlc generates from the migrated schema.
 - River handlers are idempotent. Job payload includes `workspace_id`; set/reset `app.workspace_id` on the conn.
 - `gofmt` / `goimports`. Explicit is better than clever. No premature generics or interface{} soup.
+- Comments explain a non-obvious **why**. No restating the identifier, the next line, or Effective Go. Unexported one-method interfaces usually need no comment.

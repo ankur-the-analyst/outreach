@@ -1,7 +1,8 @@
 DATABASE_URL ?= postgres://outreach:outreach@127.0.0.1:5433/outreach?sslmode=disable
+DATABASE_APP_URL ?= postgres://outreach_app:outreach_app@127.0.0.1:5433/outreach?sslmode=disable
 DBMATE := dbmate --url "$(DATABASE_URL)" --migrations-dir backend/migrations
 
-.PHONY: up down logs api migrate migrate-down migrate-status
+.PHONY: up down logs api migrate migrate-down migrate-status sqlc test
 
 up:
 	docker compose up -d
@@ -13,7 +14,13 @@ logs:
 	docker compose logs -f postgres
 
 api:
-	cd backend && go run ./cmd/api
+	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" ADDR="$(or $(ADDR),:8080)" go run ./cmd/api
+
+sqlc:
+	cd backend && go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0 generate
+
+test:
+	cd backend && go test ./...
 
 migrate:
 	$(DBMATE) up
