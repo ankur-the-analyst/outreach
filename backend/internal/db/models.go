@@ -11,6 +11,44 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Mailbox struct {
+	WorkspaceID         uuid.UUID
+	ID                  uuid.UUID
+	Email               string
+	DisplayName         pgtype.Text
+	SignatureHtml       pgtype.Text
+	AuthKind            string
+	Provider            string
+	SmtpHost            pgtype.Text
+	SmtpPort            pgtype.Int4
+	SmtpTls             pgtype.Text
+	ImapHost            pgtype.Text
+	ImapPort            pgtype.Int4
+	Username            pgtype.Text
+	SecretID            *uuid.UUID
+	ServiceAccountID    *uuid.UUID
+	SendingDomainID     uuid.UUID
+	Timezone            string
+	WindowDays          []int32
+	WindowStart         pgtype.Time
+	WindowEnd           pgtype.Time
+	DailyLimit          int32
+	HourlyLimit         int32
+	MinGapS             int32
+	MaxGapS             int32
+	HardDailyCeiling    int32
+	WarmupProfileID     uuid.UUID
+	WarmupSendingDay    int32
+	EffectiveDailyLimit int32
+	ReplyMode           string
+	Status              string
+	StatusReason        pgtype.Text
+	ThrottledUntil      pgtype.Timestamptz
+	LastSentAt          pgtype.Timestamptz
+	NextFreeAt          pgtype.Timestamptz
+	CreatedAt           pgtype.Timestamptz
+}
+
 type Membership struct {
 	WorkspaceID uuid.UUID
 	UserID      uuid.UUID

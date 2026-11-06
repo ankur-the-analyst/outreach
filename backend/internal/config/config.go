@@ -7,8 +7,10 @@ import (
 )
 
 type Config struct {
-	Addr string `default:":8080"`
-	DatabaseAppURL string `required:"true" split_words:"true"`
+	Addr            string `default:":8080"`
+	DatabaseAppURL  string `required:"true" split_words:"true"`
+	MasterKeys      string `required:"true" split_words:"true"`
+	MasterKeyActive int    `split_words:"true" default:"1"`
 }
 
 func Load() (Config, error) {
