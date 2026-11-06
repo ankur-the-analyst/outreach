@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/db"
+	"outreach/internal/pacing"
 )
 
 var ErrEmailTaken = errors.New("email taken")
@@ -28,6 +29,9 @@ func (p *Postgres) CreateAccount(ctx context.Context, userID, workspaceID uuid.U
 	err := p.pool.InTx(ctx, db.GUC{WorkspaceID: workspaceID, UserID: userID, SessionID: sessionID}, func(ctx context.Context, q *db.Queries) error {
 		if err := q.InsertWorkspace(ctx, db.InsertWorkspaceParams{ID: workspaceID, Name: wsName}); err != nil {
 			return fmt.Errorf("auth: workspace: %w", err)
+		}
+		if err := pacing.SeedPresets(ctx, q, workspaceID); err != nil {
+			return fmt.Errorf("auth: warmup profiles: %w", err)
 		}
 		if err := q.InsertUser(ctx, db.InsertUserParams{
 			ID:           userID,

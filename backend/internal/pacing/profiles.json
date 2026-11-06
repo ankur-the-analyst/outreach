@@ -1,0 +1,52 @@
+[
+  {
+    "name": "Standard",
+    "kind": "standard",
+    "spec": {
+      "start": 2,
+      "ramp": [2, 3, 5],
+      "max_growth": 0.2,
+      "idle_counts": false,
+      "bounce_gate": 0.03,
+      "deferral_gate": 0.15,
+      "min_sample": 20
+    }
+  },
+  {
+    "name": "Conservative",
+    "kind": "conservative",
+    "spec": {
+      "start": 2,
+      "ramp": [2, 2, 3, 4],
+      "max_growth": 0.1,
+      "idle_counts": false,
+      "bounce_gate": 0.02,
+      "deferral_gate": 0.1,
+      "min_sample": 20
+    }
+  },
+  {
+    "name": "Fast",
+    "kind": "fast",
+    "spec": {
+      "start": 2,
+      "ramp": [2, 4, 6, 9],
+      "max_growth": 0.3,
+      "idle_counts": false,
+      "bounce_gate": 0.03,
+      "deferral_gate": 0.15,
+      "min_sample": 20
+    }
+  },
+  {
+    "name": "Off",
+    "kind": "off",
+    "spec": {
+      "uncapped": true,
+      "idle_counts": false,
+      "bounce_gate": 0.03,
+      "deferral_gate": 0.15,
+      "min_sample": 20
+    }
+  }
+]

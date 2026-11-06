@@ -5,6 +5,8 @@
 package db
 
 import (
+	"encoding/json"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -27,6 +29,14 @@ type Secret struct {
 	CreatedAt   pgtype.Timestamptz
 }
 
+type SendingDomain struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Domain      string
+	DailyLimit  int32
+	FirstSeenAt pgtype.Timestamptz
+}
+
 type Session struct {
 	ID          string
 	UserID      uuid.UUID
@@ -42,6 +52,15 @@ type User struct {
 	PasswordHash pgtype.Text
 	GoogleSub    pgtype.Text
 	CreatedAt    pgtype.Timestamptz
+}
+
+type WarmupProfile struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Name        string
+	Kind        string
+	Spec        json.RawMessage
+	Version     int32
 }
 
 type Workspace struct {
