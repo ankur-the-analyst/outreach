@@ -82,6 +82,13 @@
   line-height: 40px;
   letter-spacing: -0.025em;
 }
+.font-headline-md {
+  font-family: var(--font-headline), ui-serif, Georgia, serif;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 26px;
+  letter-spacing: -0.015em;
+}
 .font-body-md {
   font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   font-size: 14px;
