@@ -11,6 +11,7 @@ var (
 	ErrNotFound            = errors.New("not found")
 	ErrNotSupported        = errors.New("auth kind not supported yet")
 	ErrEmailTaken          = errors.New("mailbox already connected")
+	ErrNoSMTP              = errors.New("smtp host not set")
 )
 
 func EmailDomain(email string) string {

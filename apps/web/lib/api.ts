@@ -37,3 +37,20 @@ export function getMe() {
 export function getWorkspace() {
   return apiGet<Workspace>("/api/v1/workspace");
 }
+
+export type Mailbox = {
+  id: string;
+  email: string;
+  display_name: string;
+  auth_kind: string;
+  provider: string;
+  status: string;
+  timezone: string;
+  smtp_host: string;
+  smtp_port: number;
+  effective_daily_limit: number;
+};
+
+export function getMailboxes() {
+  return apiGet<{ mailboxes: Mailbox[] }>("/api/v1/mailboxes");
+}

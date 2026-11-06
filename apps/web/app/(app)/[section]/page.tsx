@@ -5,7 +5,9 @@ import { navItems, navLabel } from "@/lib/nav";
 export const instant = false;
 
 const stubHrefs = new Set(
-  navItems.filter((item) => item.href !== "/").map((item) => item.href.slice(1)),
+  navItems
+    .filter((item) => item.href !== "/" && item.href !== "/mailboxes")
+    .map((item) => item.href.slice(1)),
 );
 
 export function generateStaticParams() {

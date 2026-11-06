@@ -28,6 +28,8 @@ type Mailbox struct {
 	Provider            string    `json:"provider"`
 	Status              string    `json:"status"`
 	Timezone            string    `json:"timezone"`
+	SMTPHost            string    `json:"smtp_host"`
+	SMTPPort            int32     `json:"smtp_port"`
 	SendingDomainID     uuid.UUID `json:"sending_domain_id"`
 	WarmupProfileID     uuid.UUID `json:"warmup_profile_id"`
 	EffectiveDailyLimit int32     `json:"effective_daily_limit"`
@@ -323,7 +325,8 @@ func mailboxFromInsert(row db.InsertMailboxRow) Mailbox {
 	return Mailbox{
 		ID: row.ID, Email: row.Email, DisplayName: row.DisplayName.String,
 		AuthKind: row.AuthKind, Provider: row.Provider, Status: row.Status,
-		Timezone: row.Timezone, SendingDomainID: row.SendingDomainID,
+		Timezone: row.Timezone, SMTPHost: row.SmtpHost.String, SMTPPort: row.SmtpPort.Int32,
+		SendingDomainID: row.SendingDomainID,
 		WarmupProfileID: row.WarmupProfileID, EffectiveDailyLimit: row.EffectiveDailyLimit,
 	}
 }
@@ -332,9 +335,36 @@ func mailboxFromList(row db.ListMailboxesRow) Mailbox {
 	return Mailbox{
 		ID: row.ID, Email: row.Email, DisplayName: row.DisplayName.String,
 		AuthKind: row.AuthKind, Provider: row.Provider, Status: row.Status,
-		Timezone: row.Timezone, SendingDomainID: row.SendingDomainID,
+		Timezone: row.Timezone, SMTPHost: row.SmtpHost.String, SMTPPort: row.SmtpPort.Int32,
+		SendingDomainID: row.SendingDomainID,
 		WarmupProfileID: row.WarmupProfileID, EffectiveDailyLimit: row.EffectiveDailyLimit,
 	}
+}
+
+func (p *Postgres) SMTPEndpoint(ctx context.Context, workspaceID, id uuid.UUID) (string, int, error) {
+	var host string
+	var port int
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.GetMailbox(ctx, db.GetMailboxParams{WorkspaceID: workspaceID, ID: id})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+		host = row.SmtpHost.String
+		if row.SmtpPort.Valid {
+			port = int(row.SmtpPort.Int32)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", 0, err
+	}
+	if host == "" {
+		return "", 0, ErrNoSMTP
+	}
+	return host, port, nil
 }
 
 func text(s string) pgtype.Text {

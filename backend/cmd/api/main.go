@@ -13,6 +13,7 @@ import (
 	"outreach/internal/db"
 	"outreach/internal/health"
 	"outreach/internal/mailbox"
+	"outreach/internal/mailbox/smtpimap"
 	"outreach/internal/workspace"
 )
 
@@ -42,7 +43,7 @@ func main() {
 
 	a := auth.New(auth.NewPostgres(pool))
 	ws := workspace.New(workspace.NewPostgres(pool))
-	mb := mailbox.New(mailbox.NewPostgres(pool, keys))
+	mb := mailbox.New(mailbox.NewPostgres(pool, keys), smtpimap.Probe{})
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
@@ -61,6 +62,7 @@ func main() {
 	mux.Handle("PATCH /api/v1/mailboxes/{id}", a.Require(http.HandlerFunc(mb.Patch)))
 	mux.Handle("POST /api/v1/mailboxes/{id}/pause", a.Require(http.HandlerFunc(mb.Pause)))
 	mux.Handle("POST /api/v1/mailboxes/{id}/reconnect", a.Require(http.HandlerFunc(mb.Reconnect)))
+	mux.Handle("POST /api/v1/mailboxes/{id}/test", a.Require(http.HandlerFunc(mb.Test)))
 	mux.Handle("GET /api/v1/google-service-accounts", a.Require(http.HandlerFunc(mb.ListSA)))
 	mux.Handle("POST /api/v1/google-service-accounts", a.Require(http.HandlerFunc(mb.CreateSA)))
 

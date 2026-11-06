@@ -20,14 +20,20 @@ type Store interface {
 	AssignWarmup(ctx context.Context, workspaceID, id uuid.UUID, kind string) error
 	CreateSA(ctx context.Context, workspaceID uuid.UUID, in SAInput) (ServiceAccount, error)
 	ListSA(ctx context.Context, workspaceID uuid.UUID) ([]ServiceAccount, error)
+	SMTPEndpoint(ctx context.Context, workspaceID, id uuid.UUID) (host string, port int, err error)
+}
+
+type SMTPTester interface {
+	Test(ctx context.Context, host string, port int) error
 }
 
 type API struct {
 	store Store
+	smtp  SMTPTester
 }
 
-func New(store Store) *API {
-	return &API{store: store}
+func New(store Store, smtp SMTPTester) *API {
+	return &API{store: store, smtp: smtp}
 }
 
 func (a *API) List(w http.ResponseWriter, r *http.Request) {
@@ -156,6 +162,32 @@ func (a *API) Reconnect(w http.ResponseWriter, r *http.Request) {
 	a.mutateStatus(w, r, a.store.Reconnect)
 }
 
+func (a *API) Test(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.session(w, r)
+	if !ok {
+		return
+	}
+	if err := a.requireEdit(r.Context(), s); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", "invalid id")
+		return
+	}
+	host, port, err := a.store.SMTPEndpoint(r.Context(), s.WorkspaceID, id)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if err := a.smtp.Test(r.Context(), host, port); err != nil {
+		writeError(w, http.StatusBadGateway, "test_failed", err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
 func (a *API) Patch(w http.ResponseWriter, r *http.Request) {
 	s, ok := a.session(w, r)
 	if !ok {
@@ -241,6 +273,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "domain_taken", err.Error())
 	case errors.Is(err, ErrEmailTaken):
 		writeError(w, http.StatusConflict, "email_taken", err.Error())
+	case errors.Is(err, ErrNoSMTP):
+		writeError(w, http.StatusBadRequest, "no_smtp", err.Error())
 	case errors.Is(err, ErrForbidden):
 		writeError(w, http.StatusForbidden, "forbidden", "owner or member role required")
 	case errors.Is(err, ErrNotFound):

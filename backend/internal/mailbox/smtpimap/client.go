@@ -28,6 +28,14 @@ func New(cfg Config) *Client {
 	return &Client{cfg: cfg}
 }
 
+type Probe struct{}
+
+func (Probe) Test(ctx context.Context, host string, port int) error {
+	return New(Config{SMTPHost: host, SMTPPort: port}).Test(ctx)
+}
+
+var _ mailbox.SMTPTester = Probe{}
+
 var _ mailbox.Transport = (*Client)(nil)
 
 func (c *Client) Test(ctx context.Context) error {
@@ -111,7 +119,7 @@ func (c *Client) smtpClient(ctx context.Context) (*smtp.Client, error) {
 }
 
 func (c *Client) maybeAuth(client *smtp.Client) error {
-	if c.cfg.Username == "" {
+	if c.cfg.Username == "" || c.cfg.Password == "" {
 		return nil
 	}
 	ok, _ := client.Extension("AUTH")
