@@ -14,6 +14,18 @@ type Membership struct {
 	Role        string
 }
 
+type Secret struct {
+	WorkspaceID pgtype.UUID
+	ID          pgtype.UUID
+	Kind        string
+	KeyVersion  int32
+	WrappedDek  []byte
+	Nonce       []byte
+	Ciphertext  []byte
+	Hint        pgtype.Text
+	CreatedAt   pgtype.Timestamptz
+}
+
 type Session struct {
 	ID          string
 	UserID      pgtype.UUID
