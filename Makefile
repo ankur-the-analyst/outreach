@@ -23,7 +23,7 @@ test:
 	cd backend && go test ./...
 
 test-int:
-	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" go test ./internal/db/ -count=1 -timeout 60s
+	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" go test ./... -count=1 -timeout 60s
 
 web:
 	cd apps/web && pnpm dev

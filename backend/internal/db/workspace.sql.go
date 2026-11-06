@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countWorkspaces = `-- name: CountWorkspaces :one
@@ -23,6 +24,36 @@ func (q *Queries) CountWorkspaces(ctx context.Context) (int64, error) {
 	return n, err
 }
 
+const deleteMembershipsForWorkspace = `-- name: DeleteMembershipsForWorkspace :exec
+delete from memberships
+where workspace_id = $1
+`
+
+func (q *Queries) DeleteMembershipsForWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteMembershipsForWorkspace, workspaceID)
+	return err
+}
+
+const deleteSessionsForWorkspace = `-- name: DeleteSessionsForWorkspace :exec
+delete from sessions
+where workspace_id = $1
+`
+
+func (q *Queries) DeleteSessionsForWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteSessionsForWorkspace, workspaceID)
+	return err
+}
+
+const deleteUser = `-- name: DeleteUser :exec
+delete from users
+where id = $1
+`
+
+func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUser, id)
+	return err
+}
+
 const deleteWorkspace = `-- name: DeleteWorkspace :exec
 delete from workspaces
 where id = $1
@@ -30,5 +61,115 @@ where id = $1
 
 func (q *Queries) DeleteWorkspace(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspace, id)
+	return err
+}
+
+const getMembership = `-- name: GetMembership :one
+select workspace_id, user_id, role
+from memberships
+where workspace_id = $1 and user_id = $2
+`
+
+type GetMembershipParams struct {
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
+}
+
+func (q *Queries) GetMembership(ctx context.Context, arg GetMembershipParams) (Membership, error) {
+	row := q.db.QueryRow(ctx, getMembership, arg.WorkspaceID, arg.UserID)
+	var i Membership
+	err := row.Scan(&i.WorkspaceID, &i.UserID, &i.Role)
+	return i, err
+}
+
+const getWorkspace = `-- name: GetWorkspace :one
+select id, name, sends_paused, created_at
+from workspaces
+where id = $1
+`
+
+func (q *Queries) GetWorkspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
+	row := q.db.QueryRow(ctx, getWorkspace, id)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.SendsPaused,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listMembers = `-- name: ListMembers :many
+select m.workspace_id, m.user_id, m.role, u.email, u.name
+from memberships m
+join users u on u.id = m.user_id
+where m.workspace_id = $1
+order by m.role, u.email
+`
+
+type ListMembersRow struct {
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
+	Role        string
+	Email       string
+	Name        pgtype.Text
+}
+
+func (q *Queries) ListMembers(ctx context.Context, workspaceID uuid.UUID) ([]ListMembersRow, error) {
+	rows, err := q.db.Query(ctx, listMembers, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMembersRow
+	for rows.Next() {
+		var i ListMembersRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.UserID,
+			&i.Role,
+			&i.Email,
+			&i.Name,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setSendsPaused = `-- name: SetSendsPaused :exec
+update workspaces
+set sends_paused = $2
+where id = $1
+`
+
+type SetSendsPausedParams struct {
+	ID          uuid.UUID
+	SendsPaused bool
+}
+
+func (q *Queries) SetSendsPaused(ctx context.Context, arg SetSendsPausedParams) error {
+	_, err := q.db.Exec(ctx, setSendsPaused, arg.ID, arg.SendsPaused)
+	return err
+}
+
+const updateWorkspaceName = `-- name: UpdateWorkspaceName :exec
+update workspaces
+set name = $2
+where id = $1
+`
+
+type UpdateWorkspaceNameParams struct {
+	ID   uuid.UUID
+	Name string
+}
+
+func (q *Queries) UpdateWorkspaceName(ctx context.Context, arg UpdateWorkspaceNameParams) error {
+	_, err := q.db.Exec(ctx, updateWorkspaceName, arg.ID, arg.Name)
 	return err
 }

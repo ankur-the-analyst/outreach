@@ -11,6 +11,7 @@ import (
 	"outreach/internal/config"
 	"outreach/internal/db"
 	"outreach/internal/health"
+	"outreach/internal/workspace"
 )
 
 func main() {
@@ -32,6 +33,7 @@ func main() {
 	defer pool.Close()
 
 	a := auth.New(auth.NewPostgres(pool))
+	ws := workspace.New(workspace.NewPostgres(pool))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
@@ -39,6 +41,12 @@ func main() {
 	mux.HandleFunc("POST /api/v1/auth/login", a.Login)
 	mux.Handle("POST /api/v1/auth/logout", a.Require(http.HandlerFunc(a.Logout)))
 	mux.Handle("GET /api/v1/me", a.Require(http.HandlerFunc(a.Me)))
+	mux.Handle("GET /api/v1/workspace", a.Require(http.HandlerFunc(ws.Get)))
+	mux.Handle("PATCH /api/v1/workspace", a.Require(http.HandlerFunc(ws.Patch)))
+	mux.Handle("DELETE /api/v1/workspace", a.Require(http.HandlerFunc(ws.Delete)))
+	mux.Handle("PUT /api/v1/workspace/kill-switch", a.Require(http.HandlerFunc(ws.PutKillSwitch)))
+	mux.Handle("GET /api/v1/workspace/members", a.Require(http.HandlerFunc(ws.ListMembers)))
+	mux.Handle("POST /api/v1/workspace/members", a.Require(http.HandlerFunc(ws.Invite)))
 
 	logger.Info("api listening", "addr", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {

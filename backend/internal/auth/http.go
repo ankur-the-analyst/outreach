@@ -52,6 +52,10 @@ func SessionFrom(ctx context.Context) (Session, bool) {
 	return s, ok
 }
 
+func WithSession(ctx context.Context, s Session) context.Context {
+	return context.WithValue(ctx, ctxSession, s)
+}
+
 func (a *API) Register(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Email    string `json:"email"`
