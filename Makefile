@@ -2,7 +2,7 @@ DATABASE_URL ?= postgres://outreach:outreach@127.0.0.1:5433/outreach?sslmode=dis
 DATABASE_APP_URL ?= postgres://outreach_app:outreach_app@127.0.0.1:5433/outreach?sslmode=disable
 DBMATE := dbmate --url "$(DATABASE_URL)" --migrations-dir backend/migrations
 
-.PHONY: up down logs api migrate migrate-down migrate-status sqlc test
+.PHONY: up down logs api migrate migrate-down migrate-status sqlc test web
 
 up:
 	docker compose up -d
@@ -21,6 +21,9 @@ sqlc:
 
 test:
 	cd backend && go test ./...
+
+web:
+	cd apps/web && pnpm dev
 
 migrate:
 	$(DBMATE) up
