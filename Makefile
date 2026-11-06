@@ -1,5 +1,7 @@
 DATABASE_URL ?= postgres://outreach:outreach@127.0.0.1:5433/outreach?sslmode=disable
 DATABASE_APP_URL ?= postgres://outreach_app:outreach_app@127.0.0.1:5433/outreach?sslmode=disable
+MAILPIT_SMTP ?= 127.0.0.1:1025
+MAILPIT_API ?= http://127.0.0.1:8025
 DBMATE := dbmate --url "$(DATABASE_URL)" --migrations-dir backend/migrations
 
 .PHONY: up down logs api migrate migrate-down migrate-status sqlc test test-int web
@@ -23,7 +25,7 @@ test:
 	cd backend && go test ./...
 
 test-int:
-	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" go test ./... -count=1 -timeout 60s
+	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" MAILPIT_SMTP="$(MAILPIT_SMTP)" MAILPIT_API="$(MAILPIT_API)" go test ./... -count=1 -timeout 60s
 
 web:
 	cd apps/web && pnpm dev
