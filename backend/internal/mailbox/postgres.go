@@ -92,8 +92,8 @@ func (p *Postgres) Connect(ctx context.Context, workspaceID uuid.UUID, in Connec
 	if err := RejectGmailServiceAccount(in.Email, in.AuthKind); err != nil {
 		return Mailbox{}, err
 	}
-	if in.AuthKind == "service_account" || in.AuthKind == "oauth" {
-		return Mailbox{}, ErrNotSupported
+	if in.AuthKind == "oauth" {
+		return Mailbox{}, ErrNotConfigured
 	}
 	var out Mailbox
 	err := p.pool.InTx(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
@@ -127,6 +127,14 @@ func (p *Postgres) Connect(ctx context.Context, workspaceID uuid.UUID, in Connec
 			return err
 		}
 		var secretID *uuid.UUID
+		var saID *uuid.UUID
+		if in.AuthKind == "service_account" {
+			id, err := lookupSA(ctx, q, workspaceID, domName)
+			if err != nil {
+				return err
+			}
+			saID = &id
+		}
 		if in.Password != "" {
 			id, err := uuid.NewV7()
 			if err != nil {
@@ -155,6 +163,9 @@ func (p *Postgres) Connect(ctx context.Context, workspaceID uuid.UUID, in Connec
 			return err
 		}
 		provider := ProviderFor(in.Email)
+		if in.AuthKind == "service_account" {
+			provider = "workspace"
+		}
 		host, port, tlsMode, imapHost, imapPort := smtpDefaults(provider, in)
 		daily := int32(40)
 		hourly := int32(15)
@@ -184,6 +195,7 @@ func (p *Postgres) Connect(ctx context.Context, workspaceID uuid.UUID, in Connec
 			ImapPort:            int4(imapPort),
 			Username:            text(strings.ToLower(strings.TrimSpace(in.Email))),
 			SecretID:            secretID,
+			ServiceAccountID:    saID,
 			SendingDomainID:     dom.ID,
 			Timezone:            in.Timezone,
 			WindowDays:          []int32{1, 2, 3, 4, 5},
@@ -205,7 +217,7 @@ func (p *Postgres) Connect(ctx context.Context, workspaceID uuid.UUID, in Connec
 		return nil
 	})
 	if isUnique(err) {
-		return Mailbox{}, fmt.Errorf("mailbox: email taken")
+		return Mailbox{}, ErrEmailTaken
 	}
 	return out, err
 }

@@ -11,6 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type GoogleServiceAccount struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Domain      string
+	ClientEmail string
+	ClientID    string
+	SecretID    uuid.UUID
+	Scopes      []string
+	CreatedAt   pgtype.Timestamptz
+}
+
 type Mailbox struct {
 	WorkspaceID         uuid.UUID
 	ID                  uuid.UUID

@@ -33,6 +33,12 @@ func (f *fakeStore) Reconnect(context.Context, uuid.UUID, uuid.UUID) error { ret
 func (f *fakeStore) AssignWarmup(context.Context, uuid.UUID, uuid.UUID, string) error {
 	return f.err
 }
+func (f *fakeStore) CreateSA(context.Context, uuid.UUID, SAInput) (ServiceAccount, error) {
+	return ServiceAccount{}, f.err
+}
+func (f *fakeStore) ListSA(context.Context, uuid.UUID) ([]ServiceAccount, error) {
+	return nil, f.err
+}
 
 func TestCreateRejectsGmailServiceAccount(t *testing.T) {
 	t.Parallel()
@@ -51,6 +57,38 @@ func TestCreateRejectsGmailServiceAccount(t *testing.T) {
 	}
 	if !bytes.Contains(rec.Body.Bytes(), []byte("gmail_sa")) {
 		t.Fatalf("body %s", rec.Body.Bytes())
+	}
+}
+
+func TestCreateOAuthNotConfigured(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner"})
+	body := `{"email":"ada@acme.com","auth_kind":"oauth","timezone":"UTC"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/mailboxes", bytes.NewBufferString(body))
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Create(rec, req)
+	if rec.Code != http.StatusBadRequest || !bytes.Contains(rec.Body.Bytes(), []byte("not_configured")) {
+		t.Fatalf("got %d %s", rec.Code, rec.Body.Bytes())
+	}
+}
+
+func TestCreateEmailTakenIsConflict(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner", err: ErrEmailTaken})
+	body := `{"email":"ada@acme.com","auth_kind":"smtp_imap","timezone":"UTC"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/mailboxes", bytes.NewBufferString(body))
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Create(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("got %d %s", rec.Code, rec.Body.Bytes())
 	}
 }
 

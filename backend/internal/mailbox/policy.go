@@ -10,6 +10,7 @@ var (
 	ErrForbidden           = errors.New("forbidden")
 	ErrNotFound            = errors.New("not found")
 	ErrNotSupported        = errors.New("auth kind not supported yet")
+	ErrEmailTaken          = errors.New("mailbox already connected")
 )
 
 func EmailDomain(email string) string {

@@ -36,6 +36,7 @@ func TestPostgresConnectPauseReconnect(t *testing.T) {
 		defer cancel()
 		_ = pool.InTx(c, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, q *db.Queries) error {
 			_ = q.DeleteMailboxesForWorkspace(ctx, wsID)
+			_ = q.DeleteGoogleServiceAccountsForWorkspace(ctx, wsID)
 			_ = q.DeleteSecretsForWorkspace(ctx, wsID)
 			_ = q.DeleteWarmupProfilesForWorkspace(ctx, wsID)
 			_ = q.DeleteSendingDomainsForWorkspace(ctx, wsID)
@@ -86,5 +87,61 @@ func TestPostgresConnectPauseReconnect(t *testing.T) {
 	})
 	if err != ErrGmailServiceAccount {
 		t.Fatalf("gmail sa: %v", err)
+	}
+}
+
+func TestPostgresSAUniquePerDomain(t *testing.T) {
+	url := os.Getenv("DATABASE_APP_URL")
+	if url == "" {
+		t.Skip("DATABASE_APP_URL not set")
+	}
+	keys, err := crypto.NewKeyring("1:0000000000000000000000000000000000000000000000000000000000000001", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	pool, err := db.Open(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		c, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = pool.InTx(c, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, q *db.Queries) error {
+			_ = q.DeleteMailboxesForWorkspace(ctx, wsID)
+			_ = q.DeleteGoogleServiceAccountsForWorkspace(ctx, wsID)
+			_ = q.DeleteSecretsForWorkspace(ctx, wsID)
+			_ = q.DeleteWorkspace(ctx, wsID)
+			return nil
+		})
+		pool.Close()
+	})
+	err = pool.InTx(ctx, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, q *db.Queries) error {
+		return q.InsertWorkspace(ctx, db.InsertWorkspaceParams{ID: wsID, Name: "sa-m24"})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := NewPostgres(pool, keys)
+	key := []byte(`{"client_email":"sa@proj.iam.gserviceaccount.com","client_id":"1","private_key":"-----BEGIN PRIVATE KEY-----\nX\n-----END PRIVATE KEY-----\n"}`)
+	got, err := store.CreateSA(ctx, wsID, SAInput{Domain: "acme.com", JSON: key})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if got.Domain != "acme.com" {
+		t.Fatalf("%+v", got)
+	}
+	_, err = store.CreateSA(ctx, wsID, SAInput{Domain: "acme.com", JSON: key})
+	if err != ErrSADomainTaken {
+		t.Fatalf("unique: %v", err)
+	}
+	_, err = store.CreateSA(ctx, wsID, SAInput{Domain: "gmail.com", JSON: key})
+	if err != ErrGmailServiceAccount {
+		t.Fatalf("gmail domain: %v", err)
 	}
 }

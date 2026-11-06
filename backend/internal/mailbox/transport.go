@@ -2,9 +2,12 @@ package mailbox
 
 import (
 	"context"
+	"errors"
 
 	"outreach/internal/mime"
 )
+
+var ErrNotConfigured = errors.New("oauth transport not configured")
 
 type SendResult struct {
 	ProviderID string

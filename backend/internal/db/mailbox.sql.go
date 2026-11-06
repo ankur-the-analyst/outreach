@@ -12,6 +12,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteGoogleServiceAccountsForWorkspace = `-- name: DeleteGoogleServiceAccountsForWorkspace :exec
+delete from google_service_accounts
+where workspace_id = $1
+`
+
+func (q *Queries) DeleteGoogleServiceAccountsForWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteGoogleServiceAccountsForWorkspace, workspaceID)
+	return err
+}
+
 const deleteMailboxesForWorkspace = `-- name: DeleteMailboxesForWorkspace :exec
 delete from mailboxes
 where workspace_id = $1
@@ -30,6 +40,33 @@ where workspace_id = $1
 func (q *Queries) DeleteSecretsForWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteSecretsForWorkspace, workspaceID)
 	return err
+}
+
+const getGoogleServiceAccountByDomain = `-- name: GetGoogleServiceAccountByDomain :one
+select workspace_id, id, domain, client_email, client_id, secret_id, scopes, created_at
+from google_service_accounts
+where workspace_id = $1 and domain = $2
+`
+
+type GetGoogleServiceAccountByDomainParams struct {
+	WorkspaceID uuid.UUID
+	Domain      string
+}
+
+func (q *Queries) GetGoogleServiceAccountByDomain(ctx context.Context, arg GetGoogleServiceAccountByDomainParams) (GoogleServiceAccount, error) {
+	row := q.db.QueryRow(ctx, getGoogleServiceAccountByDomain, arg.WorkspaceID, arg.Domain)
+	var i GoogleServiceAccount
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.Domain,
+		&i.ClientEmail,
+		&i.ClientID,
+		&i.SecretID,
+		&i.Scopes,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const getMailbox = `-- name: GetMailbox :one
@@ -171,21 +208,62 @@ func (q *Queries) GetWarmupProfileByKind(ctx context.Context, arg GetWarmupProfi
 	return i, err
 }
 
+const insertGoogleServiceAccount = `-- name: InsertGoogleServiceAccount :one
+insert into google_service_accounts (
+  workspace_id, id, domain, client_email, client_id, secret_id, scopes
+) values ($1, $2, $3, $4, $5, $6, $7)
+returning workspace_id, id, domain, client_email, client_id, secret_id, scopes, created_at
+`
+
+type InsertGoogleServiceAccountParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Domain      string
+	ClientEmail string
+	ClientID    string
+	SecretID    uuid.UUID
+	Scopes      []string
+}
+
+func (q *Queries) InsertGoogleServiceAccount(ctx context.Context, arg InsertGoogleServiceAccountParams) (GoogleServiceAccount, error) {
+	row := q.db.QueryRow(ctx, insertGoogleServiceAccount,
+		arg.WorkspaceID,
+		arg.ID,
+		arg.Domain,
+		arg.ClientEmail,
+		arg.ClientID,
+		arg.SecretID,
+		arg.Scopes,
+	)
+	var i GoogleServiceAccount
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.Domain,
+		&i.ClientEmail,
+		&i.ClientID,
+		&i.SecretID,
+		&i.Scopes,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const insertMailbox = `-- name: InsertMailbox :one
 insert into mailboxes (
   workspace_id, id, email, display_name, auth_kind, provider,
   smtp_host, smtp_port, smtp_tls, imap_host, imap_port, username,
-  secret_id, sending_domain_id, timezone,
+  secret_id, service_account_id, sending_domain_id, timezone,
   window_days, window_start, window_end,
   daily_limit, hourly_limit, min_gap_s, max_gap_s, hard_daily_ceiling,
   warmup_profile_id, effective_daily_limit, status
 ) values (
   $1, $2, $3, $4, $5, $6,
   $7, $8, $9, $10, $11, $12,
-  $13, $14, $15,
-  $16, $17, $18,
-  $19, $20, $21, $22, $23,
-  $24, $25, $26
+  $13, $14, $15, $16,
+  $17, $18, $19,
+  $20, $21, $22, $23, $24,
+  $25, $26, $27
 )
 returning
   workspace_id, id, email, display_name, auth_kind, provider,
@@ -208,6 +286,7 @@ type InsertMailboxParams struct {
 	ImapPort            pgtype.Int4
 	Username            pgtype.Text
 	SecretID            *uuid.UUID
+	ServiceAccountID    *uuid.UUID
 	SendingDomainID     uuid.UUID
 	Timezone            string
 	WindowDays          []int32
@@ -260,6 +339,7 @@ func (q *Queries) InsertMailbox(ctx context.Context, arg InsertMailboxParams) (I
 		arg.ImapPort,
 		arg.Username,
 		arg.SecretID,
+		arg.ServiceAccountID,
 		arg.SendingDomainID,
 		arg.Timezone,
 		arg.WindowDays,
@@ -327,6 +407,42 @@ func (q *Queries) InsertSecret(ctx context.Context, arg InsertSecretParams) erro
 		arg.Hint,
 	)
 	return err
+}
+
+const listGoogleServiceAccounts = `-- name: ListGoogleServiceAccounts :many
+select workspace_id, id, domain, client_email, client_id, secret_id, scopes, created_at
+from google_service_accounts
+where workspace_id = $1
+order by domain
+`
+
+func (q *Queries) ListGoogleServiceAccounts(ctx context.Context, workspaceID uuid.UUID) ([]GoogleServiceAccount, error) {
+	rows, err := q.db.Query(ctx, listGoogleServiceAccounts, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GoogleServiceAccount
+	for rows.Next() {
+		var i GoogleServiceAccount
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.ID,
+			&i.Domain,
+			&i.ClientEmail,
+			&i.ClientID,
+			&i.SecretID,
+			&i.Scopes,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listMailboxes = `-- name: ListMailboxes :many

@@ -22,17 +22,17 @@ where workspace_id = $1 and id = $2;
 insert into mailboxes (
   workspace_id, id, email, display_name, auth_kind, provider,
   smtp_host, smtp_port, smtp_tls, imap_host, imap_port, username,
-  secret_id, sending_domain_id, timezone,
+  secret_id, service_account_id, sending_domain_id, timezone,
   window_days, window_start, window_end,
   daily_limit, hourly_limit, min_gap_s, max_gap_s, hard_daily_ceiling,
   warmup_profile_id, effective_daily_limit, status
 ) values (
   $1, $2, $3, $4, $5, $6,
   $7, $8, $9, $10, $11, $12,
-  $13, $14, $15,
-  $16, $17, $18,
-  $19, $20, $21, $22, $23,
-  $24, $25, $26
+  $13, $14, $15, $16,
+  $17, $18, $19,
+  $20, $21, $22, $23, $24,
+  $25, $26, $27
 )
 returning
   workspace_id, id, email, display_name, auth_kind, provider,
@@ -76,6 +76,27 @@ where workspace_id = $1 and id = $2;
 
 -- name: DeleteMailboxesForWorkspace :exec
 delete from mailboxes
+where workspace_id = $1;
+
+-- name: InsertGoogleServiceAccount :one
+insert into google_service_accounts (
+  workspace_id, id, domain, client_email, client_id, secret_id, scopes
+) values ($1, $2, $3, $4, $5, $6, $7)
+returning workspace_id, id, domain, client_email, client_id, secret_id, scopes, created_at;
+
+-- name: GetGoogleServiceAccountByDomain :one
+select workspace_id, id, domain, client_email, client_id, secret_id, scopes, created_at
+from google_service_accounts
+where workspace_id = $1 and domain = $2;
+
+-- name: ListGoogleServiceAccounts :many
+select workspace_id, id, domain, client_email, client_id, secret_id, scopes, created_at
+from google_service_accounts
+where workspace_id = $1
+order by domain;
+
+-- name: DeleteGoogleServiceAccountsForWorkspace :exec
+delete from google_service_accounts
 where workspace_id = $1;
 
 -- name: DeleteSecretsForWorkspace :exec

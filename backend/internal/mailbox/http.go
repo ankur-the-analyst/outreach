@@ -18,6 +18,8 @@ type Store interface {
 	Pause(ctx context.Context, workspaceID, id uuid.UUID) error
 	Reconnect(ctx context.Context, workspaceID, id uuid.UUID) error
 	AssignWarmup(ctx context.Context, workspaceID, id uuid.UUID, kind string) error
+	CreateSA(ctx context.Context, workspaceID uuid.UUID, in SAInput) (ServiceAccount, error)
+	ListSA(ctx context.Context, workspaceID uuid.UUID) ([]ServiceAccount, error)
 }
 
 type API struct {
@@ -80,6 +82,10 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_input", "email and timezone required")
 		return
 	}
+	if kind == "oauth" {
+		writeStoreError(w, ErrNotConfigured)
+		return
+	}
 	if kind == "app_password" && in.Password == "" {
 		writeError(w, http.StatusBadRequest, "invalid_input", "password required")
 		return
@@ -98,6 +104,48 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, mb)
+}
+
+func (a *API) CreateSA(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.session(w, r)
+	if !ok {
+		return
+	}
+	if err := a.requireEdit(r.Context(), s); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	var in struct {
+		Domain  string          `json:"domain"`
+		JSONKey json.RawMessage `json:"json_key"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
+		return
+	}
+	sa, err := a.store.CreateSA(r.Context(), s.WorkspaceID, SAInput{Domain: in.Domain, JSON: in.JSONKey})
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, sa)
+}
+
+func (a *API) ListSA(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.session(w, r)
+	if !ok {
+		return
+	}
+	if _, err := a.store.Membership(r.Context(), s.WorkspaceID, s.UserID); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	items, err := a.store.ListSA(r.Context(), s.WorkspaceID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"service_accounts": items})
 }
 
 func (a *API) Pause(w http.ResponseWriter, r *http.Request) {
@@ -185,8 +233,14 @@ func writeStoreError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, ErrGmailServiceAccount):
 		writeError(w, http.StatusBadRequest, "gmail_sa", err.Error())
+	case errors.Is(err, ErrNotConfigured):
+		writeError(w, http.StatusBadRequest, "not_configured", err.Error())
 	case errors.Is(err, ErrNotSupported):
 		writeError(w, http.StatusBadRequest, "not_supported", err.Error())
+	case errors.Is(err, ErrSADomainTaken):
+		writeError(w, http.StatusConflict, "domain_taken", err.Error())
+	case errors.Is(err, ErrEmailTaken):
+		writeError(w, http.StatusConflict, "email_taken", err.Error())
 	case errors.Is(err, ErrForbidden):
 		writeError(w, http.StatusForbidden, "forbidden", "owner or member role required")
 	case errors.Is(err, ErrNotFound):

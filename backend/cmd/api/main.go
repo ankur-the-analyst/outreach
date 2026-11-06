@@ -61,6 +61,8 @@ func main() {
 	mux.Handle("PATCH /api/v1/mailboxes/{id}", a.Require(http.HandlerFunc(mb.Patch)))
 	mux.Handle("POST /api/v1/mailboxes/{id}/pause", a.Require(http.HandlerFunc(mb.Pause)))
 	mux.Handle("POST /api/v1/mailboxes/{id}/reconnect", a.Require(http.HandlerFunc(mb.Reconnect)))
+	mux.Handle("GET /api/v1/google-service-accounts", a.Require(http.HandlerFunc(mb.ListSA)))
+	mux.Handle("POST /api/v1/google-service-accounts", a.Require(http.HandlerFunc(mb.CreateSA)))
 
 	logger.Info("api listening", "addr", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {
