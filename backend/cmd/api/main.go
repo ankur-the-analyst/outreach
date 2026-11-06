@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"outreach/internal/auth"
 	"outreach/internal/config"
 	"outreach/internal/db"
 	"outreach/internal/health"
@@ -30,8 +31,14 @@ func main() {
 	}
 	defer pool.Close()
 
+	a := auth.New(auth.NewPostgres(pool))
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
+	mux.HandleFunc("POST /api/v1/auth/register", a.Register)
+	mux.HandleFunc("POST /api/v1/auth/login", a.Login)
+	mux.Handle("POST /api/v1/auth/logout", a.Require(http.HandlerFunc(a.Logout)))
+	mux.Handle("GET /api/v1/me", a.Require(http.HandlerFunc(a.Me)))
 
 	logger.Info("api listening", "addr", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {

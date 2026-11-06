@@ -7,7 +7,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Pool is the process-wide pgx pool. Queries go through sqlc; Ping is SELECT 1.
 type Pool struct {
 	inner *pgxpool.Pool
 	q     *Queries

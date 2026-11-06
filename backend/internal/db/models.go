@@ -5,18 +5,19 @@
 package db
 
 import (
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Membership struct {
-	WorkspaceID pgtype.UUID
-	UserID      pgtype.UUID
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
 	Role        string
 }
 
 type Secret struct {
-	WorkspaceID pgtype.UUID
-	ID          pgtype.UUID
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
 	Kind        string
 	KeyVersion  int32
 	WrappedDek  []byte
@@ -28,14 +29,14 @@ type Secret struct {
 
 type Session struct {
 	ID          string
-	UserID      pgtype.UUID
-	WorkspaceID pgtype.UUID
+	UserID      uuid.UUID
+	WorkspaceID uuid.UUID
 	ExpiresAt   pgtype.Timestamptz
 	CreatedAt   pgtype.Timestamptz
 }
 
 type User struct {
-	ID           pgtype.UUID
+	ID           uuid.UUID
 	Email        string
 	Name         pgtype.Text
 	PasswordHash pgtype.Text
@@ -44,7 +45,7 @@ type User struct {
 }
 
 type Workspace struct {
-	ID          pgtype.UUID
+	ID          uuid.UUID
 	Name        string
 	SendsPaused bool
 	CreatedAt   pgtype.Timestamptz
