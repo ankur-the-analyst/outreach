@@ -54,3 +54,22 @@ export type Mailbox = {
 export function getMailboxes() {
   return apiGet<{ mailboxes: Mailbox[] }>("/api/v1/mailboxes");
 }
+
+export type Draft = {
+  id: string;
+  mailbox_id: string;
+  to: string;
+  rfc_message_id: string;
+  kind: string;
+  subject: string;
+  body_html: string;
+  body_text: string;
+  status: string;
+  ledger_id?: string;
+  ledger_state?: string;
+  release_at?: string;
+};
+
+export function getDrafts() {
+  return apiGet<{ drafts: Draft[] }>("/api/v1/drafts");
+}

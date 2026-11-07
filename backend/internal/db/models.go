@@ -61,6 +61,26 @@ func (ns NullRiverJobState) Value() (driver.Value, error) {
 	return string(ns.RiverJobState), nil
 }
 
+type Draft struct {
+	WorkspaceID             uuid.UUID
+	ID                      uuid.UUID
+	EnrolmentID             *uuid.UUID
+	StepPosition            pgtype.Int4
+	MailboxID               uuid.UUID
+	ToAddr                  string
+	RfcMessageID            string
+	Kind                    string
+	Subject                 string
+	BodyHtml                string
+	BodyText                string
+	FactsUsed               json.RawMessage
+	Retrieval               []byte
+	NewRecipientFromInbound bool
+	Status                  string
+	ApprovedBy              *uuid.UUID
+	CreatedAt               pgtype.Timestamptz
+}
+
 type GoogleServiceAccount struct {
 	WorkspaceID uuid.UUID
 	ID          uuid.UUID

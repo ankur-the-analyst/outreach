@@ -1,0 +1,53 @@
+-- name: InsertDraft :one
+insert into drafts (
+  workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
+  subject, body_html, body_text, status
+) values (
+  $1, $2, $3, $4, $5, $6,
+  $7, $8, $9, $10
+)
+returning
+  workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
+  subject, body_html, body_text, status, approved_by, created_at;
+
+-- name: GetDraft :one
+select
+  workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
+  subject, body_html, body_text, status, approved_by, created_at
+from drafts
+where workspace_id = $1 and id = $2;
+
+-- name: UpdateDraftStatus :one
+update drafts
+set status = $3, approved_by = $4
+where workspace_id = $1 and id = $2
+returning
+  workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
+  subject, body_html, body_text, status, approved_by, created_at;
+
+-- name: ListReviewDrafts :many
+select
+  d.workspace_id, d.id, d.mailbox_id, d.to_addr, d.rfc_message_id,
+  d.kind, d.subject, d.body_html, d.body_text, d.status, d.approved_by, d.created_at,
+  l.id as ledger_id, l.state as ledger_state, l.release_at
+from drafts d
+left join send_ledger l
+  on l.workspace_id = d.workspace_id
+ and l.draft_id = d.id
+ and l.state in ('held', 'reserved', 'sending', 'sent', 'unknown')
+where d.workspace_id = $1
+  and d.status in ('pending', 'approved')
+order by d.created_at desc;
+
+-- name: GetLedgerByDraft :one
+select
+  workspace_id, id, mailbox_id, sending_domain_id, enrolment_id, draft_id,
+  step_position, is_first_touch, rfc_message_id, state, reserved_at, release_at, sent_at, created_at
+from send_ledger
+where workspace_id = $1 and draft_id = $2
+order by created_at desc
+limit 1;
+
+-- name: DeleteDraftsForWorkspace :exec
+delete from drafts
+where workspace_id = $1;
