@@ -372,6 +372,25 @@ func (q *Queries) ListThreadsForMailbox(ctx context.Context, arg ListThreadsForM
 	return items, nil
 }
 
+const markThreadRead = `-- name: MarkThreadRead :execrows
+update threads
+set unread = false
+where workspace_id = $1 and id = $2
+`
+
+type MarkThreadReadParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) MarkThreadRead(ctx context.Context, arg MarkThreadReadParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markThreadRead, arg.WorkspaceID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const touchThread = `-- name: TouchThread :exec
 update threads
 set last_message_at = $4, unread = unread or $5

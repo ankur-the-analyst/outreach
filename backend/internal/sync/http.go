@@ -15,6 +15,7 @@ type Store interface {
 	Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error)
 	SyncMailbox(ctx context.Context, workspaceID, mailboxID uuid.UUID) (int, error)
 	ListThreads(ctx context.Context, workspaceID, mailboxID uuid.UUID) ([]Thread, error)
+	MarkRead(ctx context.Context, workspaceID, threadID uuid.UUID) error
 }
 
 type API struct {
@@ -68,6 +69,32 @@ func (a *API) Threads(w http.ResponseWriter, r *http.Request) {
 		rows = []Thread{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"threads": rows})
+}
+
+func (a *API) MarkRead(w http.ResponseWriter, r *http.Request) {
+	s, ok := auth.SessionFrom(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "sign in required")
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", "invalid id")
+		return
+	}
+	if _, err := a.store.Membership(r.Context(), s.WorkspaceID, s.UserID); err != nil {
+		writeError(w, http.StatusForbidden, "forbidden", "not a member")
+		return
+	}
+	if err := a.store.MarkRead(r.Context(), s.WorkspaceID, id); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			writeError(w, http.StatusNotFound, "not_found", "not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "internal error")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *API) mailbox(w http.ResponseWriter, r *http.Request) (auth.Session, uuid.UUID, bool) {

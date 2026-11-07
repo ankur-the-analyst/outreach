@@ -105,6 +105,19 @@ func TestInReplyToJoinsThread(t *testing.T) {
 	if len(threads) != 1 || len(threads[0].Messages) != 2 {
 		t.Fatalf("dedup %+v", threads)
 	}
+	if !threads[0].Unread {
+		t.Fatal("inbound thread should start unread")
+	}
+	if err := store.MarkRead(ctx, wsID, threads[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	threads, err = store.ListThreads(ctx, wsID, mb.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if threads[0].Unread {
+		t.Fatal("mark read left unread")
+	}
 }
 
 func TestMailpitReplyAppearsAsThread(t *testing.T) {

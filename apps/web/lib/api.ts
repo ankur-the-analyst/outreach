@@ -73,3 +73,31 @@ export type Draft = {
 export function getDrafts() {
   return apiGet<{ drafts: Draft[] }>("/api/v1/drafts");
 }
+
+export type ThreadMessage = {
+  id: string;
+  direction: string;
+  rfc_message_id: string;
+  from: string;
+  to: string[];
+  subject: string;
+  body_text: string;
+  classification?: {
+    class?: string;
+    reply_draft?: boolean;
+    suppress?: boolean;
+  };
+};
+
+export type Thread = {
+  id: string;
+  mailbox_id: string;
+  subject: string;
+  unread: boolean;
+  last_message_at?: string;
+  messages?: ThreadMessage[];
+};
+
+export function getThreads(mailboxID: string) {
+  return apiGet<{ threads: Thread[] }>(`/api/v1/mailboxes/${mailboxID}/threads`);
+}

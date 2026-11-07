@@ -51,6 +51,11 @@ update messages
 set classification = $3, kind = $4
 where workspace_id = $1 and id = $2;
 
+-- name: MarkThreadRead :execrows
+update threads
+set unread = false
+where workspace_id = $1 and id = $2;
+
 -- name: ListThreadsForMailbox :many
 select workspace_id, id, mailbox_id, contact_id, subject, gmail_thread_id, last_message_at, unread
 from threads

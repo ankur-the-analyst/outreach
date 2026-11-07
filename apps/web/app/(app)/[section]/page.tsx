@@ -6,7 +6,13 @@ export const instant = false;
 
 const stubHrefs = new Set(
   navItems
-    .filter((item) => item.href !== "/" && item.href !== "/mailboxes" && item.href !== "/review")
+    .filter(
+      (item) =>
+        item.href !== "/" &&
+        item.href !== "/mailboxes" &&
+        item.href !== "/review" &&
+        item.href !== "/inbox",
+    )
     .map((item) => item.href.slice(1)),
 );
 

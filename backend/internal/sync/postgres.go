@@ -148,6 +148,20 @@ func (p *Postgres) ListThreads(ctx context.Context, workspaceID, mailboxID uuid.
 	return out, err
 }
 
+func (p *Postgres) MarkRead(ctx context.Context, workspaceID, threadID uuid.UUID) error {
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		n, err := q.MarkThreadRead(ctx, db.MarkThreadReadParams{WorkspaceID: workspaceID, ID: threadID})
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return fmt.Errorf("not found")
+		}
+		return nil
+	})
+	return err
+}
+
 func (p *Postgres) ingest(ctx context.Context, workspaceID, mailboxID uuid.UUID, mailboxEmail string, it Item) error {
 	if it.RFCMessageID == "" {
 		return nil
