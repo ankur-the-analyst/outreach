@@ -96,6 +96,17 @@ type EvidenceItem struct {
 	CreatedAt      pgtype.Timestamptz
 }
 
+type Fit struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	JobID       uuid.UUID
+	ProfileID   uuid.UUID
+	ResumeID    *uuid.UUID
+	Score       pgtype.Int4
+	Result      []byte
+	CreatedAt   pgtype.Timestamptz
+}
+
 type GoogleServiceAccount struct {
 	WorkspaceID uuid.UUID
 	ID          uuid.UUID
@@ -105,6 +116,17 @@ type GoogleServiceAccount struct {
 	SecretID    uuid.UUID
 	Scopes      []string
 	CreatedAt   pgtype.Timestamptz
+}
+
+type Job struct {
+	WorkspaceID    uuid.UUID
+	ID             uuid.UUID
+	SourceUrl      pgtype.Text
+	RawText        string
+	Title          pgtype.Text
+	Analysis       []byte
+	AnalysisStatus string
+	CreatedAt      pgtype.Timestamptz
 }
 
 type Mailbox struct {
@@ -175,6 +197,27 @@ type Message struct {
 	Classification []byte
 	EnrolmentID    *uuid.UUID
 	DraftID        *uuid.UUID
+}
+
+type Profile struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Name        string
+	About       pgtype.Text
+	Links       json.RawMessage
+	CreatedAt   pgtype.Timestamptz
+}
+
+type Resume struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	ProfileID   uuid.UUID
+	Version     int32
+	FileKey     string
+	FileName    string
+	Mime        string
+	TextContent string
+	CreatedAt   pgtype.Timestamptz
 }
 
 type RiverJob struct {

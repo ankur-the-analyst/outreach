@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
@@ -19,9 +20,11 @@ import (
 	"outreach/internal/evidence"
 	"outreach/internal/health"
 	"outreach/internal/inbound"
+	"outreach/internal/jobsjd"
 	"outreach/internal/mailbox"
 	"outreach/internal/mailbox/smtpimap"
 	"outreach/internal/sender"
+	"outreach/internal/storage"
 	"outreach/internal/suppression"
 	mailsync "outreach/internal/sync"
 	"outreach/internal/worker"
@@ -95,12 +98,17 @@ func main() {
 		WithQueue(reconcileJobs{client: jobs}).
 		WithBlocker(suppStore)
 	snd := sender.New(led)
-	writer := &ai.Fake{Model: "fake-8", Dim: evidence.Dim, Text: "You closed 12 deals last year. Open to a short chat?"}
+	writer := &ai.Fake{
+		Model: "fake-8", Dim: evidence.Dim,
+		Text: "You closed 12 deals last year. Open to a short chat?",
+		JSON: json.RawMessage(`{"score":82,"summary":"deals overlap"}`),
+	}
 	evStore := evidence.NewPostgres(pool, writer)
 	ev := evidence.New(evStore)
 	cmp := compose.New(compose.NewPostgres(pool, led).WithWriter(writer).WithCite(evStore))
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
 	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc))
+	jd := jobsjd.New(jobsjd.NewPostgres(pool, storage.NewMemory(), writer))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
@@ -141,6 +149,12 @@ func main() {
 	mux.Handle("GET /api/v1/evidence", a.Require(http.HandlerFunc(ev.List)))
 	mux.Handle("POST /api/v1/evidence", a.Require(http.HandlerFunc(ev.Propose)))
 	mux.Handle("POST /api/v1/evidence/{id}/confirm", a.Require(http.HandlerFunc(ev.Confirm)))
+	mux.Handle("GET /api/v1/profiles", a.Require(http.HandlerFunc(jd.ListProfiles)))
+	mux.Handle("POST /api/v1/profiles", a.Require(http.HandlerFunc(jd.CreateProfile)))
+	mux.Handle("POST /api/v1/profiles/{id}/resumes", a.Require(http.HandlerFunc(jd.UploadResume)))
+	mux.Handle("GET /api/v1/jobs", a.Require(http.HandlerFunc(jd.ListJobs)))
+	mux.Handle("POST /api/v1/jobs", a.Require(http.HandlerFunc(jd.CreateJob)))
+	mux.Handle("POST /api/v1/jobs/{id}/fit", a.Require(http.HandlerFunc(jd.Fit)))
 
 	logger.Info("api listening", "addr", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {
