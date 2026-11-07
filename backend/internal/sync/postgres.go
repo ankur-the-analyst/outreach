@@ -2,6 +2,7 @@ package sync
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -23,22 +24,33 @@ type Thread struct {
 }
 
 type Message struct {
-	ID           uuid.UUID `json:"id"`
-	Direction    string    `json:"direction"`
-	RFCMessageID string    `json:"rfc_message_id"`
-	From         string    `json:"from"`
-	To           []string  `json:"to"`
-	Subject      string    `json:"subject"`
-	BodyText     string    `json:"body_text"`
+	ID             uuid.UUID       `json:"id"`
+	Direction      string          `json:"direction"`
+	RFCMessageID   string          `json:"rfc_message_id"`
+	From           string          `json:"from"`
+	To             []string        `json:"to"`
+	Subject        string          `json:"subject"`
+	BodyText       string          `json:"body_text"`
+	Classification json.RawMessage `json:"classification,omitempty"`
+}
+
+type InboundHandler interface {
+	Handle(ctx context.Context, workspaceID, mailboxID, messageID uuid.UUID, from, subject, body string) error
 }
 
 type Postgres struct {
 	pool   *db.Pool
 	source Source
+	inb    InboundHandler
 }
 
 func NewPostgres(pool *db.Pool, source Source) *Postgres {
 	return &Postgres{pool: pool, source: source}
+}
+
+func (p *Postgres) WithInbound(h InboundHandler) *Postgres {
+	p.inb = h
+	return p
 }
 
 func (p *Postgres) Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error) {
@@ -123,6 +135,7 @@ func (p *Postgres) ListThreads(ctx context.Context, workspaceID, mailboxID uuid.
 				th.Messages = append(th.Messages, Message{
 					ID: m.ID, Direction: m.Direction, RFCMessageID: m.RfcMessageID,
 					From: textVal(m.FromAddr), To: m.ToAddrs, Subject: textVal(m.Subject), BodyText: textVal(m.BodyText),
+					Classification: json.RawMessage(m.Classification),
 				})
 			}
 			out = append(out, th)
@@ -139,7 +152,7 @@ func (p *Postgres) ingest(ctx context.Context, workspaceID, mailboxID uuid.UUID,
 	if it.RFCMessageID == "" {
 		return nil
 	}
-	return p.pool.ExecTx(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries, _ pgx.Tx) error {
+	err := p.pool.ExecTx(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries, _ pgx.Tx) error {
 		if err := q.AdvisoryLockMailbox(ctx, mailboxID.String()); err != nil {
 			return err
 		}
@@ -181,14 +194,40 @@ func (p *Postgres) ingest(ctx context.Context, workspaceID, mailboxID uuid.UUID,
 		}); err != nil {
 			return err
 		}
-		return q.TouchThread(ctx, db.TouchThreadParams{
+		if err := q.TouchThread(ctx, db.TouchThreadParams{
 			WorkspaceID:   workspaceID,
 			ID:            threadID,
 			MailboxID:     mailboxID,
 			LastMessageAt: ts,
 			Unread:        dir == "in",
-		})
+		}); err != nil {
+			return err
+		}
+		return nil
 	})
+	if err != nil || p.inb == nil {
+		return err
+	}
+	if strings.EqualFold(it.From, mailboxEmail) {
+		return nil
+	}
+	var msgID uuid.UUID
+	var classified bool
+	err = p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.GetMessageByRFC(ctx, db.GetMessageByRFCParams{
+			WorkspaceID: workspaceID, MailboxID: mailboxID, RfcMessageID: it.RFCMessageID,
+		})
+		if err != nil {
+			return err
+		}
+		msgID = row.ID
+		classified = len(row.Classification) > 0
+		return nil
+	})
+	if err != nil || classified {
+		return err
+	}
+	return p.inb.Handle(ctx, workspaceID, mailboxID, msgID, it.From, it.Subject, it.Text)
 }
 
 func (p *Postgres) resolveThread(ctx context.Context, q *db.Queries, workspaceID, mailboxID uuid.UUID, mailboxEmail string, it Item) (uuid.UUID, error) {

@@ -48,6 +48,79 @@ func (q *Queries) DeleteThreadsForWorkspace(ctx context.Context, workspaceID uui
 	return err
 }
 
+const getMessage = `-- name: GetMessage :one
+select workspace_id, id, mailbox_id, direction, from_addr, subject, body_text, classification
+from messages
+where workspace_id = $1 and id = $2
+`
+
+type GetMessageParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+type GetMessageRow struct {
+	WorkspaceID    uuid.UUID
+	ID             uuid.UUID
+	MailboxID      uuid.UUID
+	Direction      string
+	FromAddr       pgtype.Text
+	Subject        pgtype.Text
+	BodyText       pgtype.Text
+	Classification []byte
+}
+
+func (q *Queries) GetMessage(ctx context.Context, arg GetMessageParams) (GetMessageRow, error) {
+	row := q.db.QueryRow(ctx, getMessage, arg.WorkspaceID, arg.ID)
+	var i GetMessageRow
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.MailboxID,
+		&i.Direction,
+		&i.FromAddr,
+		&i.Subject,
+		&i.BodyText,
+		&i.Classification,
+	)
+	return i, err
+}
+
+const getMessageByRFC = `-- name: GetMessageByRFC :one
+select id, direction, classification, from_addr, subject, body_text
+from messages
+where workspace_id = $1 and mailbox_id = $2 and rfc_message_id = $3
+`
+
+type GetMessageByRFCParams struct {
+	WorkspaceID  uuid.UUID
+	MailboxID    uuid.UUID
+	RfcMessageID string
+}
+
+type GetMessageByRFCRow struct {
+	ID             uuid.UUID
+	Direction      string
+	Classification []byte
+	FromAddr       pgtype.Text
+	Subject        pgtype.Text
+	BodyText       pgtype.Text
+}
+
+func (q *Queries) GetMessageByRFC(ctx context.Context, arg GetMessageByRFCParams) (GetMessageByRFCRow, error) {
+	row := q.db.QueryRow(ctx, getMessageByRFC, arg.WorkspaceID, arg.MailboxID, arg.RfcMessageID)
+	var i GetMessageByRFCRow
+	err := row.Scan(
+		&i.ID,
+		&i.Direction,
+		&i.Classification,
+		&i.FromAddr,
+		&i.Subject,
+		&i.BodyText,
+	)
+	return i, err
+}
+
 const getThreadByRFC = `-- name: GetThreadByRFC :one
 select t.workspace_id, t.id, t.mailbox_id, t.contact_id, t.subject, t.gmail_thread_id, t.last_message_at, t.unread
 from threads t
@@ -195,7 +268,7 @@ func (q *Queries) InsertThread(ctx context.Context, arg InsertThreadParams) (Thr
 
 const listMessagesForThread = `-- name: ListMessagesForThread :many
 select workspace_id, id, mailbox_id, thread_id, direction, rfc_message_id, in_reply_to,
-  from_addr, to_addrs, subject, body_text, sent_at, received_at
+  from_addr, to_addrs, subject, body_text, sent_at, received_at, classification
 from messages
 where workspace_id = $1 and thread_id = $2
 order by coalesce(sent_at, received_at, now())
@@ -207,19 +280,20 @@ type ListMessagesForThreadParams struct {
 }
 
 type ListMessagesForThreadRow struct {
-	WorkspaceID  uuid.UUID
-	ID           uuid.UUID
-	MailboxID    uuid.UUID
-	ThreadID     uuid.UUID
-	Direction    string
-	RfcMessageID string
-	InReplyTo    pgtype.Text
-	FromAddr     pgtype.Text
-	ToAddrs      []string
-	Subject      pgtype.Text
-	BodyText     pgtype.Text
-	SentAt       pgtype.Timestamptz
-	ReceivedAt   pgtype.Timestamptz
+	WorkspaceID    uuid.UUID
+	ID             uuid.UUID
+	MailboxID      uuid.UUID
+	ThreadID       uuid.UUID
+	Direction      string
+	RfcMessageID   string
+	InReplyTo      pgtype.Text
+	FromAddr       pgtype.Text
+	ToAddrs        []string
+	Subject        pgtype.Text
+	BodyText       pgtype.Text
+	SentAt         pgtype.Timestamptz
+	ReceivedAt     pgtype.Timestamptz
+	Classification []byte
 }
 
 func (q *Queries) ListMessagesForThread(ctx context.Context, arg ListMessagesForThreadParams) ([]ListMessagesForThreadRow, error) {
@@ -245,6 +319,7 @@ func (q *Queries) ListMessagesForThread(ctx context.Context, arg ListMessagesFor
 			&i.BodyText,
 			&i.SentAt,
 			&i.ReceivedAt,
+			&i.Classification,
 		); err != nil {
 			return nil, err
 		}
@@ -318,6 +393,29 @@ func (q *Queries) TouchThread(ctx context.Context, arg TouchThreadParams) error 
 		arg.MailboxID,
 		arg.LastMessageAt,
 		arg.Unread,
+	)
+	return err
+}
+
+const updateMessageClassification = `-- name: UpdateMessageClassification :exec
+update messages
+set classification = $3, kind = $4
+where workspace_id = $1 and id = $2
+`
+
+type UpdateMessageClassificationParams struct {
+	WorkspaceID    uuid.UUID
+	ID             uuid.UUID
+	Classification []byte
+	Kind           pgtype.Text
+}
+
+func (q *Queries) UpdateMessageClassification(ctx context.Context, arg UpdateMessageClassificationParams) error {
+	_, err := q.db.Exec(ctx, updateMessageClassification,
+		arg.WorkspaceID,
+		arg.ID,
+		arg.Classification,
+		arg.Kind,
 	)
 	return err
 }

@@ -8,11 +8,15 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 	"outreach/internal/config"
 	"outreach/internal/crypto"
 	"outreach/internal/db"
+	"outreach/internal/inbound"
 	"outreach/internal/sender"
+	"outreach/internal/suppression"
 	mailsync "outreach/internal/sync"
 	"outreach/internal/worker"
 )
@@ -46,7 +50,14 @@ func main() {
 	led := sender.NewPostgres(pool, time.Now, hold).
 		WithDialer(sender.NewMailboxDialer(pool, keys)).
 		WithUnknownTimeout(unknown)
-	ing := mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI})
+	jobs, err := worker.NewInsertClient(pool)
+	if err != nil {
+		logger.Error("river insert client", "err", err)
+		os.Exit(1)
+	}
+	suppStore := suppression.NewPostgres(pool, keys)
+	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
+	ing := mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc)
 
 	client, err := worker.NewWorkerClient(pool, func(w *river.Workers) {
 		worker.AddReconcile(w, func(ctx context.Context, a worker.ReconcileArgs) error {
@@ -58,6 +69,9 @@ func main() {
 		worker.AddSync(w, func(ctx context.Context, a worker.SyncArgs) error {
 			_, err := ing.SyncMailbox(ctx, a.WorkspaceID, a.MailboxID)
 			return err
+		})
+		worker.AddClassify(w, func(ctx context.Context, a worker.ClassifyArgs) error {
+			return proc.ClassifyStored(ctx, a.WorkspaceID, a.MessageID)
 		})
 	})
 	if err != nil {
@@ -81,4 +95,12 @@ func main() {
 		logger.Error("river stop", "err", err)
 		os.Exit(1)
 	}
+}
+
+type classifyJobs struct {
+	client *river.Client[pgx.Tx]
+}
+
+func (j classifyJobs) Enqueue(ctx context.Context, workspaceID, messageID uuid.UUID) error {
+	return worker.EnqueueClassify(ctx, j.client, workspaceID, messageID)
 }

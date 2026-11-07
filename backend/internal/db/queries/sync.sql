@@ -36,6 +36,21 @@ insert into messages (
 )
 on conflict (workspace_id, mailbox_id, rfc_message_id) do nothing;
 
+-- name: GetMessageByRFC :one
+select id, direction, classification, from_addr, subject, body_text
+from messages
+where workspace_id = $1 and mailbox_id = $2 and rfc_message_id = $3;
+
+-- name: GetMessage :one
+select workspace_id, id, mailbox_id, direction, from_addr, subject, body_text, classification
+from messages
+where workspace_id = $1 and id = $2;
+
+-- name: UpdateMessageClassification :exec
+update messages
+set classification = $3, kind = $4
+where workspace_id = $1 and id = $2;
+
 -- name: ListThreadsForMailbox :many
 select workspace_id, id, mailbox_id, contact_id, subject, gmail_thread_id, last_message_at, unread
 from threads
@@ -44,7 +59,7 @@ order by last_message_at desc nulls last;
 
 -- name: ListMessagesForThread :many
 select workspace_id, id, mailbox_id, thread_id, direction, rfc_message_id, in_reply_to,
-  from_addr, to_addrs, subject, body_text, sent_at, received_at
+  from_addr, to_addrs, subject, body_text, sent_at, received_at, classification
 from messages
 where workspace_id = $1 and thread_id = $2
 order by coalesce(sent_at, received_at, now());

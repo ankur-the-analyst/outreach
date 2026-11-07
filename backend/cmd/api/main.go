@@ -16,6 +16,7 @@ import (
 	"outreach/internal/crypto"
 	"outreach/internal/db"
 	"outreach/internal/health"
+	"outreach/internal/inbound"
 	"outreach/internal/mailbox"
 	"outreach/internal/mailbox/smtpimap"
 	"outreach/internal/sender"
@@ -27,6 +28,14 @@ import (
 
 type reconcileJobs struct {
 	client *river.Client[pgx.Tx]
+}
+
+type classifyJobs struct {
+	client *river.Client[pgx.Tx]
+}
+
+func (j classifyJobs) Enqueue(ctx context.Context, workspaceID, messageID uuid.UUID) error {
+	return worker.EnqueueClassify(ctx, j.client, workspaceID, messageID)
 }
 
 func (j reconcileJobs) EnqueueReconcile(ctx context.Context, workspaceID, ledgerID uuid.UUID, in sender.SendInput) error {
@@ -85,7 +94,8 @@ func main() {
 		WithBlocker(suppStore)
 	snd := sender.New(led)
 	cmp := compose.New(compose.NewPostgres(pool, led))
-	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}))
+	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
+	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
