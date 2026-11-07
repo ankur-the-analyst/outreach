@@ -1,10 +1,34 @@
+import { Suspense } from "react";
+import { OverviewBoard } from "@/components/overview-board";
+import { getCampaigns, getDrafts, getMailboxes } from "@/lib/api";
+
+export const instant = false;
+
+async function OverviewBody() {
+  const [drafts, mailboxes, campaigns] = await Promise.all([
+    getDrafts(),
+    getMailboxes(),
+    getCampaigns(),
+  ]);
+  return (
+    <main className="flex min-h-0 flex-1 flex-col">
+      <OverviewBoard
+        drafts={drafts?.drafts ?? []}
+        mailboxes={mailboxes?.mailboxes ?? []}
+        campaigns={campaigns?.campaigns ?? []}
+      />
+    </main>
+  );
+}
+
 export default function OverviewPage() {
   return (
-    <main className="rounded-md border border-border bg-card p-6">
-      <h1 className="font-headline-xl text-foreground">Overview</h1>
-      <p className="mt-2 font-body-md text-muted-foreground">
-        Nothing queued yet. Mailboxes and campaigns come in later slices.
-      </p>
-    </main>
+    <Suspense
+      fallback={
+        <main className="font-body-md text-muted-foreground">Loading…</main>
+      }
+    >
+      <OverviewBody />
+    </Suspense>
   );
 }

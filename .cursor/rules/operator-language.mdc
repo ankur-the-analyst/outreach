@@ -1,0 +1,18 @@
+---
+description: Architecture internals stay in Go/SQL; UI speaks operator language
+alwaysApply: true
+---
+
+# Operator language
+
+Use HLD/LLD names in the backend (`send_ledger`, enrolment, `FORCE RLS`, GUC, River, packs). Do not put those names on screens, nav, buttons, empty states, or user-facing errors.
+
+The UI is for the operator: who is in a campaign, drafts to review, undo for a few minutes, mailbox paused, this send already went out. Wire the ledger and jobs as designed; label the outcome, not the table.
+
+Examples:
+
+- Ledger row / `held` → “You can still undo” / cancel send, not “ledger” or “held state”
+- Enrolment → contact in this campaign
+- Pack / intent → campaign type (job, cold, …)
+- `unknown` / reconcile → “Checking if it sent”, not “ledger unknown”
+- Do not add a Ledger page or expose `ledger_id` as a primary UI field

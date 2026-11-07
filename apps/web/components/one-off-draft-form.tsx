@@ -6,8 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { Mailbox } from "@/lib/api";
+import { fieldSelect, fieldTextarea } from "@/lib/labels";
 
-export function OneOffDraftForm({ mailboxes }: { mailboxes: Mailbox[] }) {
+export function OneOffDraftForm({
+  mailboxes,
+  onSaved,
+}: {
+  mailboxes: Mailbox[];
+  onSaved?: () => void;
+}) {
   const router = useRouter();
   const [mailboxID, setMailboxID] = useState(mailboxes[0]?.id ?? "");
   const [to, setTo] = useState("");
@@ -43,22 +50,19 @@ export function OneOffDraftForm({ mailboxes }: { mailboxes: Mailbox[] }) {
     setSubject("");
     setText("");
     router.refresh();
+    onSaved?.();
   }
 
   if (mailboxes.length === 0) {
     return (
-      <p className="mt-8 font-body-md text-muted-foreground">
+      <p className="font-body-md text-muted-foreground">
         Connect a mailbox first.
       </p>
     );
   }
 
   return (
-    <form
-      onSubmit={onSubmit}
-      className="mt-8 flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-6"
-    >
-      <h2 className="font-headline-md text-foreground">One-off draft</h2>
+    <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="draft-mailbox">Mailbox</Label>
         <select
@@ -66,7 +70,7 @@ export function OneOffDraftForm({ mailboxes }: { mailboxes: Mailbox[] }) {
           required
           value={mailboxID}
           onChange={(e) => setMailboxID(e.target.value)}
-          className="h-8 w-full rounded-md border border-input bg-card px-2.5 font-[family-name:var(--font-body)] text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className={fieldSelect}
         >
           {mailboxes.map((mb) => (
             <option key={mb.id} value={mb.id}>
@@ -102,13 +106,15 @@ export function OneOffDraftForm({ mailboxes }: { mailboxes: Mailbox[] }) {
           rows={6}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="w-full rounded-md border border-input bg-card px-2.5 py-2 font-[family-name:var(--font-body)] text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className={`${fieldTextarea} max-w-[68ch]`}
         />
       </div>
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
-      <Button type="submit" className="rounded-md" disabled={pending}>
-        {pending ? "Saving…" : "Save to review"}
-      </Button>
+      <div className="flex justify-end gap-2">
+        <Button type="submit" className="rounded-md" disabled={pending}>
+          {pending ? "Saving…" : "Save to review"}
+        </Button>
+      </div>
     </form>
   );
 }

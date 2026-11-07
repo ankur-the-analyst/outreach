@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import { OneOffDraftForm } from "@/components/one-off-draft-form";
 import { ReviewQueue } from "@/components/review-queue";
 import { getDrafts, getMailboxes } from "@/lib/api";
 
@@ -8,14 +7,12 @@ export const instant = false;
 async function ReviewBody() {
   const [drafts, mailboxes] = await Promise.all([getDrafts(), getMailboxes()]);
   return (
-    <main>
-      <h1 className="font-headline-xl text-foreground">Review</h1>
-      <p className="mt-2 mb-6 font-body-md text-muted-foreground">
-        Approve a draft to queue the send. You have a few minutes to undo
-        before it goes out.
-      </p>
-      <ReviewQueue drafts={drafts?.drafts ?? []} />
-      <OneOffDraftForm mailboxes={mailboxes?.mailboxes ?? []} />
+    <main className="flex min-h-0 flex-1 flex-col">
+      <ReviewQueue
+        drafts={drafts?.drafts ?? []}
+        mailboxes={mailboxes?.mailboxes ?? []}
+        filters
+      />
     </main>
   );
 }

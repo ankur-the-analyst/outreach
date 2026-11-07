@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { EvidenceLibrary } from "@/components/evidence-library";
+import { PageBody, PageHeader } from "@/components/page-header";
 import { getEvidence } from "@/lib/api";
 
 export const instant = false;
@@ -7,13 +8,11 @@ export const instant = false;
 async function EvidenceBody() {
   const data = await getEvidence();
   return (
-    <main>
-      <h1 className="font-headline-xl text-foreground">Evidence</h1>
-      <p className="mt-2 mb-6 font-body-md text-muted-foreground">
-        Confirm a claim before writing can use it. Unconfirmed items stay out
-        of drafts.
-      </p>
-      <EvidenceLibrary items={data?.evidence ?? []} />
+    <main className="flex min-h-0 flex-1 flex-col">
+      <PageHeader title="Evidence" />
+      <PageBody>
+        <EvidenceLibrary items={data?.evidence ?? []} />
+      </PageBody>
     </main>
   );
 }

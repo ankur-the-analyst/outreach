@@ -11,12 +11,7 @@ async function CampaignsBody() {
     getMailboxes(),
   ]);
   return (
-    <main>
-      <h1 className="font-headline-xl text-foreground">Campaigns</h1>
-      <p className="mt-2 mb-6 font-body-md text-muted-foreground">
-        Pick a type, add people with a note, then start. Cold and freelance
-        need your name and postal address first.
-      </p>
+    <main className="flex min-h-0 flex-1 flex-col">
       <CampaignBoard
         campaigns={campaigns?.campaigns ?? []}
         contacts={contacts?.contacts ?? []}

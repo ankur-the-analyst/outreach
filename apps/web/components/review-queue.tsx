@@ -1,66 +1,154 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { SquarePen, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { Draft } from "@/lib/api";
+import { OneOffDraftForm } from "@/components/one-off-draft-form";
+import { PageBody, PageHeader, Pill } from "@/components/page-header";
 
-function sendStatus(draft: Draft): string {
-  if (draft.status === "pending") {
-    return "Needs approval";
-  }
-  switch (draft.ledger_state) {
-    case "held":
-      return undoLabel(draft.release_at);
-    case "reserved":
-    case "sending":
-      return "Sending";
-    case "sent":
-      return "Sent";
-    case "unknown":
-      return "Checking if it sent";
-    case "cancelled":
-      return "Cancelled";
-    case "released":
-      return "Not sent";
-    case "failed":
-      return "Could not send";
-    default:
-      return draft.status === "approved" ? "Approved" : draft.status;
-  }
-}
+import type { Draft, Mailbox } from "@/lib/api";
+import {
+  reviewBucket,
+  sendStatus,
+  type ReviewFilter,
+} from "@/lib/labels";
 
-function undoLabel(releaseAt?: string): string {
-  if (!releaseAt) {
-    return "You can still undo";
-  }
-  const ms = new Date(releaseAt).getTime() - Date.now();
-  if (ms <= 0) {
-    return "You can still undo";
-  }
-  const mins = Math.max(1, Math.ceil(ms / 60_000));
-  return `You can still undo · ${mins} min left`;
-}
+export function ReviewQueue({
+  drafts,
+  mailboxes = [],
+  filters = false,
+}: {
+  drafts: Draft[];
+  mailboxes?: Mailbox[];
+  filters?: boolean;
+}) {
+  const [filter, setFilter] = useState<ReviewFilter>("pending");
+  const [compose, setCompose] = useState(false);
+  const counts = useMemo(() => {
+    const c = { pending: 0, undo: 0, checking: 0, sent: 0 };
+    for (const d of drafts) {
+      const b = reviewBucket(d);
+      if (b !== "other") {
+        c[b] += 1;
+      }
+    }
+    return c;
+  }, [drafts]);
 
-export function ReviewQueue({ drafts }: { drafts: Draft[] }) {
-  if (drafts.length === 0) {
-    return (
-      <p className="font-body-md text-muted-foreground">No drafts in review.</p>
+  const shown = filters
+    ? drafts.filter((d) => reviewBucket(d) === filter)
+    : drafts;
+
+  const list =
+    shown.length === 0 ? (
+      <p className="font-body-md text-muted-foreground">
+        {drafts.length === 0 ? "No drafts in review." : "Nothing in this filter."}
+      </p>
+    ) : (
+      <ul className="flex flex-col gap-3">
+        {shown.map((d) => (
+          <ReviewRow key={d.id} draft={d} mailboxes={mailboxes} />
+        ))}
+      </ul>
     );
+
+  if (!filters) {
+    return list;
   }
+
   return (
-    <ul className="flex flex-col gap-3">
-      {drafts.map((d) => (
-        <ReviewRow key={d.id} draft={d} />
-      ))}
-    </ul>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader
+        title="Review"
+        actions={
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-md"
+            onClick={() => setCompose(true)}
+            disabled={mailboxes.length === 0}
+          >
+            <SquarePen className="size-4" strokeWidth={1.5} />
+            Compose one-off
+          </Button>
+        }
+      />
+      <PageBody>
+      <div className="mb-4 flex flex-wrap gap-1.5">
+        {(
+          [
+            ["pending", "Needs approval"],
+            ["undo", "You can still undo"],
+            ["checking", "Checking if it sent"],
+            ["sent", "Sent"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setFilter(id)}
+            className={
+              filter === id
+                ? "inline-flex items-center gap-1.5 rounded-full border border-primary bg-accent px-3 py-1.5 font-label-md text-primary"
+                : "inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 font-label-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            }
+          >
+            {label}
+            <span className="tabular-nums">{counts[id]}</span>
+          </button>
+        ))}
+      </div>
+      {list}
+      </PageBody>
+      {compose ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4"
+          onClick={() => setCompose(false)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-md border border-border bg-card shadow-[var(--shadow-modal)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-border px-6 py-4">
+              <h2 className="font-headline-md text-foreground">
+                Compose one-off
+              </h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setCompose(false)}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+            <div className="p-6">
+              <OneOffDraftForm
+                mailboxes={mailboxes}
+                onSaved={() => setCompose(false)}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
-function ReviewRow({ draft }: { draft: Draft }) {
+function ReviewRow({
+  draft,
+  mailboxes,
+}: {
+  draft: Draft;
+  mailboxes: Mailbox[];
+}) {
   const router = useRouter();
   const [msg, setMsg] = useState("");
   const [pending, setPending] = useState(false);
+  const mailbox = mailboxes.find((m) => m.id === draft.mailbox_id);
+  const bucket = reviewBucket(draft);
+  const accent = bucket === "undo" || bucket === "pending";
 
   async function post(path: string) {
     setMsg("");
@@ -78,15 +166,34 @@ function ReviewRow({ draft }: { draft: Draft }) {
   }
 
   return (
-    <li className="rounded-md border border-border bg-card p-4">
-      <p className="font-label-md text-foreground">{draft.subject}</p>
-      <p className="mt-1 font-body-md tabular-nums text-muted-foreground">
-        To {draft.to} · {sendStatus(draft)}
-      </p>
-      <p className="mt-3 whitespace-pre-wrap font-body-md text-foreground">
+    <li
+      className={
+        accent
+          ? "relative overflow-hidden rounded-md border border-border bg-card p-5"
+          : "rounded-md border border-border bg-card p-5"
+      }
+    >
+      {accent ? (
+        <span className="absolute top-0 bottom-0 left-0 w-[3px] bg-primary" />
+      ) : null}
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="font-headline-sm text-foreground">{draft.subject}</p>
+          <p className="mt-1 font-body-sm text-muted-foreground">
+            To {draft.to}
+            {mailbox ? ` · via ${mailbox.email}` : ""}
+          </p>
+        </div>
+        <Pill
+          tone={bucket === "undo" || bucket === "pending" ? "primary" : "muted"}
+        >
+          {sendStatus(draft)}
+        </Pill>
+      </div>
+      <p className="mt-3 max-w-[68ch] whitespace-pre-wrap font-body-md text-foreground">
         {draft.body_text}
       </p>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
         {draft.status === "pending" ? (
           <Button
             type="button"
@@ -101,7 +208,7 @@ function ReviewRow({ draft }: { draft: Draft }) {
           <Button
             type="button"
             variant="outline"
-            className="rounded-md"
+            className="rounded-md border-destructive text-destructive hover:bg-destructive/10"
             disabled={pending}
             onClick={() => post(`/api/v1/drafts/${draft.id}/undo`)}
           >
@@ -113,3 +220,4 @@ function ReviewRow({ draft }: { draft: Draft }) {
     </li>
   );
 }
+

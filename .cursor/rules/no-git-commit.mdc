@@ -1,0 +1,12 @@
+---
+description: Never run git commit; Anmol commits. Only print the message.
+alwaysApply: true
+---
+
+# No git commit
+
+Never run `git commit`, `git commit --amend`, or any command that creates a commit.
+
+When Anmol asks for a commit, a commit message, or “give commit”: print the subject/body only. Do not `git add` for a commit, do not request git write to commit, do not run the commit.
+
+Anmol runs `git add` and `git commit`. The existing cadence rule already says this; this file exists so it is not treated as optional.

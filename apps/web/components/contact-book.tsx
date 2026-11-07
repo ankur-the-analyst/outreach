@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Pill } from "@/components/page-header";
 import type { Contact } from "@/lib/api";
+import { contactName, fieldTextarea } from "@/lib/labels";
 
 type PreviewRow = {
   email: string;
@@ -22,30 +24,52 @@ type PreviewRow = {
 
 export function ContactBook({ contacts }: { contacts: Contact[] }) {
   return (
-    <div className="flex flex-col gap-8">
-      {contacts.length === 0 ? (
-        <p className="font-body-md text-muted-foreground">No contacts yet.</p>
-      ) : (
-        <ul className="flex flex-col gap-3">
-          {contacts.map((c) => (
-            <li
-              key={c.id}
-              className="rounded-md border border-border bg-card p-4"
-            >
-              <p className="font-label-md text-foreground">{c.email}</p>
-              <p className="mt-1 font-body-md text-muted-foreground">
-                {[c.first_name, c.last_name].filter(Boolean).join(" ") || "—"}
-                {c.title ? ` · ${c.title}` : ""}
-                {` · ${c.readiness}`}
-                {c.role_class ? ` · ${c.role_class.replaceAll("_", " ")}` : ""}
-                {c.provenance.source ? ` · ${c.provenance.source}` : ""}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
-      <CreateForm />
-      <CSVPreview />
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+      <div className="lg:col-span-7">
+        {contacts.length === 0 ? (
+          <p className="font-body-md text-muted-foreground">No contacts yet.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {contacts.map((c) => (
+              <li
+                key={c.id}
+                className="rounded-md border border-border bg-card p-4"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-label-md text-foreground">
+                      {contactName(c)}
+                    </p>
+                    <p className="mt-0.5 font-body-sm text-muted-foreground">
+                      {c.email}
+                      {c.title ? ` · ${c.title}` : ""}
+                    </p>
+                  </div>
+                  <Pill
+                    tone={
+                      c.readiness === "blocked"
+                        ? "danger"
+                        : c.readiness === "risky"
+                          ? "primary"
+                          : "success"
+                    }
+                  >
+                    {c.readiness}
+                  </Pill>
+                </div>
+                <p className="mt-2 font-body-sm text-muted-foreground">
+                  {c.role_class ? `${c.role_class.replaceAll("_", " ")} · ` : ""}
+                  {c.provenance.source}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="flex flex-col gap-4 lg:col-span-5">
+        <CreateForm />
+        <CSVPreview />
+      </div>
     </div>
   );
 }
@@ -215,7 +239,7 @@ function CSVPreview() {
           rows={5}
           value={csv}
           onChange={(e) => setCsv(e.target.value)}
-          className="w-full rounded-md border border-input bg-card px-2.5 py-2 font-[family-name:var(--font-body)] text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className={fieldTextarea}
         />
       </div>
       <div className="flex flex-col gap-1.5">

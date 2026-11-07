@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
+import { PageBody, PageHeader } from "@/components/page-header";
 import { navItems, navLabel } from "@/lib/nav";
 
 export const instant = false;
@@ -30,9 +31,11 @@ async function StubBody({ params }: { params: Promise<{ section: string }> }) {
   }
   const title = navLabel(`/${section}`);
   return (
-    <main className="rounded-md border border-border bg-card p-6">
-      <h1 className="font-headline-xl text-foreground">{title}</h1>
-      <p className="mt-2 font-body-md text-muted-foreground">Not built yet.</p>
+    <main className="flex min-h-0 flex-1 flex-col">
+      <PageHeader title={title} />
+      <PageBody>
+        <p className="font-body-md text-muted-foreground">Not built yet.</p>
+      </PageBody>
     </main>
   );
 }

@@ -113,8 +113,9 @@ export type Campaign = {
   status: string;
   commercial: boolean;
   list_unsubscribe: boolean;
+  new_contacts_per_day?: number;
   sender_strategy: string;
-  steps: { position: number; kind: string; wait_days?: number }[];
+  steps: { position: number; kind: string; wait_days?: number; content?: string }[];
   senders: { mailbox_id: string }[];
   created_at: string;
 };

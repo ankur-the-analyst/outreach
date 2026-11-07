@@ -5,21 +5,27 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Pill } from "@/components/page-header";
 import type { EvidenceItem } from "@/lib/api";
+import { fieldTextarea } from "@/lib/labels";
 
 export function EvidenceLibrary({ items }: { items: EvidenceItem[] }) {
   return (
-    <div className="flex flex-col gap-8">
-      {items.length === 0 ? (
-        <p className="font-body-md text-muted-foreground">No evidence yet.</p>
-      ) : (
-        <ul className="flex flex-col gap-3">
-          {items.map((item) => (
-            <EvidenceRow key={item.id} item={item} />
-          ))}
-        </ul>
-      )}
-      <ProposeForm />
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+      <div className="lg:col-span-7">
+        {items.length === 0 ? (
+          <p className="font-body-md text-muted-foreground">No evidence yet.</p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {items.map((item) => (
+              <EvidenceRow key={item.id} item={item} />
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="lg:col-span-5">
+        <ProposeForm />
+      </div>
     </div>
   );
 }
@@ -48,17 +54,29 @@ function EvidenceRow({ item }: { item: EvidenceItem }) {
   }
 
   const status = item.do_not_use
-    ? "do not use"
+    ? "Do not use"
     : item.confirmed
-      ? "confirmed"
-      : "unconfirmed";
+      ? "Confirmed"
+      : "Unconfirmed";
 
   return (
     <li className="rounded-md border border-border bg-card p-4">
-      <p className="whitespace-pre-wrap font-body-md text-foreground">{item.text}</p>
-      <p className="mt-1 font-body-md text-muted-foreground">
-        {status}
-        {item.source_ref ? ` · ${item.source_ref}` : ""}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <Pill
+          tone={
+            item.do_not_use ? "danger" : item.confirmed ? "success" : "muted"
+          }
+        >
+          {status}
+        </Pill>
+        {item.source_ref ? (
+          <span className="font-body-sm text-muted-foreground">
+            {item.source_ref}
+          </span>
+        ) : null}
+      </div>
+      <p className="whitespace-pre-wrap font-body-md text-foreground">
+        {item.text}
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         {!item.confirmed && !item.do_not_use ? (
@@ -124,7 +142,7 @@ function ProposeForm() {
           rows={4}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="w-full rounded-md border border-input bg-card px-2.5 py-2 font-[family-name:var(--font-body)] text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+          className={fieldTextarea}
         />
       </div>
       <div className="flex flex-col gap-1.5">

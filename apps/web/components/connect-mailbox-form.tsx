@@ -50,7 +50,7 @@ export function ConnectMailboxForm() {
   return (
     <form
       onSubmit={onSubmit}
-      className="mt-8 flex max-w-sm flex-col gap-4 rounded-md border border-border bg-card p-6"
+      className="mt-6 flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-5"
     >
       <h2 className="font-headline-md text-foreground">Connect mailbox</h2>
       <div className="flex flex-col gap-1.5">

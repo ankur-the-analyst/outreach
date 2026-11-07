@@ -2,37 +2,9 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Pill } from "@/components/page-header";
 import type { Mailbox } from "@/lib/api";
-
-function mailboxStatus(status: string): string {
-  switch (status) {
-    case "warming":
-      return "Warming up";
-    case "healthy":
-      return "Ready";
-    case "paused":
-      return "Paused";
-    case "disconnected":
-      return "Disconnected";
-    default:
-      return status;
-  }
-}
-
-function authKindLabel(kind: string): string {
-  switch (kind) {
-    case "app_password":
-      return "Gmail app password";
-    case "smtp_imap":
-      return "SMTP";
-    case "service_account":
-      return "Google Workspace";
-    case "oauth":
-      return "OAuth";
-    default:
-      return kind;
-  }
-}
+import { authKindLabel, mailboxStatus } from "@/lib/labels";
 
 export function MailboxList({ mailboxes }: { mailboxes: Mailbox[] }) {
   if (mailboxes.length === 0) {
@@ -72,12 +44,26 @@ function MailboxRow({ mailbox }: { mailbox: Mailbox }) {
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card p-4">
       <div>
-        <p className="font-label-md text-foreground">{mailbox.email}</p>
-        <p className="mt-1 font-body-md tabular-nums text-muted-foreground">
-          {mailboxStatus(mailbox.status)} · {authKindLabel(mailbox.auth_kind)}
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-label-md text-foreground">{mailbox.email}</p>
+          <Pill
+            tone={
+              mailbox.status === "paused" || mailbox.status === "disconnected"
+                ? "danger"
+                : mailbox.status === "warming"
+                  ? "primary"
+                  : "success"
+            }
+          >
+            {mailboxStatus(mailbox.status)}
+          </Pill>
+        </div>
+        <p className="mt-1 font-body-sm tabular-nums text-muted-foreground">
+          {authKindLabel(mailbox.auth_kind)}
           {mailbox.smtp_host
             ? ` · ${mailbox.smtp_host}:${mailbox.smtp_port}`
             : ""}
+          {` · cap ${mailbox.effective_daily_limit}/day`}
         </p>
       </div>
       <div className="flex items-center gap-3">

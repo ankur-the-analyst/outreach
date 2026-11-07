@@ -80,7 +80,7 @@ export function Inbox({
         </label>
         <select
           id="inbox-mailbox"
-          className="rounded-md border border-input bg-card px-2 py-1.5 font-body-md text-foreground"
+          className="h-8 rounded-md border border-input bg-card px-2.5 font-[family-name:var(--font-body)] text-sm text-foreground"
           value={mailboxID}
           onChange={(e) => {
             window.location.assign(href(e.target.value, ""));
@@ -107,7 +107,7 @@ export function Inbox({
         <ul className="flex flex-col gap-1 rounded-md border border-border bg-card p-2">
           {threads.length === 0 ? (
             <li className="p-3 font-body-md text-muted-foreground">
-              No threads. Sync to pull Mailpit.
+              No conversations. Sync to pull mail.
             </li>
           ) : (
             threads.map((t) => {
