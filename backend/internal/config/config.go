@@ -11,6 +11,7 @@ type Config struct {
 	DatabaseAppURL  string `required:"true" split_words:"true"`
 	MasterKeys      string `required:"true" split_words:"true"`
 	MasterKeyActive int    `split_words:"true" default:"1"`
+	UndoHoldS       int    `split_words:"true" default:"300"`
 }
 
 func Load() (Config, error) {

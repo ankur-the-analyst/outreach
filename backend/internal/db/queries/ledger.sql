@@ -1,0 +1,40 @@
+-- name: InsertLedger :one
+insert into send_ledger (
+  workspace_id, id, mailbox_id, sending_domain_id, enrolment_id, draft_id,
+  step_position, is_first_touch, rfc_message_id, state, release_at
+) values (
+  $1, $2, $3, $4, $5, $6,
+  $7, $8, $9, $10, $11
+)
+returning
+  workspace_id, id, mailbox_id, sending_domain_id, enrolment_id, draft_id,
+  step_position, is_first_touch, rfc_message_id, state, reserved_at, release_at, sent_at, created_at;
+
+-- name: GetLedger :one
+select
+  workspace_id, id, mailbox_id, sending_domain_id, enrolment_id, draft_id,
+  step_position, is_first_touch, rfc_message_id, state, reserved_at, release_at, sent_at, created_at
+from send_ledger
+where workspace_id = $1 and id = $2;
+
+-- name: UpdateLedgerState :one
+update send_ledger
+set
+  state = sqlc.arg('next_state'),
+  reserved_at = case when sqlc.arg('next_state') = 'reserved' then now() else reserved_at end,
+  sent_at = case when sqlc.arg('next_state') = 'sent' then now() else sent_at end
+where workspace_id = sqlc.arg('workspace_id') and id = sqlc.arg('id') and state = sqlc.arg('from_state')
+returning
+  workspace_id, id, mailbox_id, sending_domain_id, enrolment_id, draft_id,
+  step_position, is_first_touch, rfc_message_id, state, reserved_at, release_at, sent_at, created_at;
+
+-- name: CountMailboxUsage :one
+select count(*)::bigint as n
+from send_ledger
+where workspace_id = $1 and mailbox_id = $2
+  and state in ('held', 'reserved', 'sending', 'sent', 'unknown')
+  and coalesce(sent_at, reserved_at, created_at) > now() - interval '24 hours';
+
+-- name: DeleteLedgerForWorkspace :exec
+delete from send_ledger
+where workspace_id = $1;

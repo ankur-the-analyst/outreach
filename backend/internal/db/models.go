@@ -177,6 +177,23 @@ type Secret struct {
 	CreatedAt   pgtype.Timestamptz
 }
 
+type SendLedger struct {
+	WorkspaceID     uuid.UUID
+	ID              uuid.UUID
+	MailboxID       uuid.UUID
+	SendingDomainID uuid.UUID
+	EnrolmentID     *uuid.UUID
+	DraftID         uuid.UUID
+	StepPosition    pgtype.Int4
+	IsFirstTouch    bool
+	RfcMessageID    string
+	State           string
+	ReservedAt      pgtype.Timestamptz
+	ReleaseAt       pgtype.Timestamptz
+	SentAt          pgtype.Timestamptz
+	CreatedAt       pgtype.Timestamptz
+}
+
 type SendingDomain struct {
 	WorkspaceID uuid.UUID
 	ID          uuid.UUID
