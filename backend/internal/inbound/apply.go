@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/db"
+	"outreach/internal/mime"
 	"outreach/internal/suppression"
 )
 
@@ -39,10 +41,10 @@ func (p *Processor) Handle(ctx context.Context, workspaceID, mailboxID, messageI
 		conf = 0
 		src = "classify"
 	}
-	return p.Apply(ctx, workspaceID, messageID, from, class, conf, src)
+	return p.Apply(ctx, workspaceID, messageID, from, subject, class, conf, src)
 }
 
-func (p *Processor) Apply(ctx context.Context, workspaceID, messageID uuid.UUID, from string, class Class, confidence float64, source string) error {
+func (p *Processor) Apply(ctx context.Context, workspaceID, messageID uuid.UUID, from, subject string, class Class, confidence float64, source string) error {
 	eff := Decide(class, confidence)
 	payload, err := json.Marshal(map[string]any{
 		"class":       class,
@@ -72,7 +74,10 @@ func (p *Processor) Apply(ctx context.Context, workspaceID, messageID uuid.UUID,
 			return fmt.Errorf("inbound: suppress: %w", err)
 		}
 	}
-	return nil
+	if !eff.ReplyDraft || from == "" {
+		return nil
+	}
+	return p.insertReply(ctx, workspaceID, messageID, from, subject)
 }
 
 func (p *Processor) ClassifyStored(ctx context.Context, workspaceID, messageID uuid.UUID) error {
@@ -104,7 +109,65 @@ func (p *Processor) ClassifyStored(ctx context.Context, workspaceID, messageID u
 		conf = 0
 		src = "classify"
 	}
-	return p.Apply(ctx, workspaceID, messageID, from, class, conf, src)
+	return p.Apply(ctx, workspaceID, messageID, from, subject, class, conf, src)
+}
+
+func (p *Processor) insertReply(ctx context.Context, workspaceID, messageID uuid.UUID, from, subject string) error {
+	var mailboxID uuid.UUID
+	var mode string
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.GetMessage(ctx, db.GetMessageParams{WorkspaceID: workspaceID, ID: messageID})
+		if err != nil {
+			return err
+		}
+		mailboxID = row.MailboxID
+		mode, err = q.GetMailboxReplyMode(ctx, db.GetMailboxReplyModeParams{WorkspaceID: workspaceID, ID: mailboxID})
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("inbound: reply mode: %w", err)
+	}
+	if mode != "draft" {
+		return nil
+	}
+	msgid, err := mime.NewMessageID("outreach.test")
+	if err != nil {
+		return err
+	}
+	id, err := uuid.NewV7()
+	if err != nil {
+		return err
+	}
+	to := strings.ToLower(strings.TrimSpace(from))
+	subj := replySubject(subject)
+	body := "Thanks for writing — this reply is waiting in review."
+	return p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		_, err := q.InsertDraft(ctx, db.InsertDraftParams{
+			WorkspaceID:  workspaceID,
+			ID:           id,
+			MailboxID:    mailboxID,
+			ToAddr:       to,
+			RfcMessageID: msgid,
+			Kind:         "reply",
+			Subject:      subj,
+			BodyHtml:     "",
+			BodyText:     body,
+			Status:       "pending",
+		})
+		return err
+	})
+}
+
+func replySubject(subject string) string {
+	s := strings.TrimSpace(subject)
+	if s == "" {
+		s = "(no subject)"
+	}
+	lower := strings.ToLower(s)
+	if strings.HasPrefix(lower, "re:") {
+		return s
+	}
+	return "Re: " + s
 }
 
 func textOr(t pgtype.Text) string {

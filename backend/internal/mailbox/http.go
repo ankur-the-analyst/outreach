@@ -18,6 +18,7 @@ type Store interface {
 	Pause(ctx context.Context, workspaceID, id uuid.UUID) error
 	Reconnect(ctx context.Context, workspaceID, id uuid.UUID) error
 	AssignWarmup(ctx context.Context, workspaceID, id uuid.UUID, kind string) error
+	SetReplyMode(ctx context.Context, workspaceID, id uuid.UUID, mode string) error
 	CreateSA(ctx context.Context, workspaceID uuid.UUID, in SAInput) (ServiceAccount, error)
 	ListSA(ctx context.Context, workspaceID uuid.UUID) ([]ServiceAccount, error)
 	SMTPEndpoint(ctx context.Context, workspaceID, id uuid.UUID) (host string, port int, err error)
@@ -204,19 +205,29 @@ func (a *API) Patch(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		WarmupKind string `json:"warmup_kind"`
+		ReplyMode  string `json:"reply_mode"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
 		return
 	}
 	kind := strings.TrimSpace(in.WarmupKind)
-	if kind == "" {
-		writeError(w, http.StatusBadRequest, "invalid_input", "warmup_kind required")
+	mode := strings.TrimSpace(in.ReplyMode)
+	if kind == "" && mode == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "warmup_kind or reply_mode required")
 		return
 	}
-	if err := a.store.AssignWarmup(r.Context(), s.WorkspaceID, id, kind); err != nil {
-		writeStoreError(w, err)
-		return
+	if mode != "" {
+		if err := a.store.SetReplyMode(r.Context(), s.WorkspaceID, id, mode); err != nil {
+			writeStoreError(w, err)
+			return
+		}
+	}
+	if kind != "" {
+		if err := a.store.AssignWarmup(r.Context(), s.WorkspaceID, id, kind); err != nil {
+			writeStoreError(w, err)
+			return
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -275,6 +286,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "email_taken", err.Error())
 	case errors.Is(err, ErrNoSMTP):
 		writeError(w, http.StatusBadRequest, "no_smtp", err.Error())
+	case errors.Is(err, ErrReplyMode):
+		writeError(w, http.StatusBadRequest, "reply_mode", err.Error())
 	case errors.Is(err, ErrForbidden):
 		writeError(w, http.StatusForbidden, "forbidden", "owner or member role required")
 	case errors.Is(err, ErrNotFound):

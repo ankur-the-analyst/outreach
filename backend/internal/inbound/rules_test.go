@@ -12,6 +12,7 @@ func TestRulesMatch(t *testing.T) {
 		{"ada@acme.com", "please unsubscribe", "take me off this list", ClassUnsubscribe},
 		{"ada@acme.com", "re: role", "this is spam", ClassComplaint},
 		{"ada@acme.com", "Out of Office", "I am on vacation", ClassOutOfOffice},
+		{"ada@acme.com", "re: role", "I'm interested in chatting", ClassInterested},
 	}
 	for _, tt := range tests {
 		got, ok := Rules(tt.from, tt.subject, tt.body)

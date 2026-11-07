@@ -12,6 +12,7 @@ var (
 	ErrNotSupported        = errors.New("auth kind not supported yet")
 	ErrEmailTaken          = errors.New("mailbox already connected")
 	ErrNoSMTP              = errors.New("smtp host not set")
+	ErrReplyMode           = errors.New("reply_mode must be draft or off")
 )
 
 func EmailDomain(email string) string {

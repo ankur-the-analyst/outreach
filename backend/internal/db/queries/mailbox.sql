@@ -108,6 +108,16 @@ update mailboxes
 set warmup_profile_id = $3, effective_daily_limit = $4
 where workspace_id = $1 and id = $2;
 
+-- name: GetMailboxReplyMode :one
+select reply_mode
+from mailboxes
+where workspace_id = $1 and id = $2;
+
+-- name: SetMailboxReplyMode :exec
+update mailboxes
+set reply_mode = $3
+where workspace_id = $1 and id = $2;
+
 -- name: SetMailboxDomain :exec
 update mailboxes
 set sending_domain_id = $3

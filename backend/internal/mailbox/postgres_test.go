@@ -74,6 +74,12 @@ func TestPostgresConnectPauseReconnect(t *testing.T) {
 	if err := store.AssignWarmup(ctx, wsID, mb.ID, pacing.KindConservative); err != nil {
 		t.Fatal(err)
 	}
+	if err := store.SetReplyMode(ctx, wsID, mb.ID, "auto"); err != ErrReplyMode {
+		t.Fatalf("auto reply_mode: %v", err)
+	}
+	if err := store.SetReplyMode(ctx, wsID, mb.ID, "off"); err != nil {
+		t.Fatal(err)
+	}
 	items, err := store.List(ctx, wsID)
 	if err != nil || len(items) != 1 {
 		t.Fatalf("list %v %d", err, len(items))

@@ -267,6 +267,24 @@ func (p *Postgres) AssignWarmup(ctx context.Context, workspaceID, id uuid.UUID, 
 	})
 }
 
+func (p *Postgres) SetReplyMode(ctx context.Context, workspaceID, id uuid.UUID, mode string) error {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode != "draft" && mode != "off" {
+		return ErrReplyMode
+	}
+	return p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		if _, err := q.GetMailbox(ctx, db.GetMailboxParams{WorkspaceID: workspaceID, ID: id}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+		return q.SetMailboxReplyMode(ctx, db.SetMailboxReplyModeParams{
+			WorkspaceID: workspaceID, ID: id, ReplyMode: mode,
+		})
+	})
+}
+
 func (p *Postgres) setStatus(ctx context.Context, workspaceID, id uuid.UUID, status, reason string) error {
 	return p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.GetMailbox(ctx, db.GetMailboxParams{WorkspaceID: workspaceID, ID: id}); err != nil {

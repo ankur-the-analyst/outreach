@@ -33,6 +33,9 @@ func (f *fakeStore) Reconnect(context.Context, uuid.UUID, uuid.UUID) error { ret
 func (f *fakeStore) AssignWarmup(context.Context, uuid.UUID, uuid.UUID, string) error {
 	return f.err
 }
+func (f *fakeStore) SetReplyMode(context.Context, uuid.UUID, uuid.UUID, string) error {
+	return f.err
+}
 func (f *fakeStore) CreateSA(context.Context, uuid.UUID, SAInput) (ServiceAccount, error) {
 	return ServiceAccount{}, f.err
 }
@@ -129,6 +132,23 @@ func TestMailboxSMTPTestOK(t *testing.T) {
 	rec := httptest.NewRecorder()
 	api.Test(rec, req)
 	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d %s", rec.Code, rec.Body.Bytes())
+	}
+}
+
+func TestPatchRejectsAutoReplyMode(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner", err: ErrReplyMode}, fakeTester{})
+	id := uuid.MustParse("01700000-0000-7000-8000-000000000003")
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/mailboxes/"+id.String(), bytes.NewBufferString(`{"reply_mode":"auto"}`))
+	req.SetPathValue("id", id.String())
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Patch(rec, req)
+	if rec.Code != http.StatusBadRequest || !bytes.Contains(rec.Body.Bytes(), []byte("reply_mode")) {
 		t.Fatalf("got %d %s", rec.Code, rec.Body.Bytes())
 	}
 }

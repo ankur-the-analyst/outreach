@@ -181,6 +181,24 @@ func (q *Queries) GetMailboxDial(ctx context.Context, arg GetMailboxDialParams) 
 	return i, err
 }
 
+const getMailboxReplyMode = `-- name: GetMailboxReplyMode :one
+select reply_mode
+from mailboxes
+where workspace_id = $1 and id = $2
+`
+
+type GetMailboxReplyModeParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) GetMailboxReplyMode(ctx context.Context, arg GetMailboxReplyModeParams) (string, error) {
+	row := q.db.QueryRow(ctx, getMailboxReplyMode, arg.WorkspaceID, arg.ID)
+	var reply_mode string
+	err := row.Scan(&reply_mode)
+	return reply_mode, err
+}
+
 const getSendingDomain = `-- name: GetSendingDomain :one
 select workspace_id, id, domain, daily_limit, first_seen_at
 from sending_domains
@@ -771,6 +789,23 @@ type SetMailboxDomainParams struct {
 
 func (q *Queries) SetMailboxDomain(ctx context.Context, arg SetMailboxDomainParams) error {
 	_, err := q.db.Exec(ctx, setMailboxDomain, arg.WorkspaceID, arg.ID, arg.SendingDomainID)
+	return err
+}
+
+const setMailboxReplyMode = `-- name: SetMailboxReplyMode :exec
+update mailboxes
+set reply_mode = $3
+where workspace_id = $1 and id = $2
+`
+
+type SetMailboxReplyModeParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	ReplyMode   string
+}
+
+func (q *Queries) SetMailboxReplyMode(ctx context.Context, arg SetMailboxReplyModeParams) error {
+	_, err := q.db.Exec(ctx, setMailboxReplyMode, arg.WorkspaceID, arg.ID, arg.ReplyMode)
 	return err
 }
 
