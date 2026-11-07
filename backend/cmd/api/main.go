@@ -15,6 +15,7 @@ import (
 	"outreach/internal/auth"
 	"outreach/internal/compose"
 	"outreach/internal/config"
+	"outreach/internal/contacts"
 	"outreach/internal/crypto"
 	"outreach/internal/db"
 	"outreach/internal/evidence"
@@ -109,6 +110,7 @@ func main() {
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
 	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc))
 	jd := jobsjd.New(jobsjd.NewPostgres(pool, storage.NewMemory(), writer))
+	ct := contacts.New(contacts.NewPostgres(pool))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
@@ -155,6 +157,12 @@ func main() {
 	mux.Handle("GET /api/v1/jobs", a.Require(http.HandlerFunc(jd.ListJobs)))
 	mux.Handle("POST /api/v1/jobs", a.Require(http.HandlerFunc(jd.CreateJob)))
 	mux.Handle("POST /api/v1/jobs/{id}/fit", a.Require(http.HandlerFunc(jd.Fit)))
+	mux.Handle("GET /api/v1/contacts", a.Require(http.HandlerFunc(ct.List)))
+	mux.Handle("POST /api/v1/contacts", a.Require(http.HandlerFunc(ct.Create)))
+	mux.Handle("POST /api/v1/contacts/preview", a.Require(http.HandlerFunc(ct.Preview)))
+	mux.Handle("GET /api/v1/contacts/{id}", a.Require(http.HandlerFunc(ct.Get)))
+	mux.Handle("PATCH /api/v1/contacts/{id}", a.Require(http.HandlerFunc(ct.Patch)))
+	mux.Handle("DELETE /api/v1/contacts/{id}", a.Require(http.HandlerFunc(ct.Delete)))
 
 	logger.Info("api listening", "addr", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {

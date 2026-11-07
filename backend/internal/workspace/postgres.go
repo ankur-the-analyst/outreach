@@ -119,6 +119,12 @@ func (p *Postgres) Delete(ctx context.Context, workspaceID uuid.UUID) error {
 		if err := q.DeleteProfilesForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: profiles: %w", err)
 		}
+		if err := q.DeleteContactsForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: contacts: %w", err)
+		}
+		if err := q.DeleteCompaniesForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: companies: %w", err)
+		}
 		return q.DeleteWorkspace(ctx, workspaceID)
 	})
 }

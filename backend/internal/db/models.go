@@ -62,6 +62,38 @@ func (ns NullRiverJobState) Value() (driver.Value, error) {
 	return string(ns.RiverJobState), nil
 }
 
+type Company struct {
+	WorkspaceID            uuid.UUID
+	ID                     uuid.UUID
+	Domain                 pgtype.Text
+	Name                   string
+	LastContactedAt        pgtype.Timestamptz
+	CooldownDays           int32
+	CooldownOverrideReason pgtype.Text
+	CreatedAt              pgtype.Timestamptz
+}
+
+type Contact struct {
+	WorkspaceID        uuid.UUID
+	ID                 uuid.UUID
+	Email              string
+	FirstName          pgtype.Text
+	LastName           pgtype.Text
+	Title              pgtype.Text
+	CompanyID          *uuid.UUID
+	LinkedinUrl        pgtype.Text
+	Timezone           pgtype.Text
+	Region             pgtype.Text
+	TimezoneConfidence pgtype.Float4
+	RoleClass          pgtype.Text
+	Provenance         json.RawMessage
+	Readiness          string
+	Custom             json.RawMessage
+	Tags               []string
+	StickyMailboxID    *uuid.UUID
+	CreatedAt          pgtype.Timestamptz
+}
+
 type Draft struct {
 	WorkspaceID             uuid.UUID
 	ID                      uuid.UUID
