@@ -15,10 +15,16 @@ import (
 )
 
 var (
-	ErrNotFound  = errors.New("not found")
-	ErrForbidden = errors.New("forbidden")
-	ErrConflict  = errors.New("invalid ledger transition")
+	ErrNotFound   = errors.New("not found")
+	ErrForbidden  = errors.New("forbidden")
+	ErrConflict   = errors.New("invalid ledger transition")
+	ErrPaused     = errors.New("sends paused")
+	ErrSuppressed = errors.New("recipient suppressed")
 )
+
+type Blocker interface {
+	Blocked(ctx context.Context, workspaceID uuid.UUID, emails []string) error
+}
 
 type Entry struct {
 	ID              uuid.UUID    `json:"id"`
@@ -47,6 +53,7 @@ type Postgres struct {
 	unknown time.Duration
 	dial    Dialer
 	queue   ReconcileEnqueuer
+	block   Blocker
 }
 
 func NewPostgres(pool *db.Pool, now func() time.Time, hold time.Duration) *Postgres {
@@ -66,6 +73,11 @@ func (p *Postgres) WithUnknownTimeout(d time.Duration) *Postgres {
 
 func (p *Postgres) WithQueue(q ReconcileEnqueuer) *Postgres {
 	p.queue = q
+	return p
+}
+
+func (p *Postgres) WithBlocker(b Blocker) *Postgres {
+	p.block = b
 	return p
 }
 

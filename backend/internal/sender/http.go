@@ -99,6 +99,7 @@ func (a *API) Reserve(w http.ResponseWriter, r *http.Request) {
 		MailboxIDs   []string `json:"mailbox_ids"`
 		Strategy     string   `json:"strategy"`
 		RFCMessageID string   `json:"rfc_message_id"`
+		To           []string `json:"to"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
@@ -119,7 +120,7 @@ func (a *API) Reserve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ent, err := a.store.Reserve(r.Context(), s.WorkspaceID, ReserveInput{
-		MailboxIDs: ids, Strategy: in.Strategy, RFCMessageID: msgid,
+		MailboxIDs: ids, Strategy: in.Strategy, RFCMessageID: msgid, To: in.To,
 	})
 	if err != nil {
 		writeStoreError(w, err)
@@ -247,6 +248,10 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "conflict", err.Error())
 	case errors.Is(err, ErrNoneEligible):
 		writeError(w, http.StatusConflict, "none_eligible", err.Error())
+	case errors.Is(err, ErrPaused):
+		writeError(w, http.StatusConflict, "sends_paused", err.Error())
+	case errors.Is(err, ErrSuppressed):
+		writeError(w, http.StatusConflict, "suppressed", err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "internal", "internal error")
 	}

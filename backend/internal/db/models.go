@@ -220,6 +220,15 @@ type Session struct {
 	CreatedAt   pgtype.Timestamptz
 }
 
+type Suppression struct {
+	WorkspaceID uuid.UUID
+	Kind        string
+	ValueHash   []byte
+	ValueCitext pgtype.Text
+	Reason      string
+	CreatedAt   pgtype.Timestamptz
+}
+
 type User struct {
 	ID           uuid.UUID
 	Email        string

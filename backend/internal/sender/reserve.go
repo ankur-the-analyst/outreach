@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/db"
 	"outreach/internal/pacing"
+	"outreach/internal/suppression"
 )
 
 var (
@@ -24,6 +25,7 @@ type ReserveInput struct {
 	Strategy     string
 	RFCMessageID string
 	DraftID      uuid.UUID
+	To           []string
 }
 
 func (p *Postgres) Reserve(ctx context.Context, workspaceID uuid.UUID, in ReserveInput) (Entry, error) {
@@ -33,6 +35,9 @@ func (p *Postgres) Reserve(ctx context.Context, workspaceID uuid.UUID, in Reserv
 	}
 	if len(in.MailboxIDs) == 0 {
 		return Entry{}, fmt.Errorf("sender: mailbox_ids required")
+	}
+	if err := p.guardReserve(ctx, workspaceID, in.To); err != nil {
+		return Entry{}, err
 	}
 	strat, err := pacing.Lookup(in.Strategy)
 	if err != nil {
@@ -114,6 +119,32 @@ func (p *Postgres) Reserve(ctx context.Context, workspaceID uuid.UUID, in Reserv
 		return out, nil
 	}
 	return Entry{}, ErrNoneEligible
+}
+
+func (p *Postgres) guardReserve(ctx context.Context, workspaceID uuid.UUID, to []string) error {
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		ws, err := q.GetWorkspace(ctx, workspaceID)
+		if err != nil {
+			return err
+		}
+		if ws.SendsPaused {
+			return ErrPaused
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if p.block == nil {
+		return nil
+	}
+	if err := p.block.Blocked(ctx, workspaceID, to); err != nil {
+		if errors.Is(err, suppression.ErrSuppressed) {
+			return ErrSuppressed
+		}
+		return err
+	}
+	return nil
 }
 
 func snapshot(ctx context.Context, q *db.Queries, workspaceID uuid.UUID, ids []uuid.UUID) ([]pacing.MailboxView, pacing.LedgerView, error) {

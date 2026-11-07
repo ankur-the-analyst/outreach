@@ -3,7 +3,9 @@ package crypto
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -96,6 +98,12 @@ func (k *Keyring) Seal(plain []byte) (Sealed, error) {
 		Nonce:      nonce,
 		Ciphertext: ct,
 	}, nil
+}
+
+func (k *Keyring) HMAC(msg []byte) []byte {
+	mac := hmac.New(sha256.New, k.keys[k.active])
+	mac.Write(msg)
+	return mac.Sum(nil)
 }
 
 func (k *Keyring) Open(s Sealed) ([]byte, error) {

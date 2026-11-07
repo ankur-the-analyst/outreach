@@ -12,6 +12,7 @@ import (
 	"outreach/internal/mailbox"
 	"outreach/internal/mime"
 	"outreach/internal/pacing"
+	"outreach/internal/suppression"
 )
 
 type Dialer interface {
@@ -36,6 +37,14 @@ func (p *Postgres) Send(ctx context.Context, workspaceID, ledgerID uuid.UUID, in
 	}
 	if len(in.To) == 0 {
 		return Entry{}, fmt.Errorf("sender: to required")
+	}
+	if p.block != nil {
+		if err := p.block.Blocked(ctx, workspaceID, in.To); err != nil {
+			if errors.Is(err, suppression.ErrSuppressed) {
+				return Entry{}, ErrSuppressed
+			}
+			return Entry{}, err
+		}
 	}
 	ent, err := p.Advance(ctx, workspaceID, ledgerID, pacing.StateSending)
 	if err != nil {

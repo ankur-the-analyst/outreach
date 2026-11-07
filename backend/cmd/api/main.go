@@ -18,6 +18,7 @@ import (
 	"outreach/internal/mailbox"
 	"outreach/internal/mailbox/smtpimap"
 	"outreach/internal/sender"
+	"outreach/internal/suppression"
 	"outreach/internal/worker"
 	"outreach/internal/workspace"
 )
@@ -73,10 +74,13 @@ func main() {
 	wrk := worker.New(pool, wsStore, jobs)
 	hold := time.Duration(cfg.UndoHoldS) * time.Second
 	unknown := time.Duration(cfg.UnknownTimeoutS) * time.Second
+	suppStore := suppression.NewPostgres(pool, keys)
+	supp := suppression.New(suppStore)
 	snd := sender.New(sender.NewPostgres(pool, time.Now, hold).
 		WithDialer(sender.NewMailboxDialer(pool, keys)).
 		WithUnknownTimeout(unknown).
-		WithQueue(reconcileJobs{client: jobs}))
+		WithQueue(reconcileJobs{client: jobs}).
+		WithBlocker(suppStore))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
@@ -105,6 +109,7 @@ func main() {
 	mux.Handle("POST /api/v1/reserve", a.Require(http.HandlerFunc(snd.Reserve)))
 	mux.Handle("POST /api/v1/ledger/{id}/send", a.Require(http.HandlerFunc(snd.Send)))
 	mux.Handle("POST /api/v1/ledger/{id}/reconcile", a.Require(http.HandlerFunc(snd.Reconcile)))
+	mux.Handle("POST /api/v1/suppression", a.Require(http.HandlerFunc(supp.Create)))
 
 	logger.Info("api listening", "addr", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {

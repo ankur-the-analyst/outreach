@@ -116,3 +116,19 @@ func TestNewKeyringRejects(t *testing.T) {
 		}
 	}
 }
+
+func TestHMACStable(t *testing.T) {
+	t.Parallel()
+	k, err := NewKeyring(keyV1, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := k.HMAC([]byte("email:you@ex.co"))
+	b := k.HMAC([]byte("email:you@ex.co"))
+	if len(a) != 32 || !bytes.Equal(a, b) {
+		t.Fatalf("hmac %x %x", a, b)
+	}
+	if bytes.Equal(a, k.HMAC([]byte("email:other@ex.co"))) {
+		t.Fatal("different input hashed equal")
+	}
+}

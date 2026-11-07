@@ -89,6 +89,9 @@ func (p *Postgres) Delete(ctx context.Context, workspaceID uuid.UUID) error {
 		if err := q.DeleteSendingDomainsForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: domains: %w", err)
 		}
+		if err := q.DeleteSuppressionForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: suppression: %w", err)
+		}
 		return q.DeleteWorkspace(ctx, workspaceID)
 	})
 }
