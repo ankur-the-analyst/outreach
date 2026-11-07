@@ -7,6 +7,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
 	"outreach/internal/auth"
 	"outreach/internal/config"
 	"outreach/internal/crypto"
@@ -18,6 +21,21 @@ import (
 	"outreach/internal/worker"
 	"outreach/internal/workspace"
 )
+
+type reconcileJobs struct {
+	client *river.Client[pgx.Tx]
+}
+
+func (j reconcileJobs) EnqueueReconcile(ctx context.Context, workspaceID, ledgerID uuid.UUID, in sender.SendInput) error {
+	return worker.EnqueueReconcile(ctx, j.client, worker.ReconcileArgs{
+		WorkspaceID: workspaceID,
+		LedgerID:    ledgerID,
+		To:          in.To,
+		Subject:     in.Subject,
+		Text:        in.Text,
+		HTML:        in.HTML,
+	})
+}
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -54,7 +72,11 @@ func main() {
 	}
 	wrk := worker.New(pool, wsStore, jobs)
 	hold := time.Duration(cfg.UndoHoldS) * time.Second
-	snd := sender.New(sender.NewPostgres(pool, time.Now, hold).WithDialer(sender.NewMailboxDialer(pool, keys)))
+	unknown := time.Duration(cfg.UnknownTimeoutS) * time.Second
+	snd := sender.New(sender.NewPostgres(pool, time.Now, hold).
+		WithDialer(sender.NewMailboxDialer(pool, keys)).
+		WithUnknownTimeout(unknown).
+		WithQueue(reconcileJobs{client: jobs}))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
@@ -82,6 +104,7 @@ func main() {
 	mux.Handle("POST /api/v1/ledger/{id}/cancel", a.Require(http.HandlerFunc(snd.Cancel)))
 	mux.Handle("POST /api/v1/reserve", a.Require(http.HandlerFunc(snd.Reserve)))
 	mux.Handle("POST /api/v1/ledger/{id}/send", a.Require(http.HandlerFunc(snd.Send)))
+	mux.Handle("POST /api/v1/ledger/{id}/reconcile", a.Require(http.HandlerFunc(snd.Reconcile)))
 
 	logger.Info("api listening", "addr", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {

@@ -36,11 +36,17 @@ type HoldInput struct {
 	DraftID      uuid.UUID
 }
 
+type ReconcileEnqueuer interface {
+	EnqueueReconcile(ctx context.Context, workspaceID, ledgerID uuid.UUID, in SendInput) error
+}
+
 type Postgres struct {
-	pool *db.Pool
-	now  func() time.Time
-	hold time.Duration
-	dial Dialer
+	pool    *db.Pool
+	now     func() time.Time
+	hold    time.Duration
+	unknown time.Duration
+	dial    Dialer
+	queue   ReconcileEnqueuer
 }
 
 func NewPostgres(pool *db.Pool, now func() time.Time, hold time.Duration) *Postgres {
@@ -50,7 +56,17 @@ func NewPostgres(pool *db.Pool, now func() time.Time, hold time.Duration) *Postg
 	if hold <= 0 {
 		hold = 5 * time.Minute
 	}
-	return &Postgres{pool: pool, now: now, hold: hold}
+	return &Postgres{pool: pool, now: now, hold: hold, unknown: 15 * time.Minute}
+}
+
+func (p *Postgres) WithUnknownTimeout(d time.Duration) *Postgres {
+	p.unknown = d
+	return p
+}
+
+func (p *Postgres) WithQueue(q ReconcileEnqueuer) *Postgres {
+	p.queue = q
+	return p
 }
 
 func (p *Postgres) Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error) {

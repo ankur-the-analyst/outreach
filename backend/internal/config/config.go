@@ -12,6 +12,7 @@ type Config struct {
 	MasterKeys      string `required:"true" split_words:"true"`
 	MasterKeyActive int    `split_words:"true" default:"1"`
 	UndoHoldS       int    `split_words:"true" default:"300"`
+	UnknownTimeoutS int    `split_words:"true" default:"900"`
 }
 
 func Load() (Config, error) {

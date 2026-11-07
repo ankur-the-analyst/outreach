@@ -8,8 +8,11 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/riverqueue/river"
 	"outreach/internal/config"
+	"outreach/internal/crypto"
 	"outreach/internal/db"
+	"outreach/internal/sender"
 	"outreach/internal/worker"
 )
 
@@ -31,7 +34,26 @@ func main() {
 	}
 	defer pool.Close()
 
-	client, err := worker.NewWorkerClient(pool)
+	keys, err := crypto.NewKeyring(cfg.MasterKeys, cfg.MasterKeyActive)
+	if err != nil {
+		logger.Error("load master keys", "err", err)
+		os.Exit(1)
+	}
+
+	hold := time.Duration(cfg.UndoHoldS) * time.Second
+	unknown := time.Duration(cfg.UnknownTimeoutS) * time.Second
+	led := sender.NewPostgres(pool, time.Now, hold).
+		WithDialer(sender.NewMailboxDialer(pool, keys)).
+		WithUnknownTimeout(unknown)
+
+	client, err := worker.NewWorkerClient(pool, func(w *river.Workers) {
+		worker.AddReconcile(w, func(ctx context.Context, a worker.ReconcileArgs) error {
+			_, err := led.Reconcile(ctx, a.WorkspaceID, a.LedgerID, sender.SendInput{
+				To: a.To, Subject: a.Subject, Text: a.Text, HTML: a.HTML,
+			})
+			return err
+		})
+	})
 	if err != nil {
 		logger.Error("river client", "err", err)
 		os.Exit(1)

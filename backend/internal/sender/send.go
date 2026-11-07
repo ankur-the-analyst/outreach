@@ -2,7 +2,9 @@ package sender
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -57,31 +59,56 @@ func (p *Postgres) Send(ctx context.Context, workspaceID, ledgerID uuid.UUID, in
 		return Entry{}, fmt.Errorf("sender: message-id changed")
 	}
 	if _, err := tr.Send(ctx, built); err != nil {
+		if isSendTimeout(err) {
+			_ = p.recordAttempt(ctx, workspaceID, ledgerID, "timeout", err)
+			ent, advErr := p.Advance(ctx, workspaceID, ledgerID, pacing.StateUnknown)
+			if advErr != nil {
+				return Entry{}, advErr
+			}
+			if p.queue != nil {
+				_ = p.queue.EnqueueReconcile(ctx, workspaceID, ledgerID, in)
+			}
+			return ent, err
+		}
 		_, _ = p.Advance(ctx, workspaceID, ledgerID, pacing.StateFailed)
 		return Entry{}, err
 	}
 	appendErr := tr.AppendSent(ctx, built)
-	_ = p.recordAttempt(ctx, workspaceID, ledgerID, appendErr)
+	outcome := "sent"
+	if appendErr != nil {
+		outcome = "append_failed"
+	}
+	_ = p.recordAttempt(ctx, workspaceID, ledgerID, outcome, appendErr)
 	return p.Advance(ctx, workspaceID, ledgerID, pacing.StateSent)
 }
 
-func (p *Postgres) recordAttempt(ctx context.Context, workspaceID, ledgerID uuid.UUID, appendErr error) error {
+func isSendTimeout(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var nerr net.Error
+	return errors.As(err, &nerr) && nerr.Timeout()
+}
+
+func (p *Postgres) recordAttempt(ctx context.Context, workspaceID, ledgerID uuid.UUID, outcome string, detail error) error {
 	id, err := uuid.NewV7()
 	if err != nil {
 		return err
 	}
-	outcome := "sent"
 	resp := pgtype.Text{}
-	if appendErr != nil {
-		outcome = "append_failed"
-		resp = pgtype.Text{String: appendErr.Error(), Valid: true}
+	if detail != nil {
+		resp = pgtype.Text{String: detail.Error(), Valid: true}
 	}
 	return p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		n, err := q.CountAttempts(ctx, db.CountAttemptsParams{WorkspaceID: workspaceID, LedgerID: ledgerID})
+		if err != nil {
+			return err
+		}
 		return q.InsertSendAttempt(ctx, db.InsertSendAttemptParams{
 			WorkspaceID:      workspaceID,
 			ID:               id,
 			LedgerID:         ledgerID,
-			Attempt:          1,
+			Attempt:          int32(n + 1),
 			Outcome:          outcome,
 			ProviderResponse: resp,
 		})

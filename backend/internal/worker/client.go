@@ -24,12 +24,16 @@ func NewInsertClient(pool *db.Pool) (*river.Client[pgx.Tx], error) {
 	return client, nil
 }
 
-func NewWorkerClient(pool *db.Pool) (*river.Client[pgx.Tx], error) {
+func NewWorkerClient(pool *db.Pool, extra func(*river.Workers)) (*river.Client[pgx.Tx], error) {
+	workers := NewWorkers()
+	if extra != nil {
+		extra(workers)
+	}
 	client, err := river.NewClient(riverpgxv5.New(pool.Pgx()), &river.Config{
 		Queues: map[string]river.QueueConfig{
 			river.QueueDefault: {MaxWorkers: 2},
 		},
-		Workers:    NewWorkers(),
+		Workers:    workers,
 		Middleware: []rivertype.Middleware{WorkspaceGUC(pool)},
 	})
 	if err != nil {

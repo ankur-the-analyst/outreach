@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -18,6 +19,7 @@ type Store interface {
 	Usage(ctx context.Context, workspaceID, mailboxID uuid.UUID) (int64, error)
 	Reserve(ctx context.Context, workspaceID uuid.UUID, in ReserveInput) (Entry, error)
 	Send(ctx context.Context, workspaceID, ledgerID uuid.UUID, in SendInput) (Entry, error)
+	Reconcile(ctx context.Context, workspaceID, ledgerID uuid.UUID, in SendInput) (Entry, error)
 }
 
 type API struct {
@@ -151,6 +153,40 @@ func (a *API) Send(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ent, err := a.store.Send(r.Context(), s.WorkspaceID, id, SendInput{
+		To: in.To, Subject: in.Subject, Text: in.Text, HTML: in.HTML,
+	})
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, ent)
+}
+
+func (a *API) Reconcile(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.session(w, r)
+	if !ok {
+		return
+	}
+	if err := a.requireEdit(r.Context(), s); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", "invalid id")
+		return
+	}
+	var in struct {
+		To      []string `json:"to"`
+		Subject string   `json:"subject"`
+		Text    string   `json:"text"`
+		HTML    string   `json:"html"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil && !errors.Is(err, io.EOF) {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
+		return
+	}
+	ent, err := a.store.Reconcile(r.Context(), s.WorkspaceID, id, SendInput{
 		To: in.To, Subject: in.Subject, Text: in.Text, HTML: in.HTML,
 	})
 	if err != nil {

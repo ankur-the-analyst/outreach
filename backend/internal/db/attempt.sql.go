@@ -12,6 +12,43 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countAttempts = `-- name: CountAttempts :one
+select count(*)::bigint as n
+from send_attempts
+where workspace_id = $1 and ledger_id = $2
+`
+
+type CountAttemptsParams struct {
+	WorkspaceID uuid.UUID
+	LedgerID    uuid.UUID
+}
+
+func (q *Queries) CountAttempts(ctx context.Context, arg CountAttemptsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAttempts, arg.WorkspaceID, arg.LedgerID)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
+}
+
+const countAttemptsByOutcome = `-- name: CountAttemptsByOutcome :one
+select count(*)::bigint as n
+from send_attempts
+where workspace_id = $1 and ledger_id = $2 and outcome = $3
+`
+
+type CountAttemptsByOutcomeParams struct {
+	WorkspaceID uuid.UUID
+	LedgerID    uuid.UUID
+	Outcome     string
+}
+
+func (q *Queries) CountAttemptsByOutcome(ctx context.Context, arg CountAttemptsByOutcomeParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countAttemptsByOutcome, arg.WorkspaceID, arg.LedgerID, arg.Outcome)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
+}
+
 const deleteAttemptsForWorkspace = `-- name: DeleteAttemptsForWorkspace :exec
 delete from send_attempts
 where workspace_id = $1

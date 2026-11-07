@@ -24,15 +24,20 @@ type stubTransport struct {
 	sendErr   error
 	appendErr error
 	last      *mime.Built
+	finds     bool
+	sends     int
 }
 
 func (s *stubTransport) Test(context.Context) error { return nil }
 func (s *stubTransport) Send(_ context.Context, m *mime.Built) (mailbox.SendResult, error) {
+	s.sends++
 	s.last = m
 	return mailbox.SendResult{}, s.sendErr
 }
-func (s *stubTransport) AppendSent(context.Context, *mime.Built) error  { return s.appendErr }
-func (s *stubTransport) FindSent(context.Context, string) (bool, error) { return false, nil }
+func (s *stubTransport) AppendSent(context.Context, *mime.Built) error { return s.appendErr }
+func (s *stubTransport) FindSent(context.Context, string) (bool, error) {
+	return s.finds, nil
+}
 
 type stubDialer struct{ tr mailbox.Transport }
 
