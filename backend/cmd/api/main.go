@@ -54,7 +54,7 @@ func main() {
 	}
 	wrk := worker.New(pool, wsStore, jobs)
 	hold := time.Duration(cfg.UndoHoldS) * time.Second
-	snd := sender.New(sender.NewPostgres(pool, time.Now, hold))
+	snd := sender.New(sender.NewPostgres(pool, time.Now, hold).WithDialer(sender.NewMailboxDialer(pool, keys)))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
@@ -81,6 +81,7 @@ func main() {
 	mux.Handle("GET /api/v1/mailboxes/{id}/usage", a.Require(http.HandlerFunc(snd.Usage)))
 	mux.Handle("POST /api/v1/ledger/{id}/cancel", a.Require(http.HandlerFunc(snd.Cancel)))
 	mux.Handle("POST /api/v1/reserve", a.Require(http.HandlerFunc(snd.Reserve)))
+	mux.Handle("POST /api/v1/ledger/{id}/send", a.Require(http.HandlerFunc(snd.Send)))
 
 	logger.Info("api listening", "addr", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {

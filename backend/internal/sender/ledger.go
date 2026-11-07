@@ -40,6 +40,7 @@ type Postgres struct {
 	pool *db.Pool
 	now  func() time.Time
 	hold time.Duration
+	dial Dialer
 }
 
 func NewPostgres(pool *db.Pool, now func() time.Time, hold time.Duration) *Postgres {

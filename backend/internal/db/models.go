@@ -177,6 +177,16 @@ type Secret struct {
 	CreatedAt   pgtype.Timestamptz
 }
 
+type SendAttempt struct {
+	WorkspaceID      uuid.UUID
+	ID               uuid.UUID
+	LedgerID         uuid.UUID
+	Attempt          int32
+	Outcome          string
+	ProviderResponse pgtype.Text
+	CreatedAt        pgtype.Timestamptz
+}
+
 type SendLedger struct {
 	WorkspaceID     uuid.UUID
 	ID              uuid.UUID

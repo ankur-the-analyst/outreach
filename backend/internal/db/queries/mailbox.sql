@@ -50,6 +50,15 @@ from mailboxes
 where workspace_id = $1
 order by email;
 
+-- name: GetMailboxDial :one
+select
+  m.email, m.auth_kind, m.smtp_host, m.smtp_port, m.username,
+  m.imap_host, m.imap_port,
+  s.key_version, s.wrapped_dek, s.nonce, s.ciphertext
+from mailboxes m
+left join secrets s on s.workspace_id = m.workspace_id and s.id = m.secret_id
+where m.workspace_id = $1 and m.id = $2;
+
 -- name: GetMailbox :one
 select
   workspace_id, id, email, display_name, auth_kind, provider,

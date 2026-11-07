@@ -34,6 +34,9 @@ func (f *fakeStore) Usage(context.Context, uuid.UUID, uuid.UUID) (int64, error) 
 func (f *fakeStore) Reserve(context.Context, uuid.UUID, ReserveInput) (Entry, error) {
 	return f.ent, f.err
 }
+func (f *fakeStore) Send(context.Context, uuid.UUID, uuid.UUID, SendInput) (Entry, error) {
+	return f.ent, f.err
+}
 
 func TestHoldCreated(t *testing.T) {
 	t.Parallel()

@@ -133,6 +133,54 @@ func (q *Queries) GetMailbox(ctx context.Context, arg GetMailboxParams) (GetMail
 	return i, err
 }
 
+const getMailboxDial = `-- name: GetMailboxDial :one
+select
+  m.email, m.auth_kind, m.smtp_host, m.smtp_port, m.username,
+  m.imap_host, m.imap_port,
+  s.key_version, s.wrapped_dek, s.nonce, s.ciphertext
+from mailboxes m
+left join secrets s on s.workspace_id = m.workspace_id and s.id = m.secret_id
+where m.workspace_id = $1 and m.id = $2
+`
+
+type GetMailboxDialParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+type GetMailboxDialRow struct {
+	Email      string
+	AuthKind   string
+	SmtpHost   pgtype.Text
+	SmtpPort   pgtype.Int4
+	Username   pgtype.Text
+	ImapHost   pgtype.Text
+	ImapPort   pgtype.Int4
+	KeyVersion pgtype.Int4
+	WrappedDek []byte
+	Nonce      []byte
+	Ciphertext []byte
+}
+
+func (q *Queries) GetMailboxDial(ctx context.Context, arg GetMailboxDialParams) (GetMailboxDialRow, error) {
+	row := q.db.QueryRow(ctx, getMailboxDial, arg.WorkspaceID, arg.ID)
+	var i GetMailboxDialRow
+	err := row.Scan(
+		&i.Email,
+		&i.AuthKind,
+		&i.SmtpHost,
+		&i.SmtpPort,
+		&i.Username,
+		&i.ImapHost,
+		&i.ImapPort,
+		&i.KeyVersion,
+		&i.WrappedDek,
+		&i.Nonce,
+		&i.Ciphertext,
+	)
+	return i, err
+}
+
 const getSendingDomain = `-- name: GetSendingDomain :one
 select workspace_id, id, domain, daily_limit, first_seen_at
 from sending_domains

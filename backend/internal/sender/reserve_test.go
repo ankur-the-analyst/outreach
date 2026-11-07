@@ -37,6 +37,7 @@ func TestParallelRRNeverDoublePicks(t *testing.T) {
 		c, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = pool.InTx(c, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, q *db.Queries) error {
+			_ = q.DeleteAttemptsForWorkspace(ctx, wsID)
 			_ = q.DeleteLedgerForWorkspace(ctx, wsID)
 			_ = q.DeleteMailboxesForWorkspace(ctx, wsID)
 			_ = q.DeleteSecretsForWorkspace(ctx, wsID)
