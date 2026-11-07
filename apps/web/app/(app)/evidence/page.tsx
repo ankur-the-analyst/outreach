@@ -10,8 +10,8 @@ async function EvidenceBody() {
     <main>
       <h1 className="font-headline-xl text-foreground">Evidence</h1>
       <p className="mt-2 mb-6 font-body-md text-muted-foreground">
-        Confirm a claim before compose can cite it. Unconfirmed items stay out
-        of facts_used.
+        Confirm a claim before writing can use it. Unconfirmed items stay out
+        of drafts.
       </p>
       <EvidenceLibrary items={data?.evidence ?? []} />
     </main>

@@ -10,8 +10,8 @@ async function ContactsBody() {
     <main>
       <h1 className="font-headline-xl text-foreground">Contacts</h1>
       <p className="mt-2 mb-6 font-body-md text-muted-foreground">
-        Provenance is required. One email per workspace. Preview a CSV before
-        you import.
+        Record where a person came from. One email per workspace. Preview a
+        CSV before you import.
       </p>
       <ContactBook contacts={data?.contacts ?? []} />
     </main>

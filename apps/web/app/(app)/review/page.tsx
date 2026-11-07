@@ -11,8 +11,8 @@ async function ReviewBody() {
     <main>
       <h1 className="font-headline-xl text-foreground">Review</h1>
       <p className="mt-2 mb-6 font-body-md text-muted-foreground">
-        Approve a one-off draft to start a 5-minute hold. Undo in that window
-        cancels the send.
+        Approve a draft to queue the send. You have a few minutes to undo
+        before it goes out.
       </p>
       <ReviewQueue drafts={drafts?.drafts ?? []} />
       <OneOffDraftForm mailboxes={mailboxes?.mailboxes ?? []} />

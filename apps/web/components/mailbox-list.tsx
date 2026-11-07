@@ -4,6 +4,36 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { Mailbox } from "@/lib/api";
 
+function mailboxStatus(status: string): string {
+  switch (status) {
+    case "warming":
+      return "Warming up";
+    case "healthy":
+      return "Ready";
+    case "paused":
+      return "Paused";
+    case "disconnected":
+      return "Disconnected";
+    default:
+      return status;
+  }
+}
+
+function authKindLabel(kind: string): string {
+  switch (kind) {
+    case "app_password":
+      return "Gmail app password";
+    case "smtp_imap":
+      return "SMTP";
+    case "service_account":
+      return "Google Workspace";
+    case "oauth":
+      return "OAuth";
+    default:
+      return kind;
+  }
+}
+
 export function MailboxList({ mailboxes }: { mailboxes: Mailbox[] }) {
   if (mailboxes.length === 0) {
     return <p className="font-body-md text-muted-foreground">No mailboxes yet.</p>;
@@ -30,7 +60,7 @@ function MailboxRow({ mailbox }: { mailbox: Mailbox }) {
     });
     setPending(false);
     if (res.ok) {
-      setMsg("SMTP reachable");
+      setMsg("Server answered");
       return;
     }
     const data = (await res.json().catch(() => null)) as
@@ -44,7 +74,7 @@ function MailboxRow({ mailbox }: { mailbox: Mailbox }) {
       <div>
         <p className="font-label-md text-foreground">{mailbox.email}</p>
         <p className="mt-1 font-body-md tabular-nums text-muted-foreground">
-          {mailbox.status} · {mailbox.auth_kind}
+          {mailboxStatus(mailbox.status)} · {authKindLabel(mailbox.auth_kind)}
           {mailbox.smtp_host
             ? ` · ${mailbox.smtp_host}:${mailbox.smtp_port}`
             : ""}

@@ -37,8 +37,8 @@ export function ContactBook({ contacts }: { contacts: Contact[] }) {
                 {[c.first_name, c.last_name].filter(Boolean).join(" ") || "—"}
                 {c.title ? ` · ${c.title}` : ""}
                 {` · ${c.readiness}`}
-                {c.role_class ? ` · ${c.role_class}` : ""}
-                {` · ${c.provenance.source}`}
+                {c.role_class ? ` · ${c.role_class.replaceAll("_", " ")}` : ""}
+                {c.provenance.source ? ` · ${c.provenance.source}` : ""}
               </p>
             </li>
           ))}
@@ -121,7 +121,7 @@ function CreateForm() {
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="contact-source">Provenance source</Label>
+        <Label htmlFor="contact-source">How you found them</Label>
         <Input
           id="contact-source"
           required
@@ -219,7 +219,7 @@ function CSVPreview() {
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="csv-source">Provenance source</Label>
+        <Label htmlFor="csv-source">How you found them</Label>
         <Input
           id="csv-source"
           required

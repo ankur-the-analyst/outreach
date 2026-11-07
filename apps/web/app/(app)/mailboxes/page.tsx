@@ -11,7 +11,7 @@ async function MailboxesBody() {
     <main>
       <h1 className="font-headline-xl text-foreground">Mailboxes</h1>
       <p className="mt-2 mb-6 font-body-md text-muted-foreground">
-        SMTP mailboxes in this workspace. Test talks to the stored host.
+        Addresses you send from. Test checks that the server answers.
       </p>
       <MailboxList mailboxes={data?.mailboxes ?? []} />
       <ConnectMailboxForm />
