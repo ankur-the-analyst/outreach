@@ -158,6 +158,17 @@ func (q *Queries) SetSendsPaused(ctx context.Context, arg SetSendsPausedParams) 
 	return err
 }
 
+const touchWorkspace = `-- name: TouchWorkspace :exec
+update workspaces
+set name = name
+where id = $1
+`
+
+func (q *Queries) TouchWorkspace(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, touchWorkspace, id)
+	return err
+}
+
 const updateWorkspaceName = `-- name: UpdateWorkspaceName :exec
 update workspaces
 set name = $2

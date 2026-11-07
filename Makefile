@@ -6,7 +6,7 @@ MASTER_KEYS ?= 1:000000000000000000000000000000000000000000000000000000000000000
 MASTER_KEY_ACTIVE ?= 1
 DBMATE := dbmate --url "$(DATABASE_URL)" --migrations-dir backend/migrations
 
-.PHONY: up down logs api migrate migrate-down migrate-status sqlc test test-int web
+.PHONY: up down logs api worker migrate migrate-down migrate-status sqlc test test-int web
 
 up:
 	docker compose up -d
@@ -19,6 +19,9 @@ logs:
 
 api:
 	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" MASTER_KEYS="$(MASTER_KEYS)" MASTER_KEY_ACTIVE="$(MASTER_KEY_ACTIVE)" ADDR="$(or $(ADDR),:8080)" go run ./cmd/api
+
+worker:
+	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" MASTER_KEYS="$(MASTER_KEYS)" MASTER_KEY_ACTIVE="$(MASTER_KEY_ACTIVE)" go run ./cmd/worker
 
 sqlc:
 	cd backend && go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0 generate

@@ -14,6 +14,7 @@ import (
 	"outreach/internal/health"
 	"outreach/internal/mailbox"
 	"outreach/internal/mailbox/smtpimap"
+	"outreach/internal/worker"
 	"outreach/internal/workspace"
 )
 
@@ -42,8 +43,15 @@ func main() {
 	}
 
 	a := auth.New(auth.NewPostgres(pool))
-	ws := workspace.New(workspace.NewPostgres(pool))
+	wsStore := workspace.NewPostgres(pool)
+	ws := workspace.New(wsStore)
 	mb := mailbox.New(mailbox.NewPostgres(pool, keys), smtpimap.Probe{})
+	jobs, err := worker.NewInsertClient(pool)
+	if err != nil {
+		logger.Error("river client", "err", err)
+		os.Exit(1)
+	}
+	wrk := worker.New(pool, wsStore, jobs)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
@@ -65,6 +73,7 @@ func main() {
 	mux.Handle("POST /api/v1/mailboxes/{id}/test", a.Require(http.HandlerFunc(mb.Test)))
 	mux.Handle("GET /api/v1/google-service-accounts", a.Require(http.HandlerFunc(mb.ListSA)))
 	mux.Handle("POST /api/v1/google-service-accounts", a.Require(http.HandlerFunc(mb.CreateSA)))
+	mux.Handle("POST /api/v1/jobs/ping", a.Require(http.HandlerFunc(wrk.Ping)))
 
 	logger.Info("api listening", "addr", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {

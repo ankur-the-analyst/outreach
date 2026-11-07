@@ -53,6 +53,12 @@ func resetGUC(ctx context.Context, e execer) {
 }
 
 func (p *Pool) InTx(ctx context.Context, g GUC, fn func(ctx context.Context, q *Queries) error) error {
+	return p.ExecTx(ctx, g, func(ctx context.Context, q *Queries, _ pgx.Tx) error {
+		return fn(ctx, q)
+	})
+}
+
+func (p *Pool) ExecTx(ctx context.Context, g GUC, fn func(ctx context.Context, q *Queries, tx pgx.Tx) error) error {
 	tx, err := p.inner.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("db begin: %w", err)
@@ -61,7 +67,7 @@ func (p *Pool) InTx(ctx context.Context, g GUC, fn func(ctx context.Context, q *
 	if err := applyGUC(ctx, tx, g, true); err != nil {
 		return err
 	}
-	if err := fn(ctx, New(tx)); err != nil {
+	if err := fn(ctx, New(tx), tx); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {

@@ -39,3 +39,7 @@ func (p *Pool) Close() {
 func (p *Pool) Queries() *Queries {
 	return p.q
 }
+
+func (p *Pool) Pgx() *pgxpool.Pool {
+	return p.inner
+}

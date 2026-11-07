@@ -5,11 +5,61 @@
 package db
 
 import (
+	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type RiverJobState string
+
+const (
+	RiverJobStateAvailable RiverJobState = "available"
+	RiverJobStateCancelled RiverJobState = "cancelled"
+	RiverJobStateCompleted RiverJobState = "completed"
+	RiverJobStateDiscarded RiverJobState = "discarded"
+	RiverJobStatePending   RiverJobState = "pending"
+	RiverJobStateRetryable RiverJobState = "retryable"
+	RiverJobStateRunning   RiverJobState = "running"
+	RiverJobStateScheduled RiverJobState = "scheduled"
+)
+
+func (e *RiverJobState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = RiverJobState(s)
+	case string:
+		*e = RiverJobState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for RiverJobState: %T", src)
+	}
+	return nil
+}
+
+type NullRiverJobState struct {
+	RiverJobState RiverJobState
+	Valid         bool // Valid is true if RiverJobState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullRiverJobState) Scan(value interface{}) error {
+	if value == nil {
+		ns.RiverJobState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.RiverJobState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullRiverJobState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.RiverJobState), nil
+}
 
 type GoogleServiceAccount struct {
 	WorkspaceID uuid.UUID
@@ -64,6 +114,55 @@ type Membership struct {
 	WorkspaceID uuid.UUID
 	UserID      uuid.UUID
 	Role        string
+}
+
+type RiverJob struct {
+	ID           int64
+	State        RiverJobState
+	Attempt      int16
+	MaxAttempts  int16
+	AttemptedAt  pgtype.Timestamptz
+	CreatedAt    pgtype.Timestamptz
+	FinalizedAt  pgtype.Timestamptz
+	ScheduledAt  pgtype.Timestamptz
+	Priority     int16
+	Args         json.RawMessage
+	AttemptedBy  []string
+	Errors       []json.RawMessage
+	Kind         string
+	Metadata     json.RawMessage
+	Queue        string
+	Tags         []string
+	UniqueKey    []byte
+	UniqueStates pgtype.Bits
+}
+
+type RiverLeader struct {
+	ElectedAt pgtype.Timestamptz
+	ExpiresAt pgtype.Timestamptz
+	LeaderID  string
+	Name      string
+}
+
+type RiverMigration struct {
+	ID        int64
+	CreatedAt pgtype.Timestamptz
+	Version   int64
+}
+
+type RiverNotification struct {
+	ID        int64
+	CreatedAt pgtype.Timestamptz
+	Payload   string
+	Topic     string
+}
+
+type RiverQueue struct {
+	Name      string
+	CreatedAt pgtype.Timestamptz
+	Metadata  json.RawMessage
+	PausedAt  pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
 }
 
 type Secret struct {

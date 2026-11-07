@@ -12,6 +12,11 @@ update workspaces
 set name = $2
 where id = $1;
 
+-- name: TouchWorkspace :exec
+update workspaces
+set name = name
+where id = $1;
+
 -- name: SetSendsPaused :exec
 update workspaces
 set sends_paused = $2
