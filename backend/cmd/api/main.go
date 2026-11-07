@@ -13,6 +13,7 @@ import (
 	"github.com/riverqueue/river"
 	"outreach/internal/ai"
 	"outreach/internal/auth"
+	"outreach/internal/campaign"
 	"outreach/internal/compose"
 	"outreach/internal/config"
 	"outreach/internal/contacts"
@@ -111,6 +112,12 @@ func main() {
 	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc))
 	jd := jobsjd.New(jobsjd.NewPostgres(pool, storage.NewMemory(), writer))
 	ct := contacts.New(contacts.NewPostgres(pool))
+	packs, err := campaign.LoadPacks()
+	if err != nil {
+		logger.Error("load packs", "err", err)
+		os.Exit(1)
+	}
+	camp := campaign.New(campaign.NewPostgres(pool, packs))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
@@ -163,6 +170,17 @@ func main() {
 	mux.Handle("GET /api/v1/contacts/{id}", a.Require(http.HandlerFunc(ct.Get)))
 	mux.Handle("PATCH /api/v1/contacts/{id}", a.Require(http.HandlerFunc(ct.Patch)))
 	mux.Handle("DELETE /api/v1/contacts/{id}", a.Require(http.HandlerFunc(ct.Delete)))
+	mux.Handle("GET /api/v1/packs", a.Require(http.HandlerFunc(camp.ListPacks)))
+	mux.Handle("GET /api/v1/sender-identity", a.Require(http.HandlerFunc(camp.GetIdentity)))
+	mux.Handle("PUT /api/v1/sender-identity", a.Require(http.HandlerFunc(camp.PutIdentity)))
+	mux.Handle("GET /api/v1/campaigns", a.Require(http.HandlerFunc(camp.List)))
+	mux.Handle("POST /api/v1/campaigns", a.Require(http.HandlerFunc(camp.Create)))
+	mux.Handle("GET /api/v1/campaigns/{id}", a.Require(http.HandlerFunc(camp.Get)))
+	mux.Handle("POST /api/v1/campaigns/{id}/start", a.Require(http.HandlerFunc(camp.Start)))
+	mux.Handle("POST /api/v1/campaigns/{id}/pause", a.Require(http.HandlerFunc(camp.Pause)))
+	mux.Handle("POST /api/v1/campaigns/{id}/stop", a.Require(http.HandlerFunc(camp.Stop)))
+	mux.Handle("POST /api/v1/campaigns/{id}/enrolments", a.Require(http.HandlerFunc(camp.Enrol)))
+	mux.Handle("GET /api/v1/campaigns/{id}/enrolments", a.Require(http.HandlerFunc(camp.ListEnrolments)))
 
 	logger.Info("api listening", "addr", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {

@@ -106,6 +106,23 @@ export function getContacts() {
   return apiGet<{ contacts: Contact[] }>("/api/v1/contacts");
 }
 
+export type Campaign = {
+  id: string;
+  name: string;
+  intent: string;
+  status: string;
+  commercial: boolean;
+  list_unsubscribe: boolean;
+  sender_strategy: string;
+  steps: { position: number; kind: string; wait_days?: number }[];
+  senders: { mailbox_id: string }[];
+  created_at: string;
+};
+
+export function getCampaigns() {
+  return apiGet<{ campaigns: Campaign[] }>("/api/v1/campaigns");
+}
+
 export type ThreadMessage = {
   id: string;
   direction: string;

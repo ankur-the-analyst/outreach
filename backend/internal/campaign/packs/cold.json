@@ -1,0 +1,11 @@
+{
+  "id": "cold",
+  "intent": "cold",
+  "commercial": true,
+  "name": "Cold outreach",
+  "steps": [
+    {"position": 0, "kind": "email", "content": "ai"},
+    {"position": 1, "kind": "wait", "wait_days": 7},
+    {"position": 2, "kind": "email", "content": "ai"}
+  ]
+}

@@ -86,6 +86,21 @@ func (p *Postgres) Delete(ctx context.Context, workspaceID uuid.UUID) error {
 		if err := q.DeleteSyncStateForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: sync: %w", err)
 		}
+		if err := q.DeleteEnrolmentsForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: enrolments: %w", err)
+		}
+		if err := q.DeleteCampaignSendersForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: campaign senders: %w", err)
+		}
+		if err := q.DeleteCampaignStepsForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: campaign steps: %w", err)
+		}
+		if err := q.DeleteCampaignsForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: campaigns: %w", err)
+		}
+		if err := q.DeleteSenderIdentityForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: sender identity: %w", err)
+		}
 		if err := q.DeleteMailboxesForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: mailboxes: %w", err)
 		}

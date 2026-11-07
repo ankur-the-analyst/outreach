@@ -1,0 +1,11 @@
+{
+  "id": "job",
+  "intent": "job",
+  "commercial": false,
+  "name": "Job outreach",
+  "steps": [
+    {"position": 0, "kind": "email", "content": "ai"},
+    {"position": 1, "kind": "wait", "wait_days": 5},
+    {"position": 2, "kind": "email", "content": "ai"}
+  ]
+}

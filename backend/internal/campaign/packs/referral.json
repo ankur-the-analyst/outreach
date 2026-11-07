@@ -1,0 +1,9 @@
+{
+  "id": "referral",
+  "intent": "referral",
+  "commercial": false,
+  "name": "Referral ask",
+  "steps": [
+    {"position": 0, "kind": "email", "content": "ai"}
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "freelance",
+  "intent": "freelance",
+  "commercial": true,
+  "name": "Freelance",
+  "steps": [
+    {"position": 0, "kind": "email", "content": "ai"}
+  ]
+}

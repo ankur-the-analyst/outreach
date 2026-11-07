@@ -1,0 +1,101 @@
+-- name: UpsertSenderIdentity :one
+insert into sender_identities (workspace_id, legal_name, reply_address, postal_address)
+values ($1, $2, $3, $4)
+on conflict (workspace_id) do update
+set legal_name = excluded.legal_name, reply_address = excluded.reply_address, postal_address = excluded.postal_address
+returning workspace_id, legal_name, reply_address, postal_address;
+
+-- name: GetSenderIdentity :one
+select workspace_id, legal_name, reply_address, postal_address
+from sender_identities
+where workspace_id = $1;
+
+-- name: InsertCampaign :one
+insert into campaigns (
+  workspace_id, id, name, profile_id, intent, sender_strategy, status,
+  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s
+) values (
+  $1, $2, $3, $4, $5, $6, $7,
+  $8, $9, $10, $11
+)
+returning
+  workspace_id, id, name, profile_id, intent, sender_strategy, status,
+  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at;
+
+-- name: ListCampaigns :many
+select
+  workspace_id, id, name, profile_id, intent, sender_strategy, status,
+  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at
+from campaigns
+where workspace_id = $1
+order by created_at desc;
+
+-- name: GetCampaign :one
+select
+  workspace_id, id, name, profile_id, intent, sender_strategy, status,
+  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at
+from campaigns
+where workspace_id = $1 and id = $2;
+
+-- name: UpdateCampaignStatus :one
+update campaigns
+set status = $3, list_unsubscribe = $4, starts_at = coalesce(starts_at, $5)
+where workspace_id = $1 and id = $2
+returning
+  workspace_id, id, name, profile_id, intent, sender_strategy, status,
+  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at;
+
+-- name: InsertCampaignSender :exec
+insert into campaign_senders (workspace_id, campaign_id, mailbox_id, position, weight)
+values ($1, $2, $3, $4, $5);
+
+-- name: ListCampaignSenders :many
+select workspace_id, campaign_id, mailbox_id, position, weight
+from campaign_senders
+where workspace_id = $1 and campaign_id = $2
+order by position;
+
+-- name: InsertCampaignStep :one
+insert into campaign_steps (
+  workspace_id, id, campaign_id, position, kind, wait_days, content, ai_instructions
+) values (
+  $1, $2, $3, $4, $5, $6, $7, $8
+)
+returning workspace_id, id, campaign_id, position, kind, wait_days, content, ai_instructions;
+
+-- name: ListCampaignSteps :many
+select workspace_id, id, campaign_id, position, kind, wait_days, content, ai_instructions
+from campaign_steps
+where workspace_id = $1 and campaign_id = $2
+order by position;
+
+-- name: InsertEnrolment :one
+insert into enrolments (
+  workspace_id, id, campaign_id, contact_id, job_id, profile_id, intent, context, status
+) values (
+  $1, $2, $3, $4, $5, $6, $7, $8, $9
+)
+returning
+  workspace_id, id, campaign_id, contact_id, job_id, profile_id, intent, context, status, created_at;
+
+-- name: ListEnrolments :many
+select
+  workspace_id, id, campaign_id, contact_id, job_id, profile_id, intent, context, status, created_at
+from enrolments
+where workspace_id = $1 and campaign_id = $2
+order by created_at desc;
+
+-- name: DeleteEnrolmentsForWorkspace :exec
+delete from enrolments where workspace_id = $1;
+
+-- name: DeleteCampaignSendersForWorkspace :exec
+delete from campaign_senders where workspace_id = $1;
+
+-- name: DeleteCampaignStepsForWorkspace :exec
+delete from campaign_steps where workspace_id = $1;
+
+-- name: DeleteCampaignsForWorkspace :exec
+delete from campaigns where workspace_id = $1;
+
+-- name: DeleteSenderIdentityForWorkspace :exec
+delete from sender_identities where workspace_id = $1;

@@ -1,0 +1,9 @@
+{
+  "id": "informational",
+  "intent": "informational",
+  "commercial": false,
+  "name": "Informational",
+  "steps": [
+    {"position": 0, "kind": "email", "content": "ai"}
+  ]
+}

@@ -62,6 +62,45 @@ func (ns NullRiverJobState) Value() (driver.Value, error) {
 	return string(ns.RiverJobState), nil
 }
 
+type Campaign struct {
+	WorkspaceID         uuid.UUID
+	ID                  uuid.UUID
+	Name                string
+	ProfileID           *uuid.UUID
+	Intent              string
+	SenderStrategy      string
+	Status              string
+	TrackOpens          bool
+	TrackClicks         bool
+	ListUnsubscribe     bool
+	NewContactsPerDay   int32
+	StartsAt            pgtype.Timestamptz
+	CompanyCooldownDays int32
+	AiInstructions      pgtype.Text
+	UndoHoldS           int32
+	CreatedAt           pgtype.Timestamptz
+}
+
+type CampaignSender struct {
+	WorkspaceID uuid.UUID
+	CampaignID  uuid.UUID
+	MailboxID   uuid.UUID
+	Position    int32
+	Weight      int32
+}
+
+type CampaignStep struct {
+	WorkspaceID    uuid.UUID
+	ID             uuid.UUID
+	CampaignID     uuid.UUID
+	Position       int32
+	Kind           string
+	WaitDays       pgtype.Int4
+	Content        pgtype.Text
+	TemplateID     *uuid.UUID
+	AiInstructions pgtype.Text
+}
+
 type Company struct {
 	WorkspaceID            uuid.UUID
 	ID                     uuid.UUID
@@ -112,6 +151,26 @@ type Draft struct {
 	Status                  string
 	ApprovedBy              *uuid.UUID
 	CreatedAt               pgtype.Timestamptz
+}
+
+type Enrolment struct {
+	WorkspaceID  uuid.UUID
+	ID           uuid.UUID
+	CampaignID   uuid.UUID
+	ContactID    uuid.UUID
+	JobID        *uuid.UUID
+	ProfileID    *uuid.UUID
+	Intent       string
+	Context      json.RawMessage
+	MailboxID    *uuid.UUID
+	ThreadID     *uuid.UUID
+	CurrentStep  int32
+	Status       string
+	NextActionAt pgtype.Timestamptz
+	HoldUntil    pgtype.Timestamptz
+	StopReason   pgtype.Text
+	Outcome      pgtype.Text
+	CreatedAt    pgtype.Timestamptz
 }
 
 type EvidenceItem struct {
@@ -338,6 +397,13 @@ type SendLedger struct {
 	ReleaseAt       pgtype.Timestamptz
 	SentAt          pgtype.Timestamptz
 	CreatedAt       pgtype.Timestamptz
+}
+
+type SenderIdentity struct {
+	WorkspaceID   uuid.UUID
+	LegalName     string
+	ReplyAddress  string
+	PostalAddress string
 }
 
 type SendingDomain struct {
