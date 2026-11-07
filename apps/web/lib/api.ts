@@ -74,6 +74,21 @@ export function getDrafts() {
   return apiGet<{ drafts: Draft[] }>("/api/v1/drafts");
 }
 
+export type EvidenceItem = {
+  id: string;
+  text: string;
+  source_ref?: string;
+  tags: string[];
+  do_not_use: boolean;
+  confirmed: boolean;
+  embedding_model?: string;
+  created_at: string;
+};
+
+export function getEvidence() {
+  return apiGet<{ evidence: EvidenceItem[] }>("/api/v1/evidence");
+}
+
 export type ThreadMessage = {
   id: string;
   direction: string;
