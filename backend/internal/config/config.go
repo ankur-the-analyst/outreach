@@ -13,6 +13,7 @@ type Config struct {
 	MasterKeyActive int    `split_words:"true" default:"1"`
 	UndoHoldS       int    `split_words:"true" default:"300"`
 	UnknownTimeoutS int    `split_words:"true" default:"900"`
+	MailpitAPI      string `split_words:"true" default:"http://127.0.0.1:8025"`
 }
 
 func Load() (Config, error) {

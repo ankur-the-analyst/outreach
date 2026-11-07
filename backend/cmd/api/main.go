@@ -20,6 +20,7 @@ import (
 	"outreach/internal/mailbox/smtpimap"
 	"outreach/internal/sender"
 	"outreach/internal/suppression"
+	mailsync "outreach/internal/sync"
 	"outreach/internal/worker"
 	"outreach/internal/workspace"
 )
@@ -84,6 +85,7 @@ func main() {
 		WithBlocker(suppStore)
 	snd := sender.New(led)
 	cmp := compose.New(compose.NewPostgres(pool, led))
+	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
@@ -117,6 +119,8 @@ func main() {
 	mux.Handle("POST /api/v1/drafts", a.Require(http.HandlerFunc(cmp.Create)))
 	mux.Handle("POST /api/v1/drafts/{id}/approve", a.Require(http.HandlerFunc(cmp.Approve)))
 	mux.Handle("POST /api/v1/drafts/{id}/undo", a.Require(http.HandlerFunc(cmp.Undo)))
+	mux.Handle("POST /api/v1/mailboxes/{id}/sync", a.Require(http.HandlerFunc(sy.Sync)))
+	mux.Handle("GET /api/v1/mailboxes/{id}/threads", a.Require(http.HandlerFunc(sy.Threads)))
 
 	logger.Info("api listening", "addr", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {

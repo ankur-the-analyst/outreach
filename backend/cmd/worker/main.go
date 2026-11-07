@@ -13,6 +13,7 @@ import (
 	"outreach/internal/crypto"
 	"outreach/internal/db"
 	"outreach/internal/sender"
+	mailsync "outreach/internal/sync"
 	"outreach/internal/worker"
 )
 
@@ -45,12 +46,17 @@ func main() {
 	led := sender.NewPostgres(pool, time.Now, hold).
 		WithDialer(sender.NewMailboxDialer(pool, keys)).
 		WithUnknownTimeout(unknown)
+	ing := mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI})
 
 	client, err := worker.NewWorkerClient(pool, func(w *river.Workers) {
 		worker.AddReconcile(w, func(ctx context.Context, a worker.ReconcileArgs) error {
 			_, err := led.Reconcile(ctx, a.WorkspaceID, a.LedgerID, sender.SendInput{
 				To: a.To, Subject: a.Subject, Text: a.Text, HTML: a.HTML,
 			})
+			return err
+		})
+		worker.AddSync(w, func(ctx context.Context, a worker.SyncArgs) error {
+			_, err := ing.SyncMailbox(ctx, a.WorkspaceID, a.MailboxID)
 			return err
 		})
 	})

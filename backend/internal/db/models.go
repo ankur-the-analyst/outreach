@@ -136,6 +136,32 @@ type Membership struct {
 	Role        string
 }
 
+type Message struct {
+	WorkspaceID    uuid.UUID
+	ID             uuid.UUID
+	MailboxID      uuid.UUID
+	ThreadID       uuid.UUID
+	Direction      string
+	RfcMessageID   string
+	InReplyTo      pgtype.Text
+	ReferencesIds  []string
+	GmailID        pgtype.Text
+	ImapFolder     pgtype.Text
+	ImapUid        pgtype.Int8
+	FromAddr       pgtype.Text
+	ToAddrs        []string
+	Subject        pgtype.Text
+	BodyText       pgtype.Text
+	BodyHtmlKey    pgtype.Text
+	SentAt         pgtype.Timestamptz
+	ReceivedAt     pgtype.Timestamptz
+	Status         pgtype.Text
+	Kind           pgtype.Text
+	Classification []byte
+	EnrolmentID    *uuid.UUID
+	DraftID        *uuid.UUID
+}
+
 type RiverJob struct {
 	ID           int64
 	State        RiverJobState
@@ -247,6 +273,28 @@ type Suppression struct {
 	ValueCitext pgtype.Text
 	Reason      string
 	CreatedAt   pgtype.Timestamptz
+}
+
+type SyncState struct {
+	WorkspaceID    uuid.UUID
+	MailboxID      uuid.UUID
+	Folder         string
+	UidValidity    pgtype.Int8
+	LastUid        pgtype.Int8
+	GmailHistoryID pgtype.Int8
+	LastSyncedAt   pgtype.Timestamptz
+	LastError      pgtype.Text
+}
+
+type Thread struct {
+	WorkspaceID   uuid.UUID
+	ID            uuid.UUID
+	MailboxID     uuid.UUID
+	ContactID     *uuid.UUID
+	Subject       pgtype.Text
+	GmailThreadID pgtype.Text
+	LastMessageAt pgtype.Timestamptz
+	Unread        bool
 }
 
 type User struct {

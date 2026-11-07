@@ -77,6 +77,15 @@ func (p *Postgres) Delete(ctx context.Context, workspaceID uuid.UUID) error {
 		if err := q.DeleteDraftsForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: drafts: %w", err)
 		}
+		if err := q.DeleteMessagesForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: messages: %w", err)
+		}
+		if err := q.DeleteThreadsForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: threads: %w", err)
+		}
+		if err := q.DeleteSyncStateForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: sync: %w", err)
+		}
 		if err := q.DeleteMailboxesForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: mailboxes: %w", err)
 		}

@@ -18,10 +18,10 @@ logs:
 	docker compose logs -f postgres
 
 api:
-	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" MASTER_KEYS="$(MASTER_KEYS)" MASTER_KEY_ACTIVE="$(MASTER_KEY_ACTIVE)" ADDR="$(or $(ADDR),:8080)" go run ./cmd/api
+	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" MASTER_KEYS="$(MASTER_KEYS)" MASTER_KEY_ACTIVE="$(MASTER_KEY_ACTIVE)" MAILPIT_API="$(MAILPIT_API)" ADDR="$(or $(ADDR),:8080)" go run ./cmd/api
 
 worker:
-	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" MASTER_KEYS="$(MASTER_KEYS)" MASTER_KEY_ACTIVE="$(MASTER_KEY_ACTIVE)" go run ./cmd/worker
+	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" MASTER_KEYS="$(MASTER_KEYS)" MASTER_KEY_ACTIVE="$(MASTER_KEY_ACTIVE)" MAILPIT_API="$(MAILPIT_API)" go run ./cmd/worker
 
 sqlc:
 	cd backend && go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0 generate
