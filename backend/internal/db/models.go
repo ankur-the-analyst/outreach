@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pgvector/pgvector-go"
 )
 
 type RiverJobState string
@@ -79,6 +80,20 @@ type Draft struct {
 	Status                  string
 	ApprovedBy              *uuid.UUID
 	CreatedAt               pgtype.Timestamptz
+}
+
+type EvidenceItem struct {
+	WorkspaceID    uuid.UUID
+	ID             uuid.UUID
+	Text           string
+	SourceRef      pgtype.Text
+	Tags           []string
+	DoNotUse       bool
+	ConfirmedAt    pgtype.Timestamptz
+	Embedding      pgvector.Vector
+	EmbeddingModel pgtype.Text
+	EmbeddedAt     pgtype.Timestamptz
+	CreatedAt      pgtype.Timestamptz
 }
 
 type GoogleServiceAccount struct {
