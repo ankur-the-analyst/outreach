@@ -133,6 +133,30 @@ func (q *Queries) GetMailbox(ctx context.Context, arg GetMailboxParams) (GetMail
 	return i, err
 }
 
+const getSendingDomain = `-- name: GetSendingDomain :one
+select workspace_id, id, domain, daily_limit, first_seen_at
+from sending_domains
+where workspace_id = $1 and id = $2
+`
+
+type GetSendingDomainParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) GetSendingDomain(ctx context.Context, arg GetSendingDomainParams) (SendingDomain, error) {
+	row := q.db.QueryRow(ctx, getSendingDomain, arg.WorkspaceID, arg.ID)
+	var i SendingDomain
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.Domain,
+		&i.DailyLimit,
+		&i.FirstSeenAt,
+	)
+	return i, err
+}
+
 const getSendingDomainByName = `-- name: GetSendingDomainByName :one
 select workspace_id, id, domain, daily_limit, first_seen_at
 from sending_domains
@@ -516,6 +540,173 @@ func (q *Queries) ListMailboxes(ctx context.Context, workspaceID uuid.UUID) ([]L
 		return nil, err
 	}
 	return items, nil
+}
+
+const listMailboxesByIDs = `-- name: ListMailboxesByIDs :many
+select
+  workspace_id, id, email, display_name, auth_kind, provider,
+  smtp_host, smtp_port, smtp_tls, imap_host, imap_port, username,
+  sending_domain_id, timezone, warmup_profile_id, warmup_sending_day,
+  effective_daily_limit, status, created_at
+from mailboxes
+where workspace_id = $1 and id = any($2::uuid[])
+`
+
+type ListMailboxesByIDsParams struct {
+	WorkspaceID uuid.UUID
+	Ids         []uuid.UUID
+}
+
+type ListMailboxesByIDsRow struct {
+	WorkspaceID         uuid.UUID
+	ID                  uuid.UUID
+	Email               string
+	DisplayName         pgtype.Text
+	AuthKind            string
+	Provider            string
+	SmtpHost            pgtype.Text
+	SmtpPort            pgtype.Int4
+	SmtpTls             pgtype.Text
+	ImapHost            pgtype.Text
+	ImapPort            pgtype.Int4
+	Username            pgtype.Text
+	SendingDomainID     uuid.UUID
+	Timezone            string
+	WarmupProfileID     uuid.UUID
+	WarmupSendingDay    int32
+	EffectiveDailyLimit int32
+	Status              string
+	CreatedAt           pgtype.Timestamptz
+}
+
+func (q *Queries) ListMailboxesByIDs(ctx context.Context, arg ListMailboxesByIDsParams) ([]ListMailboxesByIDsRow, error) {
+	rows, err := q.db.Query(ctx, listMailboxesByIDs, arg.WorkspaceID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMailboxesByIDsRow
+	for rows.Next() {
+		var i ListMailboxesByIDsRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.ID,
+			&i.Email,
+			&i.DisplayName,
+			&i.AuthKind,
+			&i.Provider,
+			&i.SmtpHost,
+			&i.SmtpPort,
+			&i.SmtpTls,
+			&i.ImapHost,
+			&i.ImapPort,
+			&i.Username,
+			&i.SendingDomainID,
+			&i.Timezone,
+			&i.WarmupProfileID,
+			&i.WarmupSendingDay,
+			&i.EffectiveDailyLimit,
+			&i.Status,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockMailbox = `-- name: LockMailbox :one
+select
+  workspace_id, id, email, display_name, auth_kind, provider,
+  smtp_host, smtp_port, smtp_tls, imap_host, imap_port, username,
+  sending_domain_id, timezone, warmup_profile_id, warmup_sending_day,
+  effective_daily_limit, status, created_at
+from mailboxes
+where workspace_id = $1 and id = $2
+for update
+`
+
+type LockMailboxParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+type LockMailboxRow struct {
+	WorkspaceID         uuid.UUID
+	ID                  uuid.UUID
+	Email               string
+	DisplayName         pgtype.Text
+	AuthKind            string
+	Provider            string
+	SmtpHost            pgtype.Text
+	SmtpPort            pgtype.Int4
+	SmtpTls             pgtype.Text
+	ImapHost            pgtype.Text
+	ImapPort            pgtype.Int4
+	Username            pgtype.Text
+	SendingDomainID     uuid.UUID
+	Timezone            string
+	WarmupProfileID     uuid.UUID
+	WarmupSendingDay    int32
+	EffectiveDailyLimit int32
+	Status              string
+	CreatedAt           pgtype.Timestamptz
+}
+
+func (q *Queries) LockMailbox(ctx context.Context, arg LockMailboxParams) (LockMailboxRow, error) {
+	row := q.db.QueryRow(ctx, lockMailbox, arg.WorkspaceID, arg.ID)
+	var i LockMailboxRow
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.Email,
+		&i.DisplayName,
+		&i.AuthKind,
+		&i.Provider,
+		&i.SmtpHost,
+		&i.SmtpPort,
+		&i.SmtpTls,
+		&i.ImapHost,
+		&i.ImapPort,
+		&i.Username,
+		&i.SendingDomainID,
+		&i.Timezone,
+		&i.WarmupProfileID,
+		&i.WarmupSendingDay,
+		&i.EffectiveDailyLimit,
+		&i.Status,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const lockSendingDomain = `-- name: LockSendingDomain :one
+select workspace_id, id, domain, daily_limit, first_seen_at
+from sending_domains
+where workspace_id = $1 and id = $2
+for update
+`
+
+type LockSendingDomainParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) LockSendingDomain(ctx context.Context, arg LockSendingDomainParams) (SendingDomain, error) {
+	row := q.db.QueryRow(ctx, lockSendingDomain, arg.WorkspaceID, arg.ID)
+	var i SendingDomain
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.Domain,
+		&i.DailyLimit,
+		&i.FirstSeenAt,
+	)
+	return i, err
 }
 
 const setMailboxDomain = `-- name: SetMailboxDomain :exec

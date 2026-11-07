@@ -59,6 +59,36 @@ select
 from mailboxes
 where workspace_id = $1 and id = $2;
 
+-- name: LockMailbox :one
+select
+  workspace_id, id, email, display_name, auth_kind, provider,
+  smtp_host, smtp_port, smtp_tls, imap_host, imap_port, username,
+  sending_domain_id, timezone, warmup_profile_id, warmup_sending_day,
+  effective_daily_limit, status, created_at
+from mailboxes
+where workspace_id = $1 and id = $2
+for update;
+
+-- name: ListMailboxesByIDs :many
+select
+  workspace_id, id, email, display_name, auth_kind, provider,
+  smtp_host, smtp_port, smtp_tls, imap_host, imap_port, username,
+  sending_domain_id, timezone, warmup_profile_id, warmup_sending_day,
+  effective_daily_limit, status, created_at
+from mailboxes
+where workspace_id = $1 and id = any(sqlc.arg('ids')::uuid[]);
+
+-- name: GetSendingDomain :one
+select workspace_id, id, domain, daily_limit, first_seen_at
+from sending_domains
+where workspace_id = $1 and id = $2;
+
+-- name: LockSendingDomain :one
+select workspace_id, id, domain, daily_limit, first_seen_at
+from sending_domains
+where workspace_id = $1 and id = $2
+for update;
+
 -- name: SetMailboxStatus :exec
 update mailboxes
 set status = $3, status_reason = $4

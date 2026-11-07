@@ -80,6 +80,7 @@ func main() {
 	mux.Handle("POST /api/v1/mailboxes/{id}/holds", a.Require(http.HandlerFunc(snd.Hold)))
 	mux.Handle("GET /api/v1/mailboxes/{id}/usage", a.Require(http.HandlerFunc(snd.Usage)))
 	mux.Handle("POST /api/v1/ledger/{id}/cancel", a.Require(http.HandlerFunc(snd.Cancel)))
+	mux.Handle("POST /api/v1/reserve", a.Require(http.HandlerFunc(snd.Reserve)))
 
 	logger.Info("api listening", "addr", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {

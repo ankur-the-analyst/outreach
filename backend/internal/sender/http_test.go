@@ -31,6 +31,9 @@ func (f *fakeStore) Cancel(context.Context, uuid.UUID, uuid.UUID) (Entry, error)
 func (f *fakeStore) Usage(context.Context, uuid.UUID, uuid.UUID) (int64, error) {
 	return f.used, f.err
 }
+func (f *fakeStore) Reserve(context.Context, uuid.UUID, ReserveInput) (Entry, error) {
+	return f.ent, f.err
+}
 
 func TestHoldCreated(t *testing.T) {
 	t.Parallel()

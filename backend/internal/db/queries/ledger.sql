@@ -1,10 +1,10 @@
 -- name: InsertLedger :one
 insert into send_ledger (
   workspace_id, id, mailbox_id, sending_domain_id, enrolment_id, draft_id,
-  step_position, is_first_touch, rfc_message_id, state, release_at
+  step_position, is_first_touch, rfc_message_id, state, reserved_at, release_at
 ) values (
   $1, $2, $3, $4, $5, $6,
-  $7, $8, $9, $10, $11
+  $7, $8, $9, $10, $11, $12
 )
 returning
   workspace_id, id, mailbox_id, sending_domain_id, enrolment_id, draft_id,
@@ -34,6 +34,22 @@ from send_ledger
 where workspace_id = $1 and mailbox_id = $2
   and state in ('held', 'reserved', 'sending', 'sent', 'unknown')
   and coalesce(sent_at, reserved_at, created_at) > now() - interval '24 hours';
+
+-- name: CountDomainUsage :one
+select count(*)::bigint as n
+from send_ledger
+where workspace_id = $1 and sending_domain_id = $2
+  and state in ('held', 'reserved', 'sending', 'sent', 'unknown')
+  and coalesce(sent_at, reserved_at, created_at) > now() - interval '24 hours';
+
+-- name: ListFirstTouchAt :many
+select mailbox_id,
+  max(coalesce(sent_at, reserved_at, created_at))::timestamptz as last_at
+from send_ledger
+where workspace_id = $1
+  and is_first_touch = true
+  and state in ('held', 'reserved', 'sending', 'sent', 'unknown')
+group by mailbox_id;
 
 -- name: DeleteLedgerForWorkspace :exec
 delete from send_ledger

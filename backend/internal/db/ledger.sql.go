@@ -12,6 +12,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countDomainUsage = `-- name: CountDomainUsage :one
+select count(*)::bigint as n
+from send_ledger
+where workspace_id = $1 and sending_domain_id = $2
+  and state in ('held', 'reserved', 'sending', 'sent', 'unknown')
+  and coalesce(sent_at, reserved_at, created_at) > now() - interval '24 hours'
+`
+
+type CountDomainUsageParams struct {
+	WorkspaceID     uuid.UUID
+	SendingDomainID uuid.UUID
+}
+
+func (q *Queries) CountDomainUsage(ctx context.Context, arg CountDomainUsageParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDomainUsage, arg.WorkspaceID, arg.SendingDomainID)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
+}
+
 const countMailboxUsage = `-- name: CountMailboxUsage :one
 select count(*)::bigint as n
 from send_ledger
@@ -80,10 +100,10 @@ func (q *Queries) GetLedger(ctx context.Context, arg GetLedgerParams) (SendLedge
 const insertLedger = `-- name: InsertLedger :one
 insert into send_ledger (
   workspace_id, id, mailbox_id, sending_domain_id, enrolment_id, draft_id,
-  step_position, is_first_touch, rfc_message_id, state, release_at
+  step_position, is_first_touch, rfc_message_id, state, reserved_at, release_at
 ) values (
   $1, $2, $3, $4, $5, $6,
-  $7, $8, $9, $10, $11
+  $7, $8, $9, $10, $11, $12
 )
 returning
   workspace_id, id, mailbox_id, sending_domain_id, enrolment_id, draft_id,
@@ -101,6 +121,7 @@ type InsertLedgerParams struct {
 	IsFirstTouch    bool
 	RfcMessageID    string
 	State           string
+	ReservedAt      pgtype.Timestamptz
 	ReleaseAt       pgtype.Timestamptz
 }
 
@@ -116,6 +137,7 @@ func (q *Queries) InsertLedger(ctx context.Context, arg InsertLedgerParams) (Sen
 		arg.IsFirstTouch,
 		arg.RfcMessageID,
 		arg.State,
+		arg.ReservedAt,
 		arg.ReleaseAt,
 	)
 	var i SendLedger
@@ -136,6 +158,41 @@ func (q *Queries) InsertLedger(ctx context.Context, arg InsertLedgerParams) (Sen
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listFirstTouchAt = `-- name: ListFirstTouchAt :many
+select mailbox_id,
+  max(coalesce(sent_at, reserved_at, created_at))::timestamptz as last_at
+from send_ledger
+where workspace_id = $1
+  and is_first_touch = true
+  and state in ('held', 'reserved', 'sending', 'sent', 'unknown')
+group by mailbox_id
+`
+
+type ListFirstTouchAtRow struct {
+	MailboxID uuid.UUID
+	LastAt    pgtype.Timestamptz
+}
+
+func (q *Queries) ListFirstTouchAt(ctx context.Context, workspaceID uuid.UUID) ([]ListFirstTouchAtRow, error) {
+	rows, err := q.db.Query(ctx, listFirstTouchAt, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListFirstTouchAtRow
+	for rows.Next() {
+		var i ListFirstTouchAtRow
+		if err := rows.Scan(&i.MailboxID, &i.LastAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateLedgerState = `-- name: UpdateLedgerState :one

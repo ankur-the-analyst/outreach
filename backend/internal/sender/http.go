@@ -16,6 +16,7 @@ type Store interface {
 	Hold(ctx context.Context, workspaceID uuid.UUID, in HoldInput) (Entry, error)
 	Cancel(ctx context.Context, workspaceID, id uuid.UUID) (Entry, error)
 	Usage(ctx context.Context, workspaceID, mailboxID uuid.UUID) (int64, error)
+	Reserve(ctx context.Context, workspaceID uuid.UUID, in ReserveInput) (Entry, error)
 }
 
 type API struct {
@@ -82,6 +83,48 @@ func (a *API) Cancel(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, ent)
 }
 
+func (a *API) Reserve(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.session(w, r)
+	if !ok {
+		return
+	}
+	if err := a.requireEdit(r.Context(), s); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	var in struct {
+		MailboxIDs   []string `json:"mailbox_ids"`
+		Strategy     string   `json:"strategy"`
+		RFCMessageID string   `json:"rfc_message_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
+		return
+	}
+	ids := make([]uuid.UUID, 0, len(in.MailboxIDs))
+	for _, raw := range in.MailboxIDs {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "invalid mailbox id")
+			return
+		}
+		ids = append(ids, id)
+	}
+	msgid := strings.TrimSpace(in.RFCMessageID)
+	if msgid == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "rfc_message_id required")
+		return
+	}
+	ent, err := a.store.Reserve(r.Context(), s.WorkspaceID, ReserveInput{
+		MailboxIDs: ids, Strategy: in.Strategy, RFCMessageID: msgid,
+	})
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, ent)
+}
+
 func (a *API) Usage(w http.ResponseWriter, r *http.Request) {
 	s, ok := a.session(w, r)
 	if !ok {
@@ -131,6 +174,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "not_found", "not found")
 	case errors.Is(err, ErrConflict):
 		writeError(w, http.StatusConflict, "conflict", err.Error())
+	case errors.Is(err, ErrNoneEligible):
+		writeError(w, http.StatusConflict, "none_eligible", err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "internal", "internal error")
 	}
