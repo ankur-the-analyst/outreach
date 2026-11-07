@@ -488,6 +488,53 @@ func (q *Queries) ListCampaigns(ctx context.Context, workspaceID uuid.UUID) ([]L
 	return items, nil
 }
 
+const listDueEmailSteps = `-- name: ListDueEmailSteps :many
+select e.id as enrolment_id, s.position as step_position
+from enrolments e
+join campaigns c
+  on c.workspace_id = e.workspace_id and c.id = e.campaign_id
+join campaign_steps s
+  on s.workspace_id = e.workspace_id
+ and s.campaign_id = e.campaign_id
+ and s.position = e.current_step
+where e.workspace_id = $1
+  and c.status = 'running'
+  and e.status in ('pending', 'active')
+  and s.kind = 'email'
+  and (e.next_action_at is null or e.next_action_at <= $2::timestamptz)
+order by e.created_at, e.id
+`
+
+type ListDueEmailStepsParams struct {
+	WorkspaceID uuid.UUID
+	Now         pgtype.Timestamptz
+}
+
+type ListDueEmailStepsRow struct {
+	EnrolmentID  uuid.UUID
+	StepPosition int32
+}
+
+func (q *Queries) ListDueEmailSteps(ctx context.Context, arg ListDueEmailStepsParams) ([]ListDueEmailStepsRow, error) {
+	rows, err := q.db.Query(ctx, listDueEmailSteps, arg.WorkspaceID, arg.Now)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDueEmailStepsRow
+	for rows.Next() {
+		var i ListDueEmailStepsRow
+		if err := rows.Scan(&i.EnrolmentID, &i.StepPosition); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEnrolments = `-- name: ListEnrolments :many
 select
   workspace_id, id, campaign_id, contact_id, job_id, profile_id, intent, context, status, created_at

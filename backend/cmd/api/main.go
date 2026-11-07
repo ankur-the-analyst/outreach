@@ -140,6 +140,7 @@ func main() {
 	mux.Handle("GET /api/v1/google-service-accounts", a.Require(http.HandlerFunc(mb.ListSA)))
 	mux.Handle("POST /api/v1/google-service-accounts", a.Require(http.HandlerFunc(mb.CreateSA)))
 	mux.Handle("POST /api/v1/jobs/ping", a.Require(http.HandlerFunc(wrk.Ping)))
+	mux.Handle("POST /api/v1/jobs/schedule", a.Require(http.HandlerFunc(wrk.Schedule)))
 	mux.Handle("POST /api/v1/mailboxes/{id}/holds", a.Require(http.HandlerFunc(snd.Hold)))
 	mux.Handle("GET /api/v1/mailboxes/{id}/usage", a.Require(http.HandlerFunc(snd.Usage)))
 	mux.Handle("POST /api/v1/ledger/{id}/cancel", a.Require(http.HandlerFunc(snd.Cancel)))

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -66,6 +67,33 @@ func (a *API) Ping(w http.ResponseWriter, r *http.Request) {
 		"job_id":         jobID,
 		"unique_skipped": skipped,
 	})
+}
+
+func (a *API) Schedule(w http.ResponseWriter, r *http.Request) {
+	s, ok := auth.SessionFrom(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "sign in required")
+		return
+	}
+	role, err := a.store.Membership(r.Context(), s.WorkspaceID, s.UserID)
+	if err != nil {
+		writeError(w, http.StatusForbidden, "forbidden", "not a member")
+		return
+	}
+	if role != workspace.RoleOwner && role != workspace.RoleMember {
+		writeError(w, http.StatusForbidden, "forbidden", "owner or member role required")
+		return
+	}
+	out, err := ClaimDue(r.Context(), a.pool, a.client, s.WorkspaceID, time.Now())
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "not_found", "not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal", "internal error")
+		return
+	}
+	writeJSON(w, http.StatusAccepted, out)
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

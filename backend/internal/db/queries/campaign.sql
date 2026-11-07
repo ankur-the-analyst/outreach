@@ -85,6 +85,22 @@ from enrolments
 where workspace_id = $1 and campaign_id = $2
 order by created_at desc;
 
+-- name: ListDueEmailSteps :many
+select e.id as enrolment_id, s.position as step_position
+from enrolments e
+join campaigns c
+  on c.workspace_id = e.workspace_id and c.id = e.campaign_id
+join campaign_steps s
+  on s.workspace_id = e.workspace_id
+ and s.campaign_id = e.campaign_id
+ and s.position = e.current_step
+where e.workspace_id = $1
+  and c.status = 'running'
+  and e.status in ('pending', 'active')
+  and s.kind = 'email'
+  and (e.next_action_at is null or e.next_action_at <= sqlc.arg('now')::timestamptz)
+order by e.created_at, e.id;
+
 -- name: DeleteEnrolmentsForWorkspace :exec
 delete from enrolments where workspace_id = $1;
 
