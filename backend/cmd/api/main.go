@@ -10,11 +10,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
+	"outreach/internal/ai"
 	"outreach/internal/auth"
 	"outreach/internal/compose"
 	"outreach/internal/config"
 	"outreach/internal/crypto"
 	"outreach/internal/db"
+	"outreach/internal/evidence"
 	"outreach/internal/health"
 	"outreach/internal/inbound"
 	"outreach/internal/mailbox"
@@ -96,6 +98,7 @@ func main() {
 	cmp := compose.New(compose.NewPostgres(pool, led))
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
 	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc))
+	ev := evidence.New(evidence.NewPostgres(pool, &ai.Fake{Model: "fake-8", Dim: evidence.Dim}))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
@@ -132,6 +135,9 @@ func main() {
 	mux.Handle("POST /api/v1/mailboxes/{id}/sync", a.Require(http.HandlerFunc(sy.Sync)))
 	mux.Handle("GET /api/v1/mailboxes/{id}/threads", a.Require(http.HandlerFunc(sy.Threads)))
 	mux.Handle("POST /api/v1/threads/{id}/read", a.Require(http.HandlerFunc(sy.MarkRead)))
+	mux.Handle("GET /api/v1/evidence", a.Require(http.HandlerFunc(ev.List)))
+	mux.Handle("POST /api/v1/evidence", a.Require(http.HandlerFunc(ev.Propose)))
+	mux.Handle("POST /api/v1/evidence/{id}/confirm", a.Require(http.HandlerFunc(ev.Confirm)))
 
 	logger.Info("api listening", "addr", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {

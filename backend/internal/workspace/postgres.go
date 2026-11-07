@@ -104,6 +104,9 @@ func (p *Postgres) Delete(ctx context.Context, workspaceID uuid.UUID) error {
 		if err := q.DeleteSuppressionForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: suppression: %w", err)
 		}
+		if err := q.DeleteEvidenceForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: evidence: %w", err)
+		}
 		return q.DeleteWorkspace(ctx, workspaceID)
 	})
 }
