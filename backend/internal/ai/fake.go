@@ -10,6 +10,7 @@ import (
 type Fake struct {
 	Model     string
 	Text      string
+	Texts     []string
 	JSON      json.RawMessage
 	Vectors   [][]float32
 	Dim       int
@@ -24,7 +25,15 @@ func (f *Fake) Complete(context.Context, Request) (TextResult, error) {
 	if model == "" {
 		model = "fake"
 	}
-	return TextResult{Text: f.Text, Model: model}, nil
+	text := f.Text
+	if len(f.Texts) > 0 {
+		i := f.CompleteN - 1
+		if i >= len(f.Texts) {
+			i = len(f.Texts) - 1
+		}
+		text = f.Texts[i]
+	}
+	return TextResult{Text: text, Model: model}, nil
 }
 
 func (f *Fake) CompleteJSON(context.Context, Request, json.RawMessage) (JSONResult, error) {

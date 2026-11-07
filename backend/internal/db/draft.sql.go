@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -110,14 +111,14 @@ func (q *Queries) GetLedgerByDraft(ctx context.Context, arg GetLedgerByDraftPara
 const insertDraft = `-- name: InsertDraft :one
 insert into drafts (
   workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
-  subject, body_html, body_text, status
+  subject, body_html, body_text, facts_used, status
 ) values (
   $1, $2, $3, $4, $5, $6,
-  $7, $8, $9, $10
+  $7, $8, $9, $10, $11
 )
 returning
   workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
-  subject, body_html, body_text, status, approved_by, created_at
+  subject, body_html, body_text, facts_used, status, approved_by, created_at
 `
 
 type InsertDraftParams struct {
@@ -130,6 +131,7 @@ type InsertDraftParams struct {
 	Subject      string
 	BodyHtml     string
 	BodyText     string
+	FactsUsed    json.RawMessage
 	Status       string
 }
 
@@ -143,6 +145,7 @@ type InsertDraftRow struct {
 	Subject      string
 	BodyHtml     string
 	BodyText     string
+	FactsUsed    json.RawMessage
 	Status       string
 	ApprovedBy   *uuid.UUID
 	CreatedAt    pgtype.Timestamptz
@@ -159,6 +162,7 @@ func (q *Queries) InsertDraft(ctx context.Context, arg InsertDraftParams) (Inser
 		arg.Subject,
 		arg.BodyHtml,
 		arg.BodyText,
+		arg.FactsUsed,
 		arg.Status,
 	)
 	var i InsertDraftRow
@@ -172,6 +176,7 @@ func (q *Queries) InsertDraft(ctx context.Context, arg InsertDraftParams) (Inser
 		&i.Subject,
 		&i.BodyHtml,
 		&i.BodyText,
+		&i.FactsUsed,
 		&i.Status,
 		&i.ApprovedBy,
 		&i.CreatedAt,

@@ -23,6 +23,9 @@ func (f *fakeStore) Membership(context.Context, uuid.UUID, uuid.UUID) (string, e
 func (f *fakeStore) Create(context.Context, uuid.UUID, CreateInput) (Draft, error) {
 	return f.d, f.err
 }
+func (f *fakeStore) Compose(context.Context, uuid.UUID, ComposeInput) (ComposeResult, error) {
+	return ComposeResult{Draft: f.d, Failures: []Failure{}}, f.err
+}
 func (f *fakeStore) List(context.Context, uuid.UUID) ([]Draft, error) {
 	return []Draft{f.d}, f.err
 }

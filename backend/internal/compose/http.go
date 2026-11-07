@@ -8,12 +8,14 @@ import (
 
 	"github.com/google/uuid"
 	"outreach/internal/auth"
+	"outreach/internal/evidence"
 	"outreach/internal/sender"
 )
 
 type Store interface {
 	Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error)
 	Create(ctx context.Context, workspaceID uuid.UUID, in CreateInput) (Draft, error)
+	Compose(ctx context.Context, workspaceID uuid.UUID, in ComposeInput) (ComposeResult, error)
 	List(ctx context.Context, workspaceID uuid.UUID) ([]Draft, error)
 	Approve(ctx context.Context, workspaceID, userID, draftID uuid.UUID) (Draft, error)
 	Undo(ctx context.Context, workspaceID, draftID uuid.UUID) (Draft, error)
@@ -60,6 +62,40 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, d)
+}
+
+func (a *API) Compose(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.session(w, r)
+	if !ok {
+		return
+	}
+	if err := a.requireEdit(r.Context(), s); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	var in struct {
+		MailboxID string `json:"mailbox_id"`
+		To        string `json:"to"`
+		Subject   string `json:"subject"`
+		Facts     []Fact `json:"facts"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
+		return
+	}
+	mailboxID, err := uuid.Parse(in.MailboxID)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", "invalid mailbox id")
+		return
+	}
+	out, err := a.store.Compose(r.Context(), s.WorkspaceID, ComposeInput{
+		MailboxID: mailboxID, To: in.To, Subject: in.Subject, Facts: in.Facts,
+	})
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, out)
 }
 
 func (a *API) List(w http.ResponseWriter, r *http.Request) {
@@ -153,6 +189,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "not_found", "not found")
 	case errors.Is(err, ErrConflict), errors.Is(err, sender.ErrConflict):
 		writeError(w, http.StatusConflict, "conflict", err.Error())
+	case errors.Is(err, evidence.ErrUnconfirmed):
+		writeError(w, http.StatusBadRequest, "unconfirmed", err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "internal", "internal error")
 	}

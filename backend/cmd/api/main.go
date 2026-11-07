@@ -95,10 +95,12 @@ func main() {
 		WithQueue(reconcileJobs{client: jobs}).
 		WithBlocker(suppStore)
 	snd := sender.New(led)
-	cmp := compose.New(compose.NewPostgres(pool, led))
+	writer := &ai.Fake{Model: "fake-8", Dim: evidence.Dim, Text: "You closed 12 deals last year. Open to a short chat?"}
+	evStore := evidence.NewPostgres(pool, writer)
+	ev := evidence.New(evStore)
+	cmp := compose.New(compose.NewPostgres(pool, led).WithWriter(writer).WithCite(evStore))
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
 	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc))
-	ev := evidence.New(evidence.NewPostgres(pool, &ai.Fake{Model: "fake-8", Dim: evidence.Dim}))
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
@@ -130,6 +132,7 @@ func main() {
 	mux.Handle("POST /api/v1/suppression", a.Require(http.HandlerFunc(supp.Create)))
 	mux.Handle("GET /api/v1/drafts", a.Require(http.HandlerFunc(cmp.List)))
 	mux.Handle("POST /api/v1/drafts", a.Require(http.HandlerFunc(cmp.Create)))
+	mux.Handle("POST /api/v1/drafts/compose", a.Require(http.HandlerFunc(cmp.Compose)))
 	mux.Handle("POST /api/v1/drafts/{id}/approve", a.Require(http.HandlerFunc(cmp.Approve)))
 	mux.Handle("POST /api/v1/drafts/{id}/undo", a.Require(http.HandlerFunc(cmp.Undo)))
 	mux.Handle("POST /api/v1/mailboxes/{id}/sync", a.Require(http.HandlerFunc(sy.Sync)))

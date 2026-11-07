@@ -1,14 +1,14 @@
 -- name: InsertDraft :one
 insert into drafts (
   workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
-  subject, body_html, body_text, status
+  subject, body_html, body_text, facts_used, status
 ) values (
   $1, $2, $3, $4, $5, $6,
-  $7, $8, $9, $10
+  $7, $8, $9, $10, $11
 )
 returning
   workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
-  subject, body_html, body_text, status, approved_by, created_at;
+  subject, body_html, body_text, facts_used, status, approved_by, created_at;
 
 -- name: GetDraft :one
 select

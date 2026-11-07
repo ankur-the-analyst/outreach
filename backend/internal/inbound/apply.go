@@ -152,6 +152,7 @@ func (p *Processor) insertReply(ctx context.Context, workspaceID, messageID uuid
 			Subject:      subj,
 			BodyHtml:     "",
 			BodyText:     body,
+			FactsUsed:    []byte("[]"),
 			Status:       "pending",
 		})
 		return err

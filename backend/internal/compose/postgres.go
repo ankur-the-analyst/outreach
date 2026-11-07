@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/db"
+	"outreach/internal/evidence"
 	"outreach/internal/mime"
 	"outreach/internal/pacing"
 	"outreach/internal/sender"
@@ -32,6 +34,7 @@ type Draft struct {
 	BodyHTML     string       `json:"body_html"`
 	BodyText     string       `json:"body_text"`
 	Status       string       `json:"status"`
+	FactsUsed    []Fact       `json:"facts_used,omitempty"`
 	LedgerID     *uuid.UUID   `json:"ledger_id,omitempty"`
 	LedgerState  pacing.State `json:"ledger_state,omitempty"`
 	ReleaseAt    *time.Time   `json:"release_at,omitempty"`
@@ -43,6 +46,7 @@ type CreateInput struct {
 	Subject   string
 	Text      string
 	HTML      string
+	Facts     []Fact
 }
 
 type Holder interface {
@@ -50,13 +54,42 @@ type Holder interface {
 	Cancel(ctx context.Context, workspaceID, id uuid.UUID) (sender.Entry, error)
 }
 
+type Citer interface {
+	Cite(ctx context.Context, workspaceID uuid.UUID, ids []uuid.UUID) ([]evidence.Item, error)
+}
+
+type ComposeInput struct {
+	MailboxID uuid.UUID
+	To        string
+	Subject   string
+	Facts     []Fact
+}
+
+type ComposeResult struct {
+	Draft       Draft     `json:"draft"`
+	Failures    []Failure `json:"failures"`
+	Regenerated bool      `json:"regenerated"`
+}
+
 type Postgres struct {
-	pool *db.Pool
-	hold Holder
+	pool  *db.Pool
+	hold  Holder
+	write Completer
+	cite  Citer
 }
 
 func NewPostgres(pool *db.Pool, hold Holder) *Postgres {
 	return &Postgres{pool: pool, hold: hold}
+}
+
+func (p *Postgres) WithWriter(w Completer) *Postgres {
+	p.write = w
+	return p
+}
+
+func (p *Postgres) WithCite(c Citer) *Postgres {
+	p.cite = c
+	return p
 }
 
 func (p *Postgres) Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error) {
@@ -99,6 +132,13 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 	if err != nil {
 		return Draft{}, err
 	}
+	factsJSON, err := json.Marshal(in.Facts)
+	if err != nil {
+		return Draft{}, err
+	}
+	if in.Facts == nil {
+		factsJSON = []byte("[]")
+	}
 	var out Draft
 	err = p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.GetMailbox(ctx, db.GetMailboxParams{WorkspaceID: workspaceID, ID: in.MailboxID}); err != nil {
@@ -117,15 +157,45 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 			Subject:      subject,
 			BodyHtml:     in.HTML,
 			BodyText:     text,
+			FactsUsed:    factsJSON,
 			Status:       "pending",
 		})
 		if err != nil {
 			return err
 		}
 		out = draftFrom(row.ID, row.MailboxID, row.ToAddr, row.RfcMessageID, row.Kind, row.Subject, row.BodyHtml, row.BodyText, row.Status, nil, "", pgtype.Timestamptz{})
+		out.FactsUsed = in.Facts
 		return nil
 	})
 	return out, err
+}
+
+func (p *Postgres) Compose(ctx context.Context, workspaceID uuid.UUID, in ComposeInput) (ComposeResult, error) {
+	if p.cite == nil {
+		return ComposeResult{}, fmt.Errorf("compose: citer required")
+	}
+	ids := make([]uuid.UUID, 0, len(in.Facts))
+	for _, f := range in.Facts {
+		ids = append(ids, f.EvidenceID)
+	}
+	cited, err := p.cite.Cite(ctx, workspaceID, ids)
+	if err != nil {
+		return ComposeResult{}, err
+	}
+	body, regen, fails, err := Generate(ctx, p.write, cited, in.Facts)
+	if err != nil {
+		return ComposeResult{}, err
+	}
+	d, err := p.Create(ctx, workspaceID, CreateInput{
+		MailboxID: in.MailboxID, To: in.To, Subject: in.Subject, Text: body, Facts: in.Facts,
+	})
+	if err != nil {
+		return ComposeResult{}, err
+	}
+	if fails == nil {
+		fails = []Failure{}
+	}
+	return ComposeResult{Draft: d, Failures: fails, Regenerated: regen}, nil
 }
 
 func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID) ([]Draft, error) {
