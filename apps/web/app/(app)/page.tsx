@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { OverviewBoard } from "@/components/overview-board";
+import { PageLoading } from "@/components/page-header";
 import { getCampaigns, getDrafts, getMailboxes } from "@/lib/api";
 
 export const instant = false;
@@ -23,11 +24,7 @@ async function OverviewBody() {
 
 export default function OverviewPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="font-body-md text-muted-foreground">Loading…</main>
-      }
-    >
+    <Suspense fallback={<PageLoading />}>
       <OverviewBody />
     </Suspense>
   );

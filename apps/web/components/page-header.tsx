@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Spinner } from "@/components/ui/spinner";
 
 export function PageHeader({
   title,
@@ -23,6 +24,14 @@ export function PageBody({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-[var(--margin-desktop)]">
       {children}
+    </div>
+  );
+}
+
+export function PageLoading() {
+  return (
+    <div className="flex min-h-svh w-full flex-1 items-center justify-center bg-background">
+      <Spinner className="size-12 text-muted-foreground" />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { PageLoading } from "@/components/page-header";
 import { ReviewQueue } from "@/components/review-queue";
 import { getDrafts, getMailboxes } from "@/lib/api";
 
@@ -19,11 +20,7 @@ async function ReviewBody() {
 
 export default function ReviewPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="font-body-md text-muted-foreground">Loading…</main>
-      }
-    >
+    <Suspense fallback={<PageLoading />}>
       <ReviewBody />
     </Suspense>
   );

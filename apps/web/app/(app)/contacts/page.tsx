@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { ContactBook } from "@/components/contact-book";
-import { PageBody, PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader, PageLoading } from "@/components/page-header";
 import { getContacts } from "@/lib/api";
 
 export const instant = false;
@@ -19,11 +19,7 @@ async function ContactsBody() {
 
 export default function ContactsPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="font-body-md text-muted-foreground">Loading…</main>
-      }
-    >
+    <Suspense fallback={<PageLoading />}>
       <ContactsBody />
     </Suspense>
   );

@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { PageBody, PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader, PageLoading } from "@/components/page-header";
 import { navItems, navLabel } from "@/lib/nav";
 
 export const instant = false;
@@ -46,13 +46,7 @@ export default function StubPage({
   params: Promise<{ section: string }>;
 }) {
   return (
-    <Suspense
-      fallback={
-        <main className="rounded-md border border-border bg-card p-6 font-body-md text-muted-foreground">
-          Loading…
-        </main>
-      }
-    >
+    <Suspense fallback={<PageLoading />}>
       <StubBody params={params} />
     </Suspense>
   );

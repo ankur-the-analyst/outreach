@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { CampaignBoard } from "@/components/campaign-board";
+import { PageLoading } from "@/components/page-header";
 import { getCampaigns, getContacts, getMailboxes } from "@/lib/api";
 
 export const instant = false;
@@ -23,11 +24,7 @@ async function CampaignsBody() {
 
 export default function CampaignsPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="font-body-md text-muted-foreground">Loading…</main>
-      }
-    >
+    <Suspense fallback={<PageLoading />}>
       <CampaignsBody />
     </Suspense>
   );

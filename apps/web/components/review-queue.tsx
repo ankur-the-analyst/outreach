@@ -198,10 +198,10 @@ function ReviewRow({
           <Button
             type="button"
             className="rounded-md"
-            disabled={pending}
+            pending={pending}
             onClick={() => post(`/api/v1/drafts/${draft.id}/approve`)}
           >
-            {pending ? "…" : "Approve"}
+            Approve
           </Button>
         ) : null}
         {draft.status === "approved" && draft.ledger_state === "held" ? (
@@ -209,10 +209,10 @@ function ReviewRow({
             type="button"
             variant="outline"
             className="rounded-md border-destructive text-destructive hover:bg-destructive/10"
-            disabled={pending}
+            pending={pending}
             onClick={() => post(`/api/v1/drafts/${draft.id}/undo`)}
           >
-            {pending ? "…" : "Undo send"}
+            Undo send
           </Button>
         ) : null}
         {msg ? <p className="font-body-md text-muted-foreground">{msg}</p> : null}

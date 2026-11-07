@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { ConnectMailboxForm } from "@/components/connect-mailbox-form";
 import { MailboxList } from "@/components/mailbox-list";
-import { PageBody, PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader, PageLoading } from "@/components/page-header";
 import { getMailboxes } from "@/lib/api";
 
 export const instant = false;
@@ -21,11 +21,7 @@ async function MailboxesBody() {
 
 export default function MailboxesPage() {
   return (
-    <Suspense
-      fallback={
-        <main className="font-body-md text-muted-foreground">Loading…</main>
-      }
-    >
+    <Suspense fallback={<PageLoading />}>
       <MailboxesBody />
     </Suspense>
   );

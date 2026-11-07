@@ -96,10 +96,11 @@ export function Inbox({
           type="button"
           variant="outline"
           className="rounded-md"
-          disabled={pending || !mailboxID}
+          pending={pending}
+          disabled={!mailboxID}
           onClick={onSync}
         >
-          {pending ? "Syncing…" : "Sync"}
+          Sync
         </Button>
         {msg ? <p className="font-body-md text-muted-foreground">{msg}</p> : null}
       </div>

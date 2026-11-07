@@ -1,6 +1,10 @@
+"use client"
+
+import { useEffect, useRef } from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
+import { Spinner } from "@/components/ui/spinner"
 
 const buttonVariants = cva(
   "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding font-label-md text-sm whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -43,14 +47,47 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  pending = false,
+  disabled,
+  onClick,
+  onPointerDown,
+  children,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonPrimitive.Props &
+  VariantProps<typeof buttonVariants> & { pending?: boolean }) {
+  const busy = Boolean(pending)
+  const iconOnly = typeof size === "string" && size.startsWith("icon")
+  const locked = useRef(false)
+  useEffect(() => {
+    if (!busy) {
+      locked.current = false
+    }
+  }, [busy])
   return (
     <ButtonPrimitive
       data-slot="button"
+      data-pending={busy ? "" : undefined}
       className={cn(buttonVariants({ variant, size, className }))}
+      disabled={disabled || busy}
+      aria-busy={busy || undefined}
+      onClick={
+        busy || !onClick
+          ? undefined
+          : (event) => {
+              if (locked.current) {
+                event.preventDefault()
+                return
+              }
+              locked.current = true
+              onClick(event)
+            }
+      }
+      onPointerDown={busy ? undefined : onPointerDown}
       {...props}
-    />
+    >
+      {busy ? <Spinner className="size-3.5" /> : null}
+      {busy && iconOnly ? null : children}
+    </ButtonPrimitive>
   )
 }
 

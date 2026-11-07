@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { LogoutButton } from "@/components/logout-button";
+import { PageLoading } from "@/components/page-header";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { getMe, getWorkspace } from "@/lib/api";
 
@@ -35,13 +36,7 @@ async function AppShell({ children }: { children: ReactNode }) {
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-full bg-background p-[var(--margin-desktop)] font-body-md text-muted-foreground">
-          Loading…
-        </div>
-      }
-    >
+    <Suspense fallback={<PageLoading />}>
       <AppShell>{children}</AppShell>
     </Suspense>
   );

@@ -74,10 +74,10 @@ function MailboxRow({ mailbox }: { mailbox: Mailbox }) {
           type="button"
           variant="outline"
           className="rounded-md"
-          disabled={pending}
+          pending={pending}
           onClick={onTest}
         >
-          {pending ? "Testing…" : "Test"}
+          Test
         </Button>
       </div>
     </li>

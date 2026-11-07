@@ -43,7 +43,10 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex w-full max-w-sm flex-col gap-4">
+    <form
+      onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
+      className="flex w-full max-w-sm flex-col gap-4"
+    >
       {mode === "register" ? (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="name">Name</Label>
@@ -82,16 +85,21 @@ export function LoginForm() {
         />
       </div>
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
-      <Button type="submit" disabled={pending} className="rounded-md">
-        {pending ? "Working…" : mode === "login" ? "Sign in" : "Create account"}
+      <Button type="submit" pending={pending} className="rounded-md">
+        {mode === "login" ? "Sign in" : "Create account"}
       </Button>
       <button
         type="button"
-        className="font-label-md text-secondary"
-        onClick={() => {
-          setError("");
-          setMode(mode === "login" ? "register" : "login");
-        }}
+        className="font-label-md text-secondary disabled:opacity-50"
+        disabled={pending}
+        onClick={
+          pending
+            ? undefined
+            : () => {
+                setError("");
+                setMode(mode === "login" ? "register" : "login");
+              }
+        }
       >
         {mode === "login" ? "Need an account? Register" : "Have an account? Sign in"}
       </button>

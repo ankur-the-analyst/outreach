@@ -62,7 +62,10 @@ export function OneOffDraftForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form
+      onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
+      className="flex flex-col gap-4"
+    >
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="draft-mailbox">Mailbox</Label>
         <select
@@ -111,8 +114,8 @@ export function OneOffDraftForm({
       </div>
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
       <div className="flex justify-end gap-2">
-        <Button type="submit" className="rounded-md" disabled={pending}>
-          {pending ? "Saving…" : "Save to review"}
+        <Button type="submit" className="rounded-md" pending={pending}>
+          Save to review
         </Button>
       </div>
     </form>

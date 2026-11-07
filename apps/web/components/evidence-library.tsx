@@ -83,10 +83,10 @@ function EvidenceRow({ item }: { item: EvidenceItem }) {
           <Button
             type="button"
             className="rounded-md"
-            disabled={pending}
+            pending={pending}
             onClick={onConfirm}
           >
-            {pending ? "…" : "Confirm"}
+            Confirm
           </Button>
         ) : null}
         {msg ? <p className="font-body-md text-muted-foreground">{msg}</p> : null}
@@ -130,7 +130,7 @@ function ProposeForm() {
 
   return (
     <form
-      onSubmit={onSubmit}
+      onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
       className="flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-6"
     >
       <h2 className="font-headline-md text-foreground">Propose a claim</h2>
@@ -154,8 +154,8 @@ function ProposeForm() {
         />
       </div>
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
-      <Button type="submit" className="rounded-md" disabled={pending}>
-        {pending ? "Saving…" : "Propose"}
+      <Button type="submit" className="rounded-md" pending={pending}>
+        Propose
       </Button>
     </form>
   );

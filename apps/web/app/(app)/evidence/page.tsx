@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { EvidenceLibrary } from "@/components/evidence-library";
-import { PageBody, PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader, PageLoading } from "@/components/page-header";
 import { getEvidence } from "@/lib/api";
 
 export const instant = false;
@@ -19,11 +19,7 @@ async function EvidenceBody() {
 
 export default function EvidencePage() {
   return (
-    <Suspense
-      fallback={
-        <main className="font-body-md text-muted-foreground">Loading…</main>
-      }
-    >
+    <Suspense fallback={<PageLoading />}>
       <EvidenceBody />
     </Suspense>
   );

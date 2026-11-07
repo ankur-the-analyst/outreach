@@ -49,7 +49,7 @@ export function ConnectMailboxForm() {
 
   return (
     <form
-      onSubmit={onSubmit}
+      onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
       className="mt-6 flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-5"
     >
       <h2 className="font-headline-md text-foreground">Connect mailbox</h2>
@@ -101,8 +101,8 @@ export function ConnectMailboxForm() {
         />
       </div>
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
-      <Button type="submit" disabled={pending} className="rounded-md">
-        {pending ? "Connecting…" : "Connect"}
+      <Button type="submit" pending={pending} className="rounded-md">
+        Connect
       </Button>
     </form>
   );

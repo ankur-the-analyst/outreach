@@ -114,7 +114,7 @@ function CreateForm() {
 
   return (
     <form
-      onSubmit={onSubmit}
+      onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
       className="flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-6"
     >
       <h2 className="font-headline-md text-foreground">Add a contact</h2>
@@ -154,8 +154,8 @@ function CreateForm() {
         />
       </div>
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
-      <Button type="submit" className="rounded-md" disabled={pending}>
-        {pending ? "Saving…" : "Save"}
+      <Button type="submit" className="rounded-md" pending={pending}>
+        Save
       </Button>
     </form>
   );
@@ -227,7 +227,7 @@ function CSVPreview() {
 
   return (
     <form
-      onSubmit={onPreview}
+      onSubmit={pending ? (e) => e.preventDefault() : onPreview}
       className="flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-6"
     >
       <h2 className="font-headline-md text-foreground">CSV preview</h2>
@@ -253,15 +253,15 @@ function CSVPreview() {
       </div>
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
       <div className="flex flex-wrap gap-3">
-        <Button type="submit" className="rounded-md" disabled={pending}>
-          {pending ? "…" : "Preview"}
+        <Button type="submit" className="rounded-md" pending={pending}>
+          Preview
         </Button>
         {rows.length > 0 ? (
           <Button
             type="button"
             variant="outline"
             className="rounded-md"
-            disabled={pending}
+            pending={pending}
             onClick={onImport}
           >
             Import valid rows

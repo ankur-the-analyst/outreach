@@ -217,7 +217,7 @@ function CampaignCard({
           <Button
             type="button"
             className="rounded-md"
-            disabled={pending}
+            pending={pending}
             onClick={() => post(`/api/v1/campaigns/${campaign.id}/start`)}
           >
             {campaign.status === "paused" ? "Resume" : "Start"}
@@ -228,7 +228,7 @@ function CampaignCard({
             type="button"
             variant="outline"
             className="rounded-md"
-            disabled={pending}
+            pending={pending}
             onClick={() => post(`/api/v1/campaigns/${campaign.id}/pause`)}
           >
             Pause
@@ -239,7 +239,7 @@ function CampaignCard({
             type="button"
             variant="outline"
             className="rounded-md"
-            disabled={pending}
+            pending={pending}
             onClick={() => post(`/api/v1/campaigns/${campaign.id}/stop`)}
           >
             Stop
@@ -304,7 +304,10 @@ function CreateCampaign({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form
+      onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
+      className="flex flex-col gap-4"
+    >
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="camp-name">Campaign name</Label>
         <Input
@@ -379,8 +382,8 @@ function CreateCampaign({
         <Button type="button" variant="outline" onClick={onDone}>
           Cancel
         </Button>
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving…" : "Create"}
+        <Button type="submit" pending={pending}>
+          Create
         </Button>
       </div>
     </form>
@@ -428,7 +431,10 @@ function AddPerson({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form
+      onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
+      className="flex flex-col gap-4"
+    >
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="add-campaign">Campaign</Label>
         <select
@@ -475,8 +481,8 @@ function AddPerson({
         <Button type="button" variant="outline" onClick={onDone}>
           Cancel
         </Button>
-        <Button type="submit" disabled={pending || !contactID}>
-          {pending ? "Saving…" : "Add to campaign"}
+        <Button type="submit" pending={pending} disabled={!contactID}>
+          Add to campaign
         </Button>
       </div>
     </form>
@@ -517,7 +523,7 @@ function SenderIdentityForm() {
 
   return (
     <form
-      onSubmit={onSubmit}
+      onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
       className="flex flex-col gap-4 rounded-md border border-border bg-muted p-4"
     >
       <div>
@@ -556,8 +562,8 @@ function SenderIdentityForm() {
         />
       </div>
       {msg ? <p className="font-body-md text-muted-foreground">{msg}</p> : null}
-      <Button type="submit" className="rounded-md" disabled={pending}>
-        {pending ? "Saving…" : "Save identity"}
+      <Button type="submit" className="rounded-md" pending={pending}>
+        Save identity
       </Button>
     </form>
   );

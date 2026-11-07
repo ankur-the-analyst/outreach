@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Inbox } from "@/components/inbox";
-import { PageBody, PageHeader } from "@/components/page-header";
+import { PageBody, PageHeader, PageLoading } from "@/components/page-header";
 import { getMailboxes, getThreads } from "@/lib/api";
 
 export const instant = false;
@@ -39,7 +39,7 @@ export default function InboxPage({
   return (
     <Suspense
       fallback={
-        <main className="font-body-md text-muted-foreground">Loading…</main>
+        <PageLoading />
       }
     >
       <InboxBody searchParams={searchParams} />
