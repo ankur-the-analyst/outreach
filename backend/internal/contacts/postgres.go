@@ -150,20 +150,26 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 	return out, err
 }
 
-func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID) ([]Contact, error) {
-	var out []Contact
+func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID, after *uuid.UUID, limit int) (Page, error) {
+	limit = clampLimit(limit)
+	var rows []Contact
 	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
-		rows, err := q.ListContacts(ctx, workspaceID)
+		got, err := q.ListContacts(ctx, db.ListContactsParams{
+			WorkspaceID: workspaceID, After: after, N: int32(limit + 1),
+		})
 		if err != nil {
 			return err
 		}
-		out = make([]Contact, 0, len(rows))
-		for _, row := range rows {
-			out = append(out, contactFrom(row.ID, row.Email, row.FirstName, row.LastName, row.Title, row.CompanyID, row.LinkedinUrl, row.Timezone, row.Region, row.RoleClass, row.Provenance, row.Readiness, row.CreatedAt))
+		rows = make([]Contact, 0, len(got))
+		for _, row := range got {
+			rows = append(rows, contactFrom(row.ID, row.Email, row.FirstName, row.LastName, row.Title, row.CompanyID, row.LinkedinUrl, row.Timezone, row.Region, row.RoleClass, row.Provenance, row.Readiness, row.CreatedAt))
 		}
 		return nil
 	})
-	return out, err
+	if err != nil {
+		return Page{}, err
+	}
+	return clipPage(rows, limit), nil
 }
 
 func (p *Postgres) Get(ctx context.Context, workspaceID, id uuid.UUID) (Contact, error) {

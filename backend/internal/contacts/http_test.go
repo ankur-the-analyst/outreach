@@ -35,8 +35,8 @@ func (f *fakeStore) Import(context.Context, uuid.UUID, uuid.UUID, string, string
 	}
 	return ImportResult{Created: 1}, nil
 }
-func (f *fakeStore) List(context.Context, uuid.UUID) ([]Contact, error) {
-	return []Contact{f.c}, nil
+func (f *fakeStore) List(context.Context, uuid.UUID, *uuid.UUID, int) (Page, error) {
+	return Page{Contacts: []Contact{f.c}}, nil
 }
 func (f *fakeStore) Get(context.Context, uuid.UUID, uuid.UUID) (Contact, error) {
 	return f.c, nil
@@ -62,6 +62,21 @@ func TestCreateRejectsEmptyProvenance(t *testing.T) {
 	}
 	if !bytes.Contains(rec.Body.Bytes(), []byte("provenance required")) {
 		t.Fatalf("%s", rec.Body.String())
+	}
+}
+
+func TestListRejectsBadCursor(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner"})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/contacts?cursor=nope", nil)
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.List(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 }
 

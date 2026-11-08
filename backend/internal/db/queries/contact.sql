@@ -26,7 +26,9 @@ select
   linkedin_url, timezone, region, role_class, provenance, readiness, created_at
 from contacts
 where workspace_id = $1
-order by created_at desc;
+  and (sqlc.narg('after')::uuid is null or id < sqlc.narg('after'))
+order by id desc
+limit sqlc.arg('n');
 
 -- name: GetContact :one
 select

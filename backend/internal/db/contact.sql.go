@@ -247,8 +247,16 @@ select
   linkedin_url, timezone, region, role_class, provenance, readiness, created_at
 from contacts
 where workspace_id = $1
-order by created_at desc
+  and ($2::uuid is null or id < $2)
+order by id desc
+limit $3
 `
+
+type ListContactsParams struct {
+	WorkspaceID uuid.UUID
+	After       *uuid.UUID
+	N           int32
+}
 
 type ListContactsRow struct {
 	WorkspaceID uuid.UUID
@@ -267,8 +275,8 @@ type ListContactsRow struct {
 	CreatedAt   pgtype.Timestamptz
 }
 
-func (q *Queries) ListContacts(ctx context.Context, workspaceID uuid.UUID) ([]ListContactsRow, error) {
-	rows, err := q.db.Query(ctx, listContacts, workspaceID)
+func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]ListContactsRow, error) {
+	rows, err := q.db.Query(ctx, listContacts, arg.WorkspaceID, arg.After, arg.N)
 	if err != nil {
 		return nil, err
 	}

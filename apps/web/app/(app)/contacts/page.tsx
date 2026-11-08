@@ -13,6 +13,7 @@ async function ContactsBody() {
       <PageBody>
         <ContactBook
           contacts={data?.contacts ?? []}
+          nextCursor={data?.next_cursor}
           blocked={blocked?.entries ?? []}
         />
       </PageBody>

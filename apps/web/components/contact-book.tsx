@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,19 +37,51 @@ type PreviewRow = {
 
 export function ContactBook({
   contacts,
+  nextCursor,
   blocked = [],
 }: {
   contacts: Contact[];
+  nextCursor?: string;
   blocked?: NeverEmail[];
 }) {
+  const [rows, setRows] = useState(contacts);
+  const [cursor, setCursor] = useState(nextCursor);
+  const [morePending, setMorePending] = useState(false);
+
+  useEffect(() => {
+    setRows(contacts);
+    setCursor(nextCursor);
+  }, [contacts, nextCursor]);
+
+  async function loadMore() {
+    if (!cursor) {
+      return;
+    }
+    setMorePending(true);
+    const res = await fetch(
+      `/api/v1/contacts?cursor=${encodeURIComponent(cursor)}`,
+      { credentials: "include" },
+    );
+    setMorePending(false);
+    if (!res.ok) {
+      return;
+    }
+    const data = (await res.json()) as {
+      contacts?: Contact[];
+      next_cursor?: string;
+    };
+    setRows((cur) => [...cur, ...(data.contacts ?? [])]);
+    setCursor(data.next_cursor);
+  }
+
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
       <div className="lg:col-span-7">
-        {contacts.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="font-body-md text-muted-foreground">No contacts yet.</p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {contacts.map((c) => (
+            {rows.map((c) => (
               <li
                 key={c.id}
                 className="rounded-md border border-border bg-card p-4"
@@ -87,6 +119,17 @@ export function ContactBook({
             ))}
           </ul>
         )}
+        {cursor ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 w-fit rounded-md"
+            pending={morePending}
+            onClick={loadMore}
+          >
+            Show more
+          </Button>
+        ) : null}
         <NeverEmailList blocked={blocked} />
       </div>
       <div className="flex flex-col gap-4 lg:col-span-5">

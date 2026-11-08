@@ -200,8 +200,11 @@ export type Contact = {
   created_at: string;
 };
 
-export function getContacts() {
-  return apiGet<{ contacts: Contact[] }>("/api/v1/contacts");
+export function getContacts(cursor?: string) {
+  const q = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+  return apiGet<{ contacts: Contact[]; next_cursor?: string }>(
+    `/api/v1/contacts${q}`,
+  );
 }
 
 export type NeverEmail = {

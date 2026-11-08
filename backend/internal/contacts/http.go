@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -15,7 +16,7 @@ type Store interface {
 	Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error)
 	Create(ctx context.Context, workspaceID uuid.UUID, in CreateInput) (Contact, error)
 	Import(ctx context.Context, workspaceID, userID uuid.UUID, source, csv string) (ImportResult, error)
-	List(ctx context.Context, workspaceID uuid.UUID) ([]Contact, error)
+	List(ctx context.Context, workspaceID uuid.UUID, after *uuid.UUID, limit int) (Page, error)
 	Get(ctx context.Context, workspaceID, id uuid.UUID) (Contact, error)
 	Patch(ctx context.Context, workspaceID, id uuid.UUID, in PatchInput) (Contact, error)
 	Delete(ctx context.Context, workspaceID, id uuid.UUID) error
@@ -35,15 +36,25 @@ func (a *API) List(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rows, err := a.store.List(r.Context(), s.WorkspaceID)
+	var after *uuid.UUID
+	if raw := strings.TrimSpace(r.URL.Query().Get("cursor")); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "invalid cursor")
+			return
+		}
+		after = &id
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	page, err := a.store.List(r.Context(), s.WorkspaceID, after, limit)
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	if rows == nil {
-		rows = []Contact{}
+	if page.Contacts == nil {
+		page.Contacts = []Contact{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"contacts": rows})
+	writeJSON(w, http.StatusOK, page)
 }
 
 func (a *API) Create(w http.ResponseWriter, r *http.Request) {
