@@ -60,6 +60,12 @@ on conflict (workspace_id, job_id, profile_id) do update
 set resume_id = excluded.resume_id, score = excluded.score, result = excluded.result
 returning workspace_id, id, job_id, profile_id, resume_id, score, result, created_at;
 
+-- name: ListFits :many
+select workspace_id, id, job_id, profile_id, resume_id, score, result, created_at
+from fits
+where workspace_id = $1
+order by created_at desc;
+
 -- name: DeleteFitsForWorkspace :exec
 delete from fits where workspace_id = $1;
 

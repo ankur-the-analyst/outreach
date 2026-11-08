@@ -5,15 +5,17 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { Job, Profile } from "@/lib/api";
+import type { Fit, Job, Profile } from "@/lib/api";
 import { fieldSelect, fieldTextarea } from "@/lib/labels";
 
 export function JobBoard({
   jobs,
   profiles,
+  fits = [],
 }: {
   jobs: Job[];
   profiles: Profile[];
+  fits?: Fit[];
 }) {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
@@ -38,7 +40,11 @@ export function JobBoard({
                 <p className="mt-2 line-clamp-4 whitespace-pre-wrap font-body-md text-muted-foreground">
                   {job.raw_text}
                 </p>
-                <CheckFit jobID={job.id} profiles={profiles} />
+                <CheckFit
+                  jobID={job.id}
+                  profiles={profiles}
+                  fits={fits.filter((f) => f.job_id === job.id)}
+                />
               </li>
             ))}
           </ul>
@@ -129,22 +135,48 @@ function CreateJob() {
   );
 }
 
-type FitResult = {
+type FitView = {
   score?: number;
-  result?: { score?: number; summary?: string };
+  summary?: string;
 };
+
+function viewFit(f: Fit | null): FitView | null {
+  if (!f) {
+    return null;
+  }
+  let result: { score?: number; summary?: string } | undefined;
+  if (typeof f.result === "string") {
+    try {
+      result = JSON.parse(f.result) as { score?: number; summary?: string };
+    } catch {
+      result = undefined;
+    }
+  } else {
+    result = f.result;
+  }
+  return { score: f.score ?? result?.score, summary: result?.summary };
+}
 
 function CheckFit({
   jobID,
   profiles,
+  fits,
 }: {
   jobID: string;
   profiles: Profile[];
+  fits: Fit[];
 }) {
   const [profileID, setProfileID] = useState(profiles[0]?.id ?? "");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const [fit, setFit] = useState<FitResult | null>(null);
+  const [fit, setFit] = useState<FitView | null>(
+    viewFit(fits.find((f) => f.profile_id === (profiles[0]?.id ?? "")) ?? null),
+  );
+
+  function pickProfile(id: string) {
+    setProfileID(id);
+    setFit(viewFit(fits.find((f) => f.profile_id === id) ?? null));
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -165,24 +197,8 @@ function CheckFit({
       setError(data?.error?.message ?? "Could not check this person");
       return;
     }
-    const data = (await res.json()) as {
-      score?: number;
-      result?: { score?: number; summary?: string } | string;
-    };
-    let result: { score?: number; summary?: string } | undefined;
-    if (typeof data.result === "string") {
-      try {
-        result = JSON.parse(data.result) as {
-          score?: number;
-          summary?: string;
-        };
-      } catch {
-        result = undefined;
-      }
-    } else {
-      result = data.result;
-    }
-    setFit({ score: data.score, result });
+    const data = (await res.json()) as Fit;
+    setFit(viewFit(data));
   }
 
   if (profiles.length === 0) {
@@ -193,8 +209,8 @@ function CheckFit({
     );
   }
 
-  const score = fit?.score ?? fit?.result?.score;
-  const summary = fit?.result?.summary;
+  const score = fit?.score;
+  const summary = fit?.summary;
 
   return (
     <form
@@ -206,7 +222,7 @@ function CheckFit({
         id={`fit-${jobID}`}
         required
         value={profileID}
-        onChange={(e) => setProfileID(e.target.value)}
+        onChange={(e) => pickProfile(e.target.value)}
         className={fieldSelect}
       >
         {profiles.map((p) => (

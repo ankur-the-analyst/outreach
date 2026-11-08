@@ -177,6 +177,7 @@ func main() {
 	mux.Handle("GET /api/v1/jobs", a.Require(http.HandlerFunc(jd.ListJobs)))
 	mux.Handle("POST /api/v1/jobs", a.Require(http.HandlerFunc(jd.CreateJob)))
 	mux.Handle("POST /api/v1/jobs/{id}/fit", a.Require(http.HandlerFunc(jd.Fit)))
+	mux.Handle("GET /api/v1/fits", a.Require(http.HandlerFunc(jd.ListFits)))
 	mux.Handle("GET /api/v1/contacts", a.Require(http.HandlerFunc(ct.List)))
 	mux.Handle("POST /api/v1/contacts", a.Require(http.HandlerFunc(ct.Create)))
 	mux.Handle("POST /api/v1/contacts/preview", a.Require(http.HandlerFunc(ct.Preview)))

@@ -286,6 +286,22 @@ func (p *Postgres) Fit(ctx context.Context, workspaceID, jobID, profileID uuid.U
 	return out, err
 }
 
+func (p *Postgres) ListFits(ctx context.Context, workspaceID uuid.UUID) ([]Fit, error) {
+	var out []Fit
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		rows, err := q.ListFits(ctx, workspaceID)
+		if err != nil {
+			return err
+		}
+		out = make([]Fit, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, fitFrom(row))
+		}
+		return nil
+	})
+	return out, err
+}
+
 func profileFrom(id uuid.UUID, name string, about pgtype.Text, created pgtype.Timestamptz) Profile {
 	p := Profile{ID: id, Name: name}
 	if about.Valid {

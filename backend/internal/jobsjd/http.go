@@ -20,6 +20,7 @@ type Store interface {
 	CreateJob(ctx context.Context, workspaceID uuid.UUID, title, sourceURL, raw string) (Job, error)
 	ListJobs(ctx context.Context, workspaceID uuid.UUID) ([]Job, error)
 	Fit(ctx context.Context, workspaceID, jobID, profileID uuid.UUID) (Fit, error)
+	ListFits(ctx context.Context, workspaceID uuid.UUID) ([]Fit, error)
 }
 
 type API struct {
@@ -160,6 +161,22 @@ func (a *API) Fit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, fit)
+}
+
+func (a *API) ListFits(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.member(w, r)
+	if !ok {
+		return
+	}
+	rows, err := a.store.ListFits(r.Context(), s.WorkspaceID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if rows == nil {
+		rows = []Fit{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"fits": rows})
 }
 
 func (a *API) member(w http.ResponseWriter, r *http.Request) (auth.Session, bool) {

@@ -254,6 +254,18 @@ export function getJobs() {
   return apiGet<{ jobs: Job[] }>("/api/v1/jobs");
 }
 
+export type Fit = {
+  id: string;
+  job_id: string;
+  profile_id: string;
+  score?: number;
+  result?: { score?: number; summary?: string } | string;
+};
+
+export function getFits() {
+  return apiGet<{ fits: Fit[] }>("/api/v1/fits");
+}
+
 export type TrackerRow = {
   id: string;
   application_id?: string;

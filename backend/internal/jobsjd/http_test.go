@@ -35,6 +35,11 @@ func (f *fakeStore) ListJobs(context.Context, uuid.UUID) ([]Job, error) { return
 func (f *fakeStore) Fit(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (Fit, error) {
 	return Fit{}, nil
 }
+func (f *fakeStore) ListFits(context.Context, uuid.UUID) ([]Fit, error) {
+	return []Fit{{Score: ptr32(82)}}, nil
+}
+
+func ptr32(n int32) *int32 { return &n }
 
 func TestCreateProfileHTTP(t *testing.T) {
 	t.Parallel()
@@ -49,5 +54,23 @@ func TestCreateProfileHTTP(t *testing.T) {
 	api.CreateProfile(rec, req)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestListFitsHTTP(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner"})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/fits", nil)
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.ListFits(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"82"`)) && !bytes.Contains(rec.Body.Bytes(), []byte(`82`)) {
+		t.Fatalf("%s", rec.Body.String())
 	}
 }

@@ -244,6 +244,42 @@ func (q *Queries) LatestResume(ctx context.Context, arg LatestResumeParams) (Res
 	return i, err
 }
 
+const listFits = `-- name: ListFits :many
+select workspace_id, id, job_id, profile_id, resume_id, score, result, created_at
+from fits
+where workspace_id = $1
+order by created_at desc
+`
+
+func (q *Queries) ListFits(ctx context.Context, workspaceID uuid.UUID) ([]Fit, error) {
+	rows, err := q.db.Query(ctx, listFits, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Fit
+	for rows.Next() {
+		var i Fit
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.ID,
+			&i.JobID,
+			&i.ProfileID,
+			&i.ResumeID,
+			&i.Score,
+			&i.Result,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listJobs = `-- name: ListJobs :many
 select workspace_id, id, source_url, raw_text, title, analysis, analysis_status, created_at
 from jobs
