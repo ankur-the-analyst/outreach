@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageBody, PageHeader, Pill } from "@/components/page-header";
 import { SenderIdentityForm } from "@/components/sender-identity-form";
-import type { Campaign, Contact, Mailbox } from "@/lib/api";
+import type { Campaign, Contact, Job, Mailbox, Profile } from "@/lib/api";
 import {
   campaignStatusLabel,
   contactName,
@@ -54,10 +54,14 @@ export function CampaignBoard({
   campaigns,
   contacts,
   mailboxes,
+  jobs,
+  profiles,
 }: {
   campaigns: Campaign[];
   contacts: Contact[];
   mailboxes: Mailbox[];
+  jobs: Job[];
+  profiles: Profile[];
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [addFor, setAddFor] = useState<string | null>(null);
@@ -131,6 +135,8 @@ export function CampaignBoard({
           <AddPerson
             campaigns={campaigns}
             contacts={contacts}
+            jobs={jobs}
+            profiles={profiles}
             initialID={addFor}
             onDone={() => setAddFor(null)}
           />
@@ -394,17 +400,23 @@ function CreateCampaign({
 function AddPerson({
   campaigns,
   contacts,
+  jobs,
+  profiles,
   initialID,
   onDone,
 }: {
   campaigns: Campaign[];
   contacts: Contact[];
+  jobs: Job[];
+  profiles: Profile[];
   initialID: string;
   onDone: () => void;
 }) {
   const router = useRouter();
   const [campaignID, setCampaignID] = useState(initialID);
   const [contactID, setContactID] = useState(contacts[0]?.id ?? "");
+  const [jobID, setJobID] = useState("");
+  const [profileID, setProfileID] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -417,7 +429,12 @@ function AddPerson({
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contact_id: contactID, notes }),
+      body: JSON.stringify({
+        contact_id: contactID,
+        notes,
+        job_id: jobID || undefined,
+        profile_id: profileID || undefined,
+      }),
     });
     setPending(false);
     if (!res.ok) {
@@ -467,6 +484,42 @@ function AddPerson({
           ))}
         </select>
       </div>
+      {jobs.length > 0 ? (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="add-job">Job</Label>
+          <select
+            id="add-job"
+            value={jobID}
+            onChange={(e) => setJobID(e.target.value)}
+            className={fieldSelect}
+          >
+            <option value="">None</option>
+            {jobs.map((j) => (
+              <option key={j.id} value={j.id}>
+                {j.title || "Untitled job"}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+      {profiles.length > 0 ? (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="add-profile">Profile</Label>
+          <select
+            id="add-profile"
+            value={profileID}
+            onChange={(e) => setProfileID(e.target.value)}
+            className={fieldSelect}
+          >
+            <option value="">None</option>
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="add-notes">Why you’re writing</Label>
         <textarea
@@ -476,6 +529,9 @@ function AddPerson({
           onChange={(e) => setNotes(e.target.value)}
           className={fieldTextarea}
         />
+        <p className="font-body-md text-muted-foreground">
+          Needed unless you pick a job or the campaign already has instructions.
+        </p>
       </div>
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
       <div className="flex justify-end gap-2">
