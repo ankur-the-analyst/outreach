@@ -6,13 +6,25 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/db"
 	"outreach/internal/mime"
+	"outreach/internal/pacing"
 )
+
+var ErrOutsideWindow = errors.New("outside send window")
+
+type OutsideWindowError struct {
+	Until time.Time
+}
+
+func (e *OutsideWindowError) Error() string { return ErrOutsideWindow.Error() }
+
+func (e *OutsideWindowError) Unwrap() error { return ErrOutsideWindow }
 
 type Draft struct {
 	ID      uuid.UUID `json:"id"`
@@ -22,7 +34,7 @@ type Draft struct {
 	Status  string    `json:"status"`
 }
 
-func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uuid.UUID, stepPosition int32) (Draft, error) {
+func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uuid.UUID, stepPosition int32, now time.Time) (Draft, error) {
 	var out Draft
 	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
 		en, err := q.GetEnrolment(ctx, db.GetEnrolmentParams{WorkspaceID: workspaceID, ID: enrolmentID})
@@ -72,6 +84,18 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 			}
 			id := camp.Senders[0].MailboxID
 			mailboxID = &id
+		}
+		win, err := q.GetMailboxWindow(ctx, db.GetMailboxWindowParams{WorkspaceID: workspaceID, ID: *mailboxID})
+		if err != nil {
+			return err
+		}
+		zone := win.Timezone
+		if ct.Timezone.Valid && strings.TrimSpace(ct.Timezone.String) != "" {
+			zone = ct.Timezone.String
+		}
+		w := pacing.WindowFrom(win.WindowDays, win.WindowStart, win.WindowEnd, pacing.LoadZone(zone))
+		if !pacing.InWindow(now, w) {
+			return &OutsideWindowError{Until: pacing.NextOpen(now, w)}
 		}
 		msgid, err := mime.NewMessageID("outreach.test")
 		if err != nil {

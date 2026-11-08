@@ -81,7 +81,7 @@ func main() {
 			return proc.ClassifyStored(ctx, a.WorkspaceID, a.MessageID)
 		})
 		worker.AddStep(w, func(ctx context.Context, a worker.StepArgs) error {
-			_, err := camp.DraftDueStep(ctx, a.WorkspaceID, a.EnrolmentID, a.StepPosition)
+			_, err := camp.DraftDueStep(ctx, a.WorkspaceID, a.EnrolmentID, a.StepPosition, time.Now())
 			return err
 		})
 	})

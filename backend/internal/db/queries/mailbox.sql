@@ -68,6 +68,11 @@ select
 from mailboxes
 where workspace_id = $1 and id = $2;
 
+-- name: GetMailboxWindow :one
+select timezone, window_days, window_start, window_end
+from mailboxes
+where workspace_id = $1 and id = $2;
+
 -- name: LockMailbox :one
 select
   workspace_id, id, email, display_name, auth_kind, provider,

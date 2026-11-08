@@ -199,6 +199,36 @@ func (q *Queries) GetMailboxReplyMode(ctx context.Context, arg GetMailboxReplyMo
 	return reply_mode, err
 }
 
+const getMailboxWindow = `-- name: GetMailboxWindow :one
+select timezone, window_days, window_start, window_end
+from mailboxes
+where workspace_id = $1 and id = $2
+`
+
+type GetMailboxWindowParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+type GetMailboxWindowRow struct {
+	Timezone    string
+	WindowDays  []int32
+	WindowStart pgtype.Time
+	WindowEnd   pgtype.Time
+}
+
+func (q *Queries) GetMailboxWindow(ctx context.Context, arg GetMailboxWindowParams) (GetMailboxWindowRow, error) {
+	row := q.db.QueryRow(ctx, getMailboxWindow, arg.WorkspaceID, arg.ID)
+	var i GetMailboxWindowRow
+	err := row.Scan(
+		&i.Timezone,
+		&i.WindowDays,
+		&i.WindowStart,
+		&i.WindowEnd,
+	)
+	return i, err
+}
+
 const getSendingDomain = `-- name: GetSendingDomain :one
 select workspace_id, id, domain, daily_limit, first_seen_at
 from sending_domains

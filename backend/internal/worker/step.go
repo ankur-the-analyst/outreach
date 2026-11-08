@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/riverqueue/river"
+	"outreach/internal/campaign"
 	"outreach/internal/db"
 )
 
@@ -38,7 +40,16 @@ func (w StepWorker) Work(ctx context.Context, job *river.Job[StepArgs]) error {
 	if job.Args.EnrolmentID == uuid.Nil {
 		return fmt.Errorf("worker: enrolment_id required")
 	}
-	return w.Run(ctx, job.Args)
+	err := w.Run(ctx, job.Args)
+	var outside *campaign.OutsideWindowError
+	if errors.As(err, &outside) {
+		delay := time.Until(outside.Until)
+		if delay < time.Minute {
+			delay = time.Minute
+		}
+		return river.JobSnooze(delay)
+	}
+	return err
 }
 
 func AddStep(workers *river.Workers, run func(ctx context.Context, args StepArgs) error) {
