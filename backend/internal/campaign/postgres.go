@@ -11,6 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"outreach/internal/ai"
+	"outreach/internal/compose"
 	"outreach/internal/db"
 )
 
@@ -93,10 +95,16 @@ type EnrolInput struct {
 	Notes     string
 }
 
+type Binder interface {
+	Provider(ctx context.Context, workspaceID uuid.UUID, role ai.Role) (ai.Provider, error)
+}
+
 type Postgres struct {
 	pool     *db.Pool
 	packs    map[string]Pack
 	retrieve Retriever
+	write    compose.Completer
+	bind     Binder
 }
 
 func NewPostgres(pool *db.Pool, packs map[string]Pack) *Postgres {
@@ -106,6 +114,30 @@ func NewPostgres(pool *db.Pool, packs map[string]Pack) *Postgres {
 func (p *Postgres) WithRetrieve(r Retriever) *Postgres {
 	p.retrieve = r
 	return p
+}
+
+func (p *Postgres) WithWriter(w compose.Completer) *Postgres {
+	p.write = w
+	return p
+}
+
+func (p *Postgres) WithBinder(b Binder) *Postgres {
+	p.bind = b
+	return p
+}
+
+func (p *Postgres) writer(ctx context.Context, workspaceID uuid.UUID) (compose.Completer, error) {
+	if p.bind == nil {
+		return p.write, nil
+	}
+	got, err := p.bind.Provider(ctx, workspaceID, ai.RoleCompose)
+	if errors.Is(err, ai.ErrNoBinding) || errors.Is(err, ai.ErrNoKey) || errors.Is(err, ai.ErrNotFound) {
+		return p.write, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return got, nil
 }
 
 func (p *Postgres) Packs() []Pack {

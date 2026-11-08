@@ -74,7 +74,11 @@ func main() {
 		Text: "You closed 12 deals last year. Open to a short chat?",
 		JSON: json.RawMessage(`{"score":82,"summary":"deals overlap"}`),
 	}
-	camp := campaign.NewPostgres(pool, packs).WithRetrieve(evidence.NewPostgres(pool, writer))
+	aiStore := ai.NewPostgres(pool, keys)
+	camp := campaign.NewPostgres(pool, packs).
+		WithRetrieve(evidence.NewPostgres(pool, writer)).
+		WithWriter(writer).
+		WithBinder(aiStore)
 
 	client, err := worker.NewWorkerClient(pool, func(w *river.Workers) {
 		worker.AddReconcile(w, func(ctx context.Context, a worker.ReconcileArgs) error {

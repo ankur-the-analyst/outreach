@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"outreach/internal/compose"
 	"outreach/internal/db"
 	"outreach/internal/evidence"
 	"outreach/internal/mime"
@@ -188,12 +189,16 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 		if err != nil {
 			return err
 		}
-		body := notesFromContext(en.Context)
+		notes := notesFromContext(en.Context)
 		profileID := en.ProfileID
 		if profileID == nil {
 			profileID = camp.ProfileID
 		}
-		facts, err := factsFromRetrieve(ctx, p.retrieve, workspaceID, profileID, body)
+		cited, facts, err := retrieveFacts(ctx, p.retrieve, workspaceID, profileID, notes)
+		if err != nil {
+			return err
+		}
+		body, err := p.writeBody(ctx, workspaceID, notes, cited, facts)
 		if err != nil {
 			return err
 		}
@@ -237,18 +242,49 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 }
 
 func factsFromRetrieve(ctx context.Context, r Retriever, workspaceID uuid.UUID, profileID *uuid.UUID, query string) ([]draftFact, error) {
+	_, facts, err := retrieveFacts(ctx, r, workspaceID, profileID, query)
+	return facts, err
+}
+
+func retrieveFacts(ctx context.Context, r Retriever, workspaceID uuid.UUID, profileID *uuid.UUID, query string) ([]evidence.Item, []draftFact, error) {
 	if r == nil {
-		return []draftFact{}, nil
+		return nil, []draftFact{}, nil
 	}
 	items, err := r.Retrieve(ctx, workspaceID, profileID, query)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	out := make([]draftFact, 0, len(items))
 	for _, it := range items {
 		out = append(out, draftFact{Claim: it.Text, EvidenceID: it.ID})
 	}
-	return out, nil
+	return items, out, nil
+}
+
+func (p *Postgres) writeBody(ctx context.Context, workspaceID uuid.UUID, notes string, cited []evidence.Item, facts []draftFact) (string, error) {
+	if len(cited) == 0 {
+		return notes, nil
+	}
+	w, err := p.writer(ctx, workspaceID)
+	if err != nil {
+		return "", err
+	}
+	if w == nil {
+		return notes, nil
+	}
+	cf := make([]compose.Fact, 0, len(facts))
+	for _, f := range facts {
+		cf = append(cf, compose.Fact{Claim: f.Claim, EvidenceID: f.EvidenceID})
+	}
+	body, _, _, err := compose.Generate(ctx, w, cited, cf)
+	if err != nil {
+		return "", err
+	}
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return notes, nil
+	}
+	return body, nil
 }
 
 func notesFromContext(raw json.RawMessage) string {
