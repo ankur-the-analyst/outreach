@@ -156,6 +156,19 @@ export function getProfiles() {
   return apiGet<{ profiles: Profile[] }>("/api/v1/profiles");
 }
 
+export type Job = {
+  id: string;
+  title?: string;
+  source_url?: string;
+  raw_text: string;
+  analysis_status: string;
+  created_at: string;
+};
+
+export function getJobs() {
+  return apiGet<{ jobs: Job[] }>("/api/v1/jobs");
+}
+
 export type TrackerRow = {
   id: string;
   contact: string;
