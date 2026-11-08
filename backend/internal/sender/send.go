@@ -7,7 +7,6 @@ import (
 	"net"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/db"
 	"outreach/internal/mailbox"
@@ -127,17 +126,22 @@ func (p *Postgres) buildMIME(ctx context.Context, workspaceID, ledgerID uuid.UUI
 		From: from, To: in.To, Subject: in.Subject, Text: in.Text, HTML: in.HTML,
 		MessageID: messageID,
 	}
-	if u := p.listUnsubURL(ctx, workspaceID, ledgerID, in.To); u != "" {
-		msg.ListUnsubscribe = u
+	commercial, inCampaign := p.campaignUnsub(ctx, workspaceID, ledgerID)
+	if inCampaign && commercial {
+		if len(in.To) > 0 && p.hmac != nil && p.publicBase != "" {
+			if u, err := suppression.OneClickURL(p.publicBase, p.hmac, workspaceID, in.To[0]); err == nil {
+				msg.ListUnsubscribe = u
+			}
+		}
+		msg.Text, msg.HTML = mime.WithFooter(msg.Text, msg.HTML, p.identityFooter(ctx, workspaceID, msg.ListUnsubscribe))
+	}
+	if inCampaign && !commercial {
+		msg.Text, msg.HTML = mime.WithFooter(msg.Text, msg.HTML, mime.OptOutLine)
 	}
 	return mime.Build(msg)
 }
 
-func (p *Postgres) listUnsubURL(ctx context.Context, workspaceID, ledgerID uuid.UUID, to []string) string {
-	if p.hmac == nil || p.publicBase == "" || len(to) == 0 {
-		return ""
-	}
-	var want bool
+func (p *Postgres) campaignUnsub(ctx context.Context, workspaceID, ledgerID uuid.UUID) (commercial, inCampaign bool) {
 	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
 		ok, err := q.CampaignWantsListUnsubscribe(ctx, db.CampaignWantsListUnsubscribeParams{
 			WorkspaceID: workspaceID, ID: ledgerID,
@@ -145,21 +149,27 @@ func (p *Postgres) listUnsubURL(ctx context.Context, workspaceID, ledgerID uuid.
 		if err != nil {
 			return err
 		}
-		want = ok
+		commercial = ok
 		return nil
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ""
+		return false, false
+	}
+	return commercial, true
+}
+
+func (p *Postgres) identityFooter(ctx context.Context, workspaceID uuid.UUID, unsubURL string) string {
+	var name, reply, postal string
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.GetSenderIdentity(ctx, workspaceID)
+		if err != nil {
+			return err
 		}
-		return ""
-	}
-	if !want {
-		return ""
-	}
-	u, err := suppression.OneClickURL(p.publicBase, p.hmac, workspaceID, to[0])
+		name, reply, postal = row.LegalName, row.ReplyAddress, row.PostalAddress
+		return nil
+	})
 	if err != nil {
 		return ""
 	}
-	return u
+	return mime.CommercialFooter(name, reply, postal, unsubURL)
 }

@@ -118,6 +118,9 @@ func TestAppendSentFailureStillSent(t *testing.T) {
 	if bytes.Contains(stub.last.Bytes, []byte("List-Unsubscribe:")) {
 		t.Fatal("one-off must not set List-Unsubscribe")
 	}
+	if bytes.Contains(stub.last.Bytes, []byte(mime.OptOutLine)) {
+		t.Fatal("one-off must not add opt-out line")
+	}
 }
 
 func TestMailpitOneOffSend(t *testing.T) {
