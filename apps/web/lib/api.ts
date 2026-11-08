@@ -145,6 +145,17 @@ export function getCampaigns() {
   return apiGet<{ campaigns: Campaign[] }>("/api/v1/campaigns");
 }
 
+export type Profile = {
+  id: string;
+  name: string;
+  about?: string;
+  created_at: string;
+};
+
+export function getProfiles() {
+  return apiGet<{ profiles: Profile[] }>("/api/v1/profiles");
+}
+
 export type TrackerRow = {
   id: string;
   contact: string;

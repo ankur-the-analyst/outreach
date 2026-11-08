@@ -17,7 +17,8 @@ const stubHrefs = new Set(
         item.href !== "/contacts" &&
         item.href !== "/campaigns" &&
         item.href !== "/tracker" &&
-        item.href !== "/settings",
+        item.href !== "/settings" &&
+        item.href !== "/profiles",
     )
     .map((item) => item.href.slice(1)),
 );
