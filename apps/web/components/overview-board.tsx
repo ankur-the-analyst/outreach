@@ -6,6 +6,7 @@ import {
   campaignStatusLabel,
   intentLabel,
   mailboxStatus,
+  mailboxUsageLabel,
   reviewBucket,
 } from "@/lib/labels";
 
@@ -13,10 +14,12 @@ export function OverviewBoard({
   drafts,
   mailboxes,
   campaigns,
+  usageByMailbox,
 }: {
   drafts: Draft[];
   mailboxes: Mailbox[];
   campaigns: Campaign[];
+  usageByMailbox: Record<string, number>;
 }) {
   const pending = drafts.filter((d) => reviewBucket(d) === "pending");
   const undo = drafts.filter((d) => reviewBucket(d) === "undo");
@@ -111,7 +114,10 @@ export function OverviewBoard({
                       </Pill>
                     </div>
                     <p className="mt-1 font-body-sm tabular-nums text-muted-foreground">
-                      Cap {mb.effective_daily_limit}/day
+                      {mailboxUsageLabel(
+                        usageByMailbox[mb.id] ?? 0,
+                        mb.effective_daily_limit,
+                      )}
                     </p>
                   </li>
                 ))}

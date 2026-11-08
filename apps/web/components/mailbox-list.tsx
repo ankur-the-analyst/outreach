@@ -4,22 +4,38 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/page-header";
 import type { Mailbox } from "@/lib/api";
-import { authKindLabel, mailboxStatus } from "@/lib/labels";
+import { authKindLabel, mailboxStatus, mailboxUsageLabel } from "@/lib/labels";
 
-export function MailboxList({ mailboxes }: { mailboxes: Mailbox[] }) {
+export function MailboxList({
+  mailboxes,
+  usageByMailbox,
+}: {
+  mailboxes: Mailbox[];
+  usageByMailbox: Record<string, number>;
+}) {
   if (mailboxes.length === 0) {
     return <p className="font-body-md text-muted-foreground">No mailboxes yet.</p>;
   }
   return (
     <ul className="flex flex-col gap-3">
       {mailboxes.map((mb) => (
-        <MailboxRow key={mb.id} mailbox={mb} />
+        <MailboxRow
+          key={mb.id}
+          mailbox={mb}
+          used={usageByMailbox[mb.id] ?? 0}
+        />
       ))}
     </ul>
   );
 }
 
-function MailboxRow({ mailbox }: { mailbox: Mailbox }) {
+function MailboxRow({
+  mailbox,
+  used,
+}: {
+  mailbox: Mailbox;
+  used: number;
+}) {
   const [msg, setMsg] = useState("");
   const [pending, setPending] = useState(false);
 
@@ -63,7 +79,7 @@ function MailboxRow({ mailbox }: { mailbox: Mailbox }) {
           {mailbox.smtp_host
             ? ` · ${mailbox.smtp_host}:${mailbox.smtp_port}`
             : ""}
-          {` · cap ${mailbox.effective_daily_limit}/day`}
+          {` · ${mailboxUsageLabel(used, mailbox.effective_daily_limit)}`}
         </p>
       </div>
       <div className="flex items-center gap-3">

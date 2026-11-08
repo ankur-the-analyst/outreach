@@ -76,6 +76,20 @@ export function getMailboxes() {
   return apiGet<{ mailboxes: Mailbox[] }>("/api/v1/mailboxes");
 }
 
+export async function getMailboxUsage(mailboxID: string) {
+  const data = await apiGet<{ used: number }>(
+    `/api/v1/mailboxes/${mailboxID}/usage`,
+  );
+  return data?.used ?? 0;
+}
+
+export async function getMailboxUsageByID(mailboxes: Mailbox[]) {
+  const entries = await Promise.all(
+    mailboxes.map(async (mb) => [mb.id, await getMailboxUsage(mb.id)] as const),
+  );
+  return Object.fromEntries(entries) as Record<string, number>;
+}
+
 export type Draft = {
   id: string;
   mailbox_id: string;

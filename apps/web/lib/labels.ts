@@ -40,6 +40,10 @@ export const trackerStageLabel: Record<string, string> = {
   unsubscribed: "Unsubscribed",
 };
 
+export function mailboxUsageLabel(used: number, cap: number): string {
+  return `${used} of ${cap} · last 24h`;
+}
+
 export function mailboxStatus(status: string): string {
   switch (status) {
     case "warming":
