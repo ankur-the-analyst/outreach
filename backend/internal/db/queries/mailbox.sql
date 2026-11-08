@@ -46,12 +46,21 @@ select
   m.smtp_host, m.smtp_port, m.smtp_tls, m.imap_host, m.imap_port, m.username,
   m.sending_domain_id, m.timezone, m.warmup_profile_id, m.warmup_sending_day,
   m.effective_daily_limit, m.status, m.reply_mode, m.created_at,
-  w.kind as warmup_kind
+  w.kind as warmup_kind,
+  d.domain, d.daily_limit as domain_daily_limit
 from mailboxes m
 join warmup_profiles w
   on w.workspace_id = m.workspace_id and w.id = m.warmup_profile_id
+join sending_domains d
+  on d.workspace_id = m.workspace_id and d.id = m.sending_domain_id
 where m.workspace_id = $1
 order by m.email;
+
+-- name: ListSendingDomains :many
+select workspace_id, id, domain, daily_limit, first_seen_at
+from sending_domains
+where workspace_id = $1
+order by domain;
 
 -- name: GetMailboxDial :one
 select

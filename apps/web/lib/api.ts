@@ -85,10 +85,22 @@ export type Mailbox = {
   effective_daily_limit: number;
   reply_mode?: string;
   warmup_kind?: string;
+  domain?: string;
+  domain_daily_limit?: number;
 };
 
 export function getMailboxes() {
   return apiGet<{ mailboxes: Mailbox[] }>("/api/v1/mailboxes");
+}
+
+export type SendingDomain = {
+  id: string;
+  domain: string;
+  daily_limit: number;
+};
+
+export function getSendingDomains() {
+  return apiGet<{ domains: SendingDomain[] }>("/api/v1/sending-domains");
 }
 
 export type WorkspaceKey = {

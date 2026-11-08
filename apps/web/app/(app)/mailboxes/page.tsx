@@ -6,6 +6,7 @@ import { PageBody, PageHeader, PageLoading } from "@/components/page-header";
 import {
   getMailboxes,
   getMailboxUsageByID,
+  getSendingDomains,
   getWorkspaceKeys,
 } from "@/lib/api";
 
@@ -14,15 +15,20 @@ export const instant = false;
 async function MailboxesBody() {
   const data = await getMailboxes();
   const mailboxes = data?.mailboxes ?? [];
-  const [usageByMailbox, keys] = await Promise.all([
+  const [usageByMailbox, keys, domains] = await Promise.all([
     getMailboxUsageByID(mailboxes),
     getWorkspaceKeys(),
+    getSendingDomains(),
   ]);
   return (
     <main className="flex min-h-0 flex-1 flex-col">
       <PageHeader title="Mailboxes" />
       <PageBody>
-        <MailboxList mailboxes={mailboxes} usageByMailbox={usageByMailbox} />
+        <MailboxList
+          mailboxes={mailboxes}
+          usageByMailbox={usageByMailbox}
+          domains={domains?.domains ?? []}
+        />
         <WorkspaceKeys keys={keys?.service_accounts ?? []} />
         <ConnectMailboxForm />
       </PageBody>

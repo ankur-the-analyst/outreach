@@ -35,6 +35,14 @@ type Mailbox struct {
 	EffectiveDailyLimit int32     `json:"effective_daily_limit"`
 	ReplyMode           string    `json:"reply_mode"`
 	WarmupKind          string    `json:"warmup_kind"`
+	Domain              string    `json:"domain,omitempty"`
+	DomainDailyLimit    int32     `json:"domain_daily_limit,omitempty"`
+}
+
+type SendingDomain struct {
+	ID         uuid.UUID `json:"id"`
+	Domain     string    `json:"domain"`
+	DailyLimit int32     `json:"daily_limit"`
 }
 
 type ConnectInput struct {
@@ -86,6 +94,22 @@ func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID) ([]Mailbox, 
 		out = make([]Mailbox, 0, len(rows))
 		for _, row := range rows {
 			out = append(out, mailboxFromList(row))
+		}
+		return nil
+	})
+	return out, err
+}
+
+func (p *Postgres) ListDomains(ctx context.Context, workspaceID uuid.UUID) ([]SendingDomain, error) {
+	var out []SendingDomain
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		rows, err := q.ListSendingDomains(ctx, workspaceID)
+		if err != nil {
+			return err
+		}
+		out = make([]SendingDomain, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, SendingDomain{ID: row.ID, Domain: row.Domain, DailyLimit: row.DailyLimit})
 		}
 		return nil
 	})
@@ -359,6 +383,7 @@ func mailboxFromList(row db.ListMailboxesRow) Mailbox {
 		SendingDomainID: row.SendingDomainID,
 		WarmupProfileID: row.WarmupProfileID, EffectiveDailyLimit: row.EffectiveDailyLimit,
 		ReplyMode: row.ReplyMode, WarmupKind: row.WarmupKind,
+		Domain: row.Domain, DomainDailyLimit: row.DomainDailyLimit,
 	}
 }
 

@@ -136,6 +136,7 @@ func main() {
 	mux.Handle("GET /api/v1/workspace/members", a.Require(http.HandlerFunc(ws.ListMembers)))
 	mux.Handle("POST /api/v1/workspace/members", a.Require(http.HandlerFunc(ws.Invite)))
 	mux.Handle("GET /api/v1/mailboxes", a.Require(http.HandlerFunc(mb.List)))
+	mux.Handle("GET /api/v1/sending-domains", a.Require(http.HandlerFunc(mb.ListDomains)))
 	mux.Handle("POST /api/v1/mailboxes", a.Require(http.HandlerFunc(mb.Create)))
 	mux.Handle("PATCH /api/v1/mailboxes/{id}", a.Require(http.HandlerFunc(mb.Patch)))
 	mux.Handle("POST /api/v1/mailboxes/{id}/pause", a.Require(http.HandlerFunc(mb.Pause)))

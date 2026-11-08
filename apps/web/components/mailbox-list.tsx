@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/page-header";
-import type { Mailbox } from "@/lib/api";
+import type { Mailbox, SendingDomain } from "@/lib/api";
 import {
   authKindLabel,
   fieldSelect,
@@ -30,14 +30,27 @@ function mailboxError(message: string): string {
 export function MailboxList({
   mailboxes,
   usageByMailbox,
+  domains = [],
 }: {
   mailboxes: Mailbox[];
   usageByMailbox: Record<string, number>;
+  domains?: SendingDomain[];
 }) {
   if (mailboxes.length === 0) {
     return <p className="font-body-md text-muted-foreground">No mailboxes yet.</p>;
   }
   return (
+    <div className="flex flex-col gap-6">
+      {domains.length > 0 ? (
+        <ul className="flex flex-col gap-1">
+          {domains.map((d) => (
+            <li key={d.id} className="font-body-sm text-muted-foreground">
+              {d.domain}
+              {d.daily_limit ? ` · ${d.daily_limit}/day` : ""}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     <ul className="flex flex-col gap-3">
       {mailboxes.map((mb) => (
         <MailboxRow
@@ -47,6 +60,7 @@ export function MailboxList({
         />
       ))}
     </ul>
+    </div>
   );
 }
 
@@ -152,6 +166,10 @@ function MailboxRow({
         </div>
         <p className="mt-1 font-body-sm tabular-nums text-muted-foreground">
           {authKindLabel(mailbox.auth_kind)}
+          {mailbox.domain ? ` · ${mailbox.domain}` : ""}
+          {mailbox.domain_daily_limit
+            ? ` · ${mailbox.domain_daily_limit}/day on this domain`
+            : ""}
           {mailbox.smtp_host
             ? ` · ${mailbox.smtp_host}:${mailbox.smtp_port}`
             : ""}
