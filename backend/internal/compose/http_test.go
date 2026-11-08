@@ -35,6 +35,12 @@ func (f *fakeStore) Approve(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (D
 func (f *fakeStore) Undo(context.Context, uuid.UUID, uuid.UUID) (Draft, error) {
 	return f.d, f.err
 }
+func (f *fakeStore) Reject(context.Context, uuid.UUID, uuid.UUID) (Draft, error) {
+	return f.d, f.err
+}
+func (f *fakeStore) Regenerate(context.Context, uuid.UUID, uuid.UUID) (ComposeResult, error) {
+	return ComposeResult{Draft: f.d, Failures: []Failure{}}, f.err
+}
 
 func TestCreateDraftHTTP(t *testing.T) {
 	t.Parallel()
@@ -48,6 +54,23 @@ func TestCreateDraftHTTP(t *testing.T) {
 	rec := httptest.NewRecorder()
 	api.Create(rec, req)
 	if rec.Code != http.StatusCreated {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRejectDraftHTTP(t *testing.T) {
+	t.Parallel()
+	id := uuid.MustParse("01700000-0000-7000-8000-000000000003")
+	api := New(&fakeStore{role: "owner", d: Draft{ID: id, Status: "rejected"}})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/drafts/"+id.String()+"/reject", nil)
+	req.SetPathValue("id", id.String())
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Reject(rec, req)
+	if rec.Code != http.StatusOK {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 }

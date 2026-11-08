@@ -18,6 +18,8 @@ type Store interface {
 	Compose(ctx context.Context, workspaceID uuid.UUID, in ComposeInput) (ComposeResult, error)
 	List(ctx context.Context, workspaceID uuid.UUID) ([]Draft, error)
 	Approve(ctx context.Context, workspaceID, userID, draftID uuid.UUID) (Draft, error)
+	Reject(ctx context.Context, workspaceID, draftID uuid.UUID) (Draft, error)
+	Regenerate(ctx context.Context, workspaceID, draftID uuid.UUID) (ComposeResult, error)
 	Undo(ctx context.Context, workspaceID, draftID uuid.UUID) (Draft, error)
 }
 
@@ -138,6 +140,50 @@ func (a *API) Approve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, d)
+}
+
+func (a *API) Reject(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.session(w, r)
+	if !ok {
+		return
+	}
+	if err := a.requireEdit(r.Context(), s); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", "invalid id")
+		return
+	}
+	d, err := a.store.Reject(r.Context(), s.WorkspaceID, id)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, d)
+}
+
+func (a *API) Regenerate(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.session(w, r)
+	if !ok {
+		return
+	}
+	if err := a.requireEdit(r.Context(), s); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", "invalid id")
+		return
+	}
+	out, err := a.store.Regenerate(r.Context(), s.WorkspaceID, id)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (a *API) Undo(w http.ResponseWriter, r *http.Request) {

@@ -49,7 +49,7 @@ func (q *Queries) DeleteDraftsForWorkspace(ctx context.Context, workspaceID uuid
 const getDraft = `-- name: GetDraft :one
 select
   workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
-  subject, body_html, body_text, status, approved_by, created_at
+  subject, body_html, body_text, facts_used, status, approved_by, created_at
 from drafts
 where workspace_id = $1 and id = $2
 `
@@ -69,6 +69,7 @@ type GetDraftRow struct {
 	Subject      string
 	BodyHtml     string
 	BodyText     string
+	FactsUsed    json.RawMessage
 	Status       string
 	ApprovedBy   *uuid.UUID
 	CreatedAt    pgtype.Timestamptz
@@ -87,6 +88,7 @@ func (q *Queries) GetDraft(ctx context.Context, arg GetDraftParams) (GetDraftRow
 		&i.Subject,
 		&i.BodyHtml,
 		&i.BodyText,
+		&i.FactsUsed,
 		&i.Status,
 		&i.ApprovedBy,
 		&i.CreatedAt,
@@ -344,6 +346,64 @@ func (q *Queries) ListReviewDrafts(ctx context.Context, workspaceID uuid.UUID) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateDraftBody = `-- name: UpdateDraftBody :one
+update drafts
+set body_text = $3, body_html = $4
+where workspace_id = $1 and id = $2 and status = 'pending'
+returning
+  workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
+  subject, body_html, body_text, facts_used, status, approved_by, created_at
+`
+
+type UpdateDraftBodyParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	BodyText    string
+	BodyHtml    string
+}
+
+type UpdateDraftBodyRow struct {
+	WorkspaceID  uuid.UUID
+	ID           uuid.UUID
+	MailboxID    uuid.UUID
+	ToAddr       string
+	RfcMessageID string
+	Kind         string
+	Subject      string
+	BodyHtml     string
+	BodyText     string
+	FactsUsed    json.RawMessage
+	Status       string
+	ApprovedBy   *uuid.UUID
+	CreatedAt    pgtype.Timestamptz
+}
+
+func (q *Queries) UpdateDraftBody(ctx context.Context, arg UpdateDraftBodyParams) (UpdateDraftBodyRow, error) {
+	row := q.db.QueryRow(ctx, updateDraftBody,
+		arg.WorkspaceID,
+		arg.ID,
+		arg.BodyText,
+		arg.BodyHtml,
+	)
+	var i UpdateDraftBodyRow
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.MailboxID,
+		&i.ToAddr,
+		&i.RfcMessageID,
+		&i.Kind,
+		&i.Subject,
+		&i.BodyHtml,
+		&i.BodyText,
+		&i.FactsUsed,
+		&i.Status,
+		&i.ApprovedBy,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const updateDraftStatus = `-- name: UpdateDraftStatus :one

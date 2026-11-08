@@ -238,6 +238,67 @@ func (p *Postgres) Approve(ctx context.Context, workspaceID, userID, draftID uui
 	return p.setStatus(ctx, workspaceID, draftID, "approved", userID, &ent)
 }
 
+func (p *Postgres) Reject(ctx context.Context, workspaceID, draftID uuid.UUID) (Draft, error) {
+	d, err := p.get(ctx, workspaceID, draftID)
+	if err != nil {
+		return Draft{}, err
+	}
+	if d.Status != "pending" {
+		return Draft{}, ErrConflict
+	}
+	return p.setStatus(ctx, workspaceID, draftID, "rejected", uuid.Nil, nil)
+}
+
+func (p *Postgres) Regenerate(ctx context.Context, workspaceID, draftID uuid.UUID) (ComposeResult, error) {
+	d, err := p.get(ctx, workspaceID, draftID)
+	if err != nil {
+		return ComposeResult{}, err
+	}
+	if d.Status != "pending" {
+		return ComposeResult{}, ErrConflict
+	}
+	cited := []evidence.Item{}
+	if len(d.FactsUsed) > 0 {
+		if p.cite == nil {
+			return ComposeResult{}, fmt.Errorf("compose: citer required")
+		}
+		ids := make([]uuid.UUID, 0, len(d.FactsUsed))
+		for _, f := range d.FactsUsed {
+			ids = append(ids, f.EvidenceID)
+		}
+		cited, err = p.cite.Cite(ctx, workspaceID, ids)
+		if err != nil {
+			return ComposeResult{}, err
+		}
+	}
+	body, regen, fails, err := Generate(ctx, p.write, cited, d.FactsUsed)
+	if err != nil {
+		return ComposeResult{}, err
+	}
+	var out Draft
+	err = p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.UpdateDraftBody(ctx, db.UpdateDraftBodyParams{
+			WorkspaceID: workspaceID, ID: draftID, BodyText: body, BodyHtml: "",
+		})
+		if err != nil {
+			return err
+		}
+		out = draftFrom(row.ID, row.MailboxID, row.ToAddr, row.RfcMessageID, row.Kind, row.Subject, row.BodyHtml, row.BodyText, row.Status, nil, "", pgtype.Timestamptz{})
+		out.FactsUsed = d.FactsUsed
+		return nil
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ComposeResult{}, ErrConflict
+	}
+	if err != nil {
+		return ComposeResult{}, err
+	}
+	if fails == nil {
+		fails = []Failure{}
+	}
+	return ComposeResult{Draft: out, Failures: fails, Regenerated: regen}, nil
+}
+
 func (p *Postgres) Undo(ctx context.Context, workspaceID, draftID uuid.UUID) (Draft, error) {
 	if p.hold == nil {
 		return Draft{}, fmt.Errorf("compose: holder required")
@@ -281,6 +342,11 @@ func (p *Postgres) get(ctx context.Context, workspaceID, id uuid.UUID) (Draft, e
 			return err
 		}
 		out = draftFrom(row.ID, row.MailboxID, row.ToAddr, row.RfcMessageID, row.Kind, row.Subject, row.BodyHtml, row.BodyText, row.Status, nil, "", pgtype.Timestamptz{})
+		if len(row.FactsUsed) > 0 {
+			if err := json.Unmarshal(row.FactsUsed, &out.FactsUsed); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if errors.Is(err, pgx.ErrNoRows) {

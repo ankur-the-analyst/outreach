@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"outreach/internal/ai"
 	"outreach/internal/crypto"
 	"outreach/internal/db"
 	"outreach/internal/mailbox"
@@ -106,5 +107,91 @@ func TestApproveHoldAndUndoCancels(t *testing.T) {
 	_, err = led.Advance(ctx, wsID, *held.LedgerID, pacing.StateReserved)
 	if !errors.Is(err, sender.ErrConflict) {
 		t.Fatalf("send path after undo: %v", err)
+	}
+}
+
+func TestRejectAndRegeneratePending(t *testing.T) {
+	url := os.Getenv("DATABASE_APP_URL")
+	if url == "" {
+		t.Skip("DATABASE_APP_URL not set")
+	}
+	keys, err := crypto.NewKeyring("1:0000000000000000000000000000000000000000000000000000000000000001", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	pool, err := db.Open(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		c, done := context.WithTimeout(context.Background(), 5*time.Second)
+		defer done()
+		_ = pool.InTx(c, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, q *db.Queries) error {
+			_ = q.DeleteAttemptsForWorkspace(ctx, wsID)
+			_ = q.DeleteLedgerForWorkspace(ctx, wsID)
+			_ = q.DeleteDraftsForWorkspace(ctx, wsID)
+			_ = q.DeleteMailboxesForWorkspace(ctx, wsID)
+			_ = q.DeleteSecretsForWorkspace(ctx, wsID)
+			_ = q.DeleteWarmupProfilesForWorkspace(ctx, wsID)
+			_ = q.DeleteSendingDomainsForWorkspace(ctx, wsID)
+			_ = q.DeleteWorkspace(ctx, wsID)
+			return nil
+		})
+		pool.Close()
+	})
+	err = pool.InTx(ctx, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, q *db.Queries) error {
+		if err := q.InsertWorkspace(ctx, db.InsertWorkspaceParams{ID: wsID, Name: "m37r"}); err != nil {
+			return err
+		}
+		return pacing.SeedPresets(ctx, q, wsID)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mb, err := mailbox.NewPostgres(pool, keys).Connect(ctx, wsID, mailbox.ConnectInput{
+		Email: "dev@example.test", AuthKind: "smtp_imap", Timezone: "UTC",
+		SMTPHost: "127.0.0.1", SMTPPort: 1025,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := NewPostgres(pool, sender.NewPostgres(pool, time.Now, time.Minute)).
+		WithWriter(&ai.Fake{Text: "Open to a short chat?"})
+	d, err := store.Create(ctx, wsID, CreateInput{
+		MailboxID: mb.ID, To: "sink@outreach.test", Subject: "hello", Text: "old body",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rewritten, err := store.Regenerate(ctx, wsID, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rewritten.Draft.BodyText != "Open to a short chat?" || rewritten.Draft.Status != "pending" {
+		t.Fatalf("%+v", rewritten)
+	}
+	dropped, err := store.Reject(ctx, wsID, d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dropped.Status != "rejected" {
+		t.Fatalf("%s", dropped.Status)
+	}
+	listed, err := store.List(ctx, wsID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 0 {
+		t.Fatalf("rejected still listed: %+v", listed)
+	}
+	_, err = store.Reject(ctx, wsID, d.ID)
+	if !errors.Is(err, ErrConflict) {
+		t.Fatalf("second reject: %v", err)
 	}
 }

@@ -25,7 +25,7 @@ limit 1;
 -- name: GetDraft :one
 select
   workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
-  subject, body_html, body_text, status, approved_by, created_at
+  subject, body_html, body_text, facts_used, status, approved_by, created_at
 from drafts
 where workspace_id = $1 and id = $2;
 
@@ -36,6 +36,14 @@ where workspace_id = $1 and id = $2
 returning
   workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
   subject, body_html, body_text, status, approved_by, created_at;
+
+-- name: UpdateDraftBody :one
+update drafts
+set body_text = $3, body_html = $4
+where workspace_id = $1 and id = $2 and status = 'pending'
+returning
+  workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
+  subject, body_html, body_text, facts_used, status, approved_by, created_at;
 
 -- name: ListReviewDrafts :many
 select

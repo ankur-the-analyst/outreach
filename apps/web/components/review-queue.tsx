@@ -14,6 +14,15 @@ import {
   type ReviewFilter,
 } from "@/lib/labels";
 
+function reviewActionError(message: string): string {
+  switch (message) {
+    case "invalid draft transition":
+      return "This draft is no longer waiting for approval";
+    default:
+      return message;
+  }
+}
+
 export function ReviewQueue({
   drafts,
   mailboxes = [],
@@ -146,6 +155,7 @@ function ReviewRow({
   const router = useRouter();
   const [msg, setMsg] = useState("");
   const [pending, setPending] = useState(false);
+  const [body, setBody] = useState(draft.body_text);
   const mailbox = mailboxes.find((m) => m.id === draft.mailbox_id);
   const bucket = reviewBucket(draft);
   const accent = bucket === "undo" || bucket === "pending";
@@ -159,9 +169,38 @@ function ReviewRow({
       const data = (await res.json().catch(() => null)) as
         | { error?: { message?: string } }
         | null;
-      setMsg(data?.error?.message ?? "Request failed");
+      setMsg(reviewActionError(data?.error?.message ?? "Request failed"));
       return;
     }
+    router.refresh();
+  }
+
+  async function rewrite() {
+    setMsg("");
+    setPending(true);
+    const res = await fetch(`/api/v1/drafts/${draft.id}/regenerate`, {
+      method: "POST",
+      credentials: "include",
+    });
+    setPending(false);
+    const data = (await res.json().catch(() => null)) as
+      | {
+          error?: { message?: string };
+          draft?: { body_text?: string };
+          failures?: { message?: string }[];
+        }
+      | null;
+    if (!res.ok) {
+      setMsg(reviewActionError(data?.error?.message ?? "Could not rewrite"));
+      return;
+    }
+    if (data?.draft?.body_text) {
+      setBody(data.draft.body_text);
+    }
+    const fails = (data?.failures ?? [])
+      .map((f) => f.message)
+      .filter((m): m is string => Boolean(m));
+    setMsg(fails.length > 0 ? fails.join(" · ") : "");
     router.refresh();
   }
 
@@ -191,18 +230,38 @@ function ReviewRow({
         </Pill>
       </div>
       <p className="mt-3 max-w-[68ch] whitespace-pre-wrap font-body-md text-foreground">
-        {draft.body_text}
+        {body}
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
         {draft.status === "pending" ? (
-          <Button
-            type="button"
-            className="rounded-md"
-            pending={pending}
-            onClick={() => post(`/api/v1/drafts/${draft.id}/approve`)}
-          >
-            Approve
-          </Button>
+          <>
+            <Button
+              type="button"
+              className="rounded-md"
+              pending={pending}
+              onClick={() => post(`/api/v1/drafts/${draft.id}/approve`)}
+            >
+              Approve
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-md"
+              pending={pending}
+              onClick={() => rewrite()}
+            >
+              Rewrite
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-md border-destructive text-destructive hover:bg-destructive/10"
+              pending={pending}
+              onClick={() => post(`/api/v1/drafts/${draft.id}/reject`)}
+            >
+              Don&apos;t send
+            </Button>
+          </>
         ) : null}
         {draft.status === "approved" && draft.ledger_state === "held" ? (
           <Button
