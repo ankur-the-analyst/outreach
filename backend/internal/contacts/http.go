@@ -14,6 +14,7 @@ import (
 type Store interface {
 	Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error)
 	Create(ctx context.Context, workspaceID uuid.UUID, in CreateInput) (Contact, error)
+	Import(ctx context.Context, workspaceID, userID uuid.UUID, source, csv string) (ImportResult, error)
 	List(ctx context.Context, workspaceID uuid.UUID) ([]Contact, error)
 	Get(ctx context.Context, workspaceID, id uuid.UUID) (Contact, error)
 	Patch(ctx context.Context, workspaceID, id uuid.UUID, in PatchInput) (Contact, error)
@@ -106,6 +107,39 @@ func (a *API) Preview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"rows": rows})
+}
+
+func (a *API) Import(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.edit(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		CSV        string `json:"csv"`
+		Text       string `json:"text"`
+		Source     string `json:"source"`
+		Provenance struct {
+			Source string `json:"source"`
+		} `json:"provenance"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
+		return
+	}
+	text := in.CSV
+	if text == "" {
+		text = in.Text
+	}
+	source := in.Provenance.Source
+	if source == "" {
+		source = in.Source
+	}
+	out, err := a.store.Import(r.Context(), s.WorkspaceID, s.UserID, source, text)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (a *API) Get(w http.ResponseWriter, r *http.Request) {

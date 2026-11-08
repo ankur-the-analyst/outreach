@@ -29,6 +29,12 @@ func (f *fakeStore) Create(_ context.Context, _ uuid.UUID, in CreateInput) (Cont
 	}
 	return f.c, nil
 }
+func (f *fakeStore) Import(context.Context, uuid.UUID, uuid.UUID, string, string) (ImportResult, error) {
+	if f.err != nil {
+		return ImportResult{}, f.err
+	}
+	return ImportResult{Created: 1}, nil
+}
 func (f *fakeStore) List(context.Context, uuid.UUID) ([]Contact, error) {
 	return []Contact{f.c}, nil
 }
@@ -86,6 +92,21 @@ func TestPreviewHTTP(t *testing.T) {
 	}))
 	rec := httptest.NewRecorder()
 	api.Preview(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestImportHTTP(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/contacts/import", bytes.NewBufferString(`{"csv":"email\nada@acme.com","provenance":{"source":"csv"}}`))
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Import(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}

@@ -338,11 +338,13 @@ function CSVPreview() {
   const [source, setSource] = useState("csv");
   const [rows, setRows] = useState<PreviewRow[]>([]);
   const [error, setError] = useState("");
+  const [done, setDone] = useState("");
   const [pending, setPending] = useState(false);
 
   async function onPreview(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setDone("");
     setPending(true);
     const res = await fetch("/api/v1/contacts/preview", {
       method: "POST",
@@ -364,35 +366,28 @@ function CSVPreview() {
 
   async function onImport() {
     setError("");
+    setDone("");
     setPending(true);
-    for (const row of rows) {
-      if (row.errors.length > 0 || row.duplicate) {
-        continue;
-      }
-      const res = await fetch("/api/v1/contacts", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: row.email,
-          first_name: row.first_name,
-          last_name: row.last_name,
-          title: row.title,
-          company: row.company,
-          provenance: { source },
-        }),
-      });
-      if (!res.ok && res.status !== 409) {
-        const data = (await res.json().catch(() => null)) as
-          | { error?: { message?: string } }
-          | null;
-        setPending(false);
-        setError(data?.error?.message ?? "Import failed");
-        return;
-      }
-    }
+    const res = await fetch("/api/v1/contacts/import", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        csv,
+        provenance: { source },
+      }),
+    });
     setPending(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as
+        | { error?: { message?: string } }
+        | null;
+      setError(data?.error?.message ?? "Import failed");
+      return;
+    }
+    const data = (await res.json()) as { created?: number; skipped?: number };
     setRows([]);
+    setDone(`Added ${data.created ?? 0}, skipped ${data.skipped ?? 0}`);
     router.refresh();
   }
 
@@ -423,6 +418,7 @@ function CSVPreview() {
         />
       </div>
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
+      {done ? <p className="font-body-md text-muted-foreground">{done}</p> : null}
       <div className="flex flex-wrap gap-3">
         <Button type="submit" className="rounded-md" pending={pending}>
           Preview
