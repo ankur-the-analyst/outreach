@@ -153,6 +153,7 @@ func main() {
 	mux.Handle("POST /api/v1/suppression", a.Require(http.HandlerFunc(supp.Create)))
 	mux.Handle("GET /api/v1/drafts", a.Require(http.HandlerFunc(cmp.List)))
 	mux.Handle("POST /api/v1/drafts", a.Require(http.HandlerFunc(cmp.Create)))
+	mux.Handle("PATCH /api/v1/drafts/{id}", a.Require(http.HandlerFunc(cmp.Patch)))
 	mux.Handle("POST /api/v1/drafts/compose", a.Require(http.HandlerFunc(cmp.Compose)))
 	mux.Handle("POST /api/v1/drafts/{id}/approve", a.Require(http.HandlerFunc(cmp.Approve)))
 	mux.Handle("POST /api/v1/drafts/{id}/reject", a.Require(http.HandlerFunc(cmp.Reject)))

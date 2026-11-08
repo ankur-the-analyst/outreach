@@ -16,6 +16,7 @@ type Store interface {
 	Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error)
 	Create(ctx context.Context, workspaceID uuid.UUID, in CreateInput) (Draft, error)
 	Compose(ctx context.Context, workspaceID uuid.UUID, in ComposeInput) (ComposeResult, error)
+	Patch(ctx context.Context, workspaceID, draftID uuid.UUID, in PatchInput) (Draft, error)
 	List(ctx context.Context, workspaceID uuid.UUID) ([]Draft, error)
 	Approve(ctx context.Context, workspaceID, userID, draftID uuid.UUID) (Draft, error)
 	Reject(ctx context.Context, workspaceID, draftID uuid.UUID) (Draft, error)
@@ -98,6 +99,39 @@ func (a *API) Compose(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, out)
+}
+
+func (a *API) Patch(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.session(w, r)
+	if !ok {
+		return
+	}
+	if err := a.requireEdit(r.Context(), s); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", "invalid id")
+		return
+	}
+	var in struct {
+		Subject string `json:"subject"`
+		Text    string `json:"text"`
+		HTML    string `json:"html"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
+		return
+	}
+	d, err := a.store.Patch(r.Context(), s.WorkspaceID, id, PatchInput{
+		Subject: in.Subject, Text: in.Text, HTML: in.HTML,
+	})
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, d)
 }
 
 func (a *API) List(w http.ResponseWriter, r *http.Request) {

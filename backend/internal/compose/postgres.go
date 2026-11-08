@@ -49,6 +49,12 @@ type CreateInput struct {
 	Facts     []Fact
 }
 
+type PatchInput struct {
+	Subject string
+	Text    string
+	HTML    string
+}
+
 type Holder interface {
 	Hold(ctx context.Context, workspaceID uuid.UUID, in sender.HoldInput) (sender.Entry, error)
 	Cancel(ctx context.Context, workspaceID, id uuid.UUID) (sender.Entry, error)
@@ -199,6 +205,40 @@ func (p *Postgres) Compose(ctx context.Context, workspaceID uuid.UUID, in Compos
 	return ComposeResult{Draft: d, Failures: fails, Regenerated: regen}, nil
 }
 
+func (p *Postgres) Patch(ctx context.Context, workspaceID, draftID uuid.UUID, in PatchInput) (Draft, error) {
+	d, err := p.get(ctx, workspaceID, draftID)
+	if err != nil {
+		return Draft{}, err
+	}
+	if d.Status != "pending" {
+		return Draft{}, ErrConflict
+	}
+	subject := strings.TrimSpace(in.Subject)
+	if subject == "" {
+		return Draft{}, fmt.Errorf("compose: subject required")
+	}
+	text := strings.TrimSpace(in.Text)
+	if text == "" {
+		return Draft{}, fmt.Errorf("compose: body required")
+	}
+	var out Draft
+	err = p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.UpdateDraftBody(ctx, db.UpdateDraftBodyParams{
+			WorkspaceID: workspaceID, ID: draftID, Subject: subject, BodyText: text, BodyHtml: in.HTML,
+		})
+		if err != nil {
+			return err
+		}
+		out = draftFrom(row.ID, row.MailboxID, row.ToAddr, row.RfcMessageID, row.Kind, row.Subject, row.BodyHtml, row.BodyText, row.Status, nil, "", pgtype.Timestamptz{})
+		out.FactsUsed = d.FactsUsed
+		return nil
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Draft{}, ErrConflict
+	}
+	return out, err
+}
+
 func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID) ([]Draft, error) {
 	var out []Draft
 	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
@@ -278,7 +318,7 @@ func (p *Postgres) Regenerate(ctx context.Context, workspaceID, draftID uuid.UUI
 	var out Draft
 	err = p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
 		row, err := q.UpdateDraftBody(ctx, db.UpdateDraftBodyParams{
-			WorkspaceID: workspaceID, ID: draftID, BodyText: body, BodyHtml: "",
+			WorkspaceID: workspaceID, ID: draftID, Subject: d.Subject, BodyText: body, BodyHtml: "",
 		})
 		if err != nil {
 			return err

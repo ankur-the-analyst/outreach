@@ -4,11 +4,13 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SquarePen, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { OneOffDraftForm } from "@/components/one-off-draft-form";
 import { PageBody, PageHeader, Pill } from "@/components/page-header";
 
 import type { Draft, Mailbox } from "@/lib/api";
 import {
+  fieldTextarea,
   reviewBucket,
   sendStatus,
   type ReviewFilter,
@@ -155,6 +157,7 @@ function ReviewRow({
   const router = useRouter();
   const [msg, setMsg] = useState("");
   const [pending, setPending] = useState(false);
+  const [subject, setSubject] = useState(draft.subject);
   const [body, setBody] = useState(draft.body_text);
   const mailbox = mailboxes.find((m) => m.id === draft.mailbox_id);
   const bucket = reviewBucket(draft);
@@ -175,6 +178,26 @@ function ReviewRow({
     router.refresh();
   }
 
+  async function save() {
+    setMsg("");
+    setPending(true);
+    const res = await fetch(`/api/v1/drafts/${draft.id}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subject, text: body }),
+    });
+    setPending(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as
+        | { error?: { message?: string } }
+        | null;
+      setMsg(reviewActionError(data?.error?.message ?? "Could not save"));
+      return;
+    }
+    router.refresh();
+  }
+
   async function rewrite() {
     setMsg("");
     setPending(true);
@@ -186,7 +209,7 @@ function ReviewRow({
     const data = (await res.json().catch(() => null)) as
       | {
           error?: { message?: string };
-          draft?: { body_text?: string };
+          draft?: { body_text?: string; subject?: string };
           failures?: { message?: string }[];
         }
       | null;
@@ -196,6 +219,9 @@ function ReviewRow({
     }
     if (data?.draft?.body_text) {
       setBody(data.draft.body_text);
+    }
+    if (data?.draft?.subject) {
+      setSubject(data.draft.subject);
     }
     const fails = (data?.failures ?? [])
       .map((f) => f.message)
@@ -216,8 +242,16 @@ function ReviewRow({
         <span className="absolute top-0 bottom-0 left-0 w-[3px] bg-primary" />
       ) : null}
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="font-headline-sm text-foreground">{draft.subject}</p>
+        <div className="min-w-0 flex-1">
+          {draft.status === "pending" ? (
+            <Input
+              aria-label="Subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+            />
+          ) : (
+            <p className="font-headline-sm text-foreground">{draft.subject}</p>
+          )}
           <p className="mt-1 font-body-sm text-muted-foreground">
             To {draft.to}
             {mailbox ? ` · via ${mailbox.email}` : ""}
@@ -229,12 +263,31 @@ function ReviewRow({
           {sendStatus(draft)}
         </Pill>
       </div>
-      <p className="mt-3 max-w-[68ch] whitespace-pre-wrap font-body-md text-foreground">
-        {body}
-      </p>
+      {draft.status === "pending" ? (
+        <textarea
+          aria-label="Body"
+          rows={8}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          className={`mt-3 max-w-[68ch] ${fieldTextarea}`}
+        />
+      ) : (
+        <p className="mt-3 max-w-[68ch] whitespace-pre-wrap font-body-md text-foreground">
+          {body}
+        </p>
+      )}
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-border pt-3">
         {draft.status === "pending" ? (
           <>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-md"
+              pending={pending}
+              onClick={() => save()}
+            >
+              Save
+            </Button>
             <Button
               type="button"
               className="rounded-md"

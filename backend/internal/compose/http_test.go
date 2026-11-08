@@ -23,6 +23,9 @@ func (f *fakeStore) Membership(context.Context, uuid.UUID, uuid.UUID) (string, e
 func (f *fakeStore) Create(context.Context, uuid.UUID, CreateInput) (Draft, error) {
 	return f.d, f.err
 }
+func (f *fakeStore) Patch(context.Context, uuid.UUID, uuid.UUID, PatchInput) (Draft, error) {
+	return f.d, f.err
+}
 func (f *fakeStore) Compose(context.Context, uuid.UUID, ComposeInput) (ComposeResult, error) {
 	return ComposeResult{Draft: f.d, Failures: []Failure{}}, f.err
 }
@@ -54,6 +57,23 @@ func TestCreateDraftHTTP(t *testing.T) {
 	rec := httptest.NewRecorder()
 	api.Create(rec, req)
 	if rec.Code != http.StatusCreated {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPatchDraftHTTP(t *testing.T) {
+	t.Parallel()
+	id := uuid.MustParse("01700000-0000-7000-8000-000000000003")
+	api := New(&fakeStore{role: "owner", d: Draft{ID: id, Subject: "edited", BodyText: "new", Status: "pending"}})
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/drafts/"+id.String(), bytes.NewBufferString(`{"subject":"edited","text":"new"}`))
+	req.SetPathValue("id", id.String())
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Patch(rec, req)
+	if rec.Code != http.StatusOK {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 }

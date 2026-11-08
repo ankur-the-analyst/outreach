@@ -169,6 +169,13 @@ func TestRejectAndRegeneratePending(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	patched, err := store.Patch(ctx, wsID, d.ID, PatchInput{Subject: "hello edited", Text: "operator body"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if patched.Subject != "hello edited" || patched.BodyText != "operator body" {
+		t.Fatalf("%+v", patched)
+	}
 	rewritten, err := store.Regenerate(ctx, wsID, d.ID)
 	if err != nil {
 		t.Fatal(err)

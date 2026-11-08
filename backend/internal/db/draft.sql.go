@@ -350,7 +350,7 @@ func (q *Queries) ListReviewDrafts(ctx context.Context, workspaceID uuid.UUID) (
 
 const updateDraftBody = `-- name: UpdateDraftBody :one
 update drafts
-set body_text = $3, body_html = $4
+set subject = $3, body_text = $4, body_html = $5
 where workspace_id = $1 and id = $2 and status = 'pending'
 returning
   workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
@@ -360,6 +360,7 @@ returning
 type UpdateDraftBodyParams struct {
 	WorkspaceID uuid.UUID
 	ID          uuid.UUID
+	Subject     string
 	BodyText    string
 	BodyHtml    string
 }
@@ -384,6 +385,7 @@ func (q *Queries) UpdateDraftBody(ctx context.Context, arg UpdateDraftBodyParams
 	row := q.db.QueryRow(ctx, updateDraftBody,
 		arg.WorkspaceID,
 		arg.ID,
+		arg.Subject,
 		arg.BodyText,
 		arg.BodyHtml,
 	)

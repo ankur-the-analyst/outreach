@@ -39,7 +39,7 @@ returning
 
 -- name: UpdateDraftBody :one
 update drafts
-set body_text = $3, body_html = $4
+set subject = $3, body_text = $4, body_html = $5
 where workspace_id = $1 and id = $2 and status = 'pending'
 returning
   workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
