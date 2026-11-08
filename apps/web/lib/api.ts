@@ -38,6 +38,27 @@ export function getWorkspace() {
   return apiGet<Workspace>("/api/v1/workspace");
 }
 
+export type SenderIdentity = {
+  legal_name: string;
+  reply_address: string;
+  postal_address: string;
+};
+
+export function getSenderIdentity() {
+  return apiGet<SenderIdentity>("/api/v1/sender-identity");
+}
+
+export type Member = {
+  user_id: string;
+  email: string;
+  name: string;
+  role: string;
+};
+
+export function getMembers() {
+  return apiGet<{ members: Member[] }>("/api/v1/workspace/members");
+}
+
 export type Mailbox = {
   id: string;
   email: string;
