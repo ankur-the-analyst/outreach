@@ -28,6 +28,12 @@ func (f *fakeStore) Propose(_ context.Context, _ uuid.UUID, in ProposeInput) (It
 func (f *fakeStore) List(context.Context, uuid.UUID) ([]Item, error) {
 	return []Item{f.item}, f.err
 }
+func (f *fakeStore) Retrieve(_ context.Context, _ uuid.UUID, profileID *uuid.UUID, _ string) ([]Item, error) {
+	if profileID != nil && f.item.ProfileID != nil && *profileID != *f.item.ProfileID {
+		return []Item{}, f.err
+	}
+	return []Item{f.item}, f.err
+}
 func (f *fakeStore) Confirm(context.Context, uuid.UUID, uuid.UUID) (Item, error) {
 	return f.item, f.err
 }
@@ -65,5 +71,22 @@ func TestProposeHTTPAcceptsProfileID(t *testing.T) {
 	}
 	if store.item.ProfileID == nil || *store.item.ProfileID != pid {
 		t.Fatalf("profile %+v", store.item.ProfileID)
+	}
+}
+
+func TestUsableHTTPFiltersProfile(t *testing.T) {
+	t.Parallel()
+	pid := uuid.MustParse("01700000-0000-7000-8000-000000000009")
+	other := uuid.MustParse("01700000-0000-7000-8000-000000000008")
+	api := New(&fakeStore{role: "owner", item: Item{ID: pid, ProfileID: &pid, Text: "Ada claim"}})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/evidence/usable?profile_id="+other.String(), nil)
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Usable(rec, req)
+	if rec.Code != http.StatusOK || rec.Body.String() != "{\"evidence\":[]}\n" {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 }

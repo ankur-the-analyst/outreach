@@ -73,15 +73,17 @@ where workspace_id = $1
   and confirmed_at is not null
   and not do_not_use
   and embedding_model = $2
+  and ($3::uuid is null or profile_id is null or profile_id = $3)
 `
 
 type CountConfirmedEvidenceParams struct {
 	WorkspaceID    uuid.UUID
 	EmbeddingModel pgtype.Text
+	ProfileID      *uuid.UUID
 }
 
 func (q *Queries) CountConfirmedEvidence(ctx context.Context, arg CountConfirmedEvidenceParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countConfirmedEvidence, arg.WorkspaceID, arg.EmbeddingModel)
+	row := q.db.QueryRow(ctx, countConfirmedEvidence, arg.WorkspaceID, arg.EmbeddingModel, arg.ProfileID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -256,12 +258,14 @@ where workspace_id = $1
   and confirmed_at is not null
   and not do_not_use
   and embedding_model = $2
+  and ($3::uuid is null or profile_id is null or profile_id = $3)
 order by created_at desc
 `
 
 type ListConfirmedEvidenceParams struct {
 	WorkspaceID    uuid.UUID
 	EmbeddingModel pgtype.Text
+	ProfileID      *uuid.UUID
 }
 
 type ListConfirmedEvidenceRow struct {
@@ -278,7 +282,7 @@ type ListConfirmedEvidenceRow struct {
 }
 
 func (q *Queries) ListConfirmedEvidence(ctx context.Context, arg ListConfirmedEvidenceParams) ([]ListConfirmedEvidenceRow, error) {
-	rows, err := q.db.Query(ctx, listConfirmedEvidence, arg.WorkspaceID, arg.EmbeddingModel)
+	rows, err := q.db.Query(ctx, listConfirmedEvidence, arg.WorkspaceID, arg.EmbeddingModel, arg.ProfileID)
 	if err != nil {
 		return nil, err
 	}
@@ -366,13 +370,15 @@ where workspace_id = $1
   and confirmed_at is not null
   and not do_not_use
   and embedding_model = $2
-order by embedding <=> $3::vector
+  and ($3::uuid is null or profile_id is null or profile_id = $3)
+order by embedding <=> $4::vector
 limit 20
 `
 
 type RetrieveEvidenceParams struct {
 	WorkspaceID    uuid.UUID
 	EmbeddingModel pgtype.Text
+	ProfileID      *uuid.UUID
 	Query          pgvector.Vector
 }
 
@@ -390,7 +396,12 @@ type RetrieveEvidenceRow struct {
 }
 
 func (q *Queries) RetrieveEvidence(ctx context.Context, arg RetrieveEvidenceParams) ([]RetrieveEvidenceRow, error) {
-	rows, err := q.db.Query(ctx, retrieveEvidence, arg.WorkspaceID, arg.EmbeddingModel, arg.Query)
+	rows, err := q.db.Query(ctx, retrieveEvidence,
+		arg.WorkspaceID,
+		arg.EmbeddingModel,
+		arg.ProfileID,
+		arg.Query,
+	)
 	if err != nil {
 		return nil, err
 	}

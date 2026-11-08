@@ -172,15 +172,19 @@ func (p *Postgres) Confirm(ctx context.Context, workspaceID, id uuid.UUID) (Item
 	return out, err
 }
 
-func (p *Postgres) Retrieve(ctx context.Context, workspaceID uuid.UUID, query string) ([]Item, error) {
+func (p *Postgres) Retrieve(ctx context.Context, workspaceID uuid.UUID, profileID *uuid.UUID, query string) ([]Item, error) {
 	var out []Item
 	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
-		n, err := q.CountConfirmedEvidence(ctx, db.CountConfirmedEvidenceParams{WorkspaceID: workspaceID, EmbeddingModel: pgtype.Text{String: p.model, Valid: true}})
+		n, err := q.CountConfirmedEvidence(ctx, db.CountConfirmedEvidenceParams{
+			WorkspaceID: workspaceID, EmbeddingModel: pgtype.Text{String: p.model, Valid: true}, ProfileID: profileID,
+		})
 		if err != nil {
 			return err
 		}
 		if n <= int64(p.includeAll) {
-			rows, err := q.ListConfirmedEvidence(ctx, db.ListConfirmedEvidenceParams{WorkspaceID: workspaceID, EmbeddingModel: pgtype.Text{String: p.model, Valid: true}})
+			rows, err := q.ListConfirmedEvidence(ctx, db.ListConfirmedEvidenceParams{
+				WorkspaceID: workspaceID, EmbeddingModel: pgtype.Text{String: p.model, Valid: true}, ProfileID: profileID,
+			})
 			if err != nil {
 				return err
 			}
@@ -190,7 +194,11 @@ func (p *Postgres) Retrieve(ctx context.Context, workspaceID uuid.UUID, query st
 		if p.embed == nil {
 			return fmt.Errorf("evidence: embedder required")
 		}
-		vecs, err := p.embed.Embed(ctx, []string{query})
+		qtext := strings.TrimSpace(query)
+		if qtext == "" {
+			qtext = "evidence"
+		}
+		vecs, err := p.embed.Embed(ctx, []string{qtext})
 		if err != nil {
 			return err
 		}
@@ -200,6 +208,7 @@ func (p *Postgres) Retrieve(ctx context.Context, workspaceID uuid.UUID, query st
 		rows, err := q.RetrieveEvidence(ctx, db.RetrieveEvidenceParams{
 			WorkspaceID:    workspaceID,
 			EmbeddingModel: pgtype.Text{String: p.model, Valid: true},
+			ProfileID:      profileID,
 			Query:          pgvector.NewVector(vecs[0]),
 		})
 		if err != nil {

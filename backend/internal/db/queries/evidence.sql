@@ -37,7 +37,8 @@ from evidence_items
 where workspace_id = $1
   and confirmed_at is not null
   and not do_not_use
-  and embedding_model = $2;
+  and embedding_model = $2
+  and (sqlc.narg('profile_id')::uuid is null or profile_id is null or profile_id = sqlc.narg('profile_id'));
 
 -- name: ListConfirmedEvidence :many
 select workspace_id, id, profile_id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
@@ -46,6 +47,7 @@ where workspace_id = $1
   and confirmed_at is not null
   and not do_not_use
   and embedding_model = $2
+  and (sqlc.narg('profile_id')::uuid is null or profile_id is null or profile_id = sqlc.narg('profile_id'))
 order by created_at desc;
 
 -- name: RetrieveEvidence :many
@@ -55,6 +57,7 @@ where workspace_id = $1
   and confirmed_at is not null
   and not do_not_use
   and embedding_model = $2
+  and (sqlc.narg('profile_id')::uuid is null or profile_id is null or profile_id = sqlc.narg('profile_id'))
 order by embedding <=> @query::vector
 limit 20;
 

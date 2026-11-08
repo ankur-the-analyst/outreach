@@ -165,6 +165,7 @@ func main() {
 	mux.Handle("GET /api/v1/mailboxes/{id}/threads", a.Require(http.HandlerFunc(sy.Threads)))
 	mux.Handle("POST /api/v1/threads/{id}/read", a.Require(http.HandlerFunc(sy.MarkRead)))
 	mux.Handle("GET /api/v1/evidence", a.Require(http.HandlerFunc(ev.List)))
+	mux.Handle("GET /api/v1/evidence/usable", a.Require(http.HandlerFunc(ev.Usable)))
 	mux.Handle("POST /api/v1/evidence", a.Require(http.HandlerFunc(ev.Propose)))
 	mux.Handle("POST /api/v1/evidence/{id}/confirm", a.Require(http.HandlerFunc(ev.Confirm)))
 	mux.Handle("GET /api/v1/profiles", a.Require(http.HandlerFunc(jd.ListProfiles)))

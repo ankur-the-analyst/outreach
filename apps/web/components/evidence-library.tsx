@@ -16,14 +16,58 @@ export function EvidenceLibrary({
   items: EvidenceItem[];
   profiles?: Profile[];
 }) {
+  const [profileID, setProfileID] = useState("");
+  const [usable, setUsable] = useState<EvidenceItem[] | null>(null);
+  const [pending, setPending] = useState(false);
+
+  async function onFilter(next: string) {
+    setProfileID(next);
+    if (!next) {
+      setUsable(null);
+      return;
+    }
+    setPending(true);
+    const res = await fetch(
+      `/api/v1/evidence/usable?profile_id=${encodeURIComponent(next)}`,
+      { credentials: "include" },
+    );
+    const data = (await res.json().catch(() => null)) as
+      | { evidence?: EvidenceItem[] }
+      | null;
+    setPending(false);
+    setUsable(data?.evidence ?? []);
+  }
+
+  const shown = usable ?? items;
+
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
       <div className="lg:col-span-7">
-        {items.length === 0 ? (
+        {profiles.length > 0 ? (
+          <div className="mb-4 flex max-w-xs flex-col gap-1.5">
+            <Label htmlFor="evidence-usable">Claims for this profile</Label>
+            <select
+              id="evidence-usable"
+              value={profileID}
+              onChange={(e) => onFilter(e.target.value)}
+              className={fieldSelect}
+            >
+              <option value="">All claims</option>
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+        {pending ? (
+          <p className="font-body-md text-muted-foreground">Loading…</p>
+        ) : shown.length === 0 ? (
           <p className="font-body-md text-muted-foreground">No evidence yet.</p>
         ) : (
           <ul className="flex flex-col gap-3">
-            {items.map((item) => (
+            {shown.map((item) => (
               <EvidenceRow key={item.id} item={item} profiles={profiles} />
             ))}
           </ul>

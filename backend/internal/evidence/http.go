@@ -14,6 +14,7 @@ type Store interface {
 	Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error)
 	Propose(ctx context.Context, workspaceID uuid.UUID, in ProposeInput) (Item, error)
 	List(ctx context.Context, workspaceID uuid.UUID) ([]Item, error)
+	Retrieve(ctx context.Context, workspaceID uuid.UUID, profileID *uuid.UUID, query string) ([]Item, error)
 	Confirm(ctx context.Context, workspaceID, id uuid.UUID) (Item, error)
 }
 
@@ -35,6 +36,35 @@ func (a *API) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rows, err := a.store.List(r.Context(), s.WorkspaceID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if rows == nil {
+		rows = []Item{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"evidence": rows})
+}
+
+func (a *API) Usable(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.session(w, r)
+	if !ok {
+		return
+	}
+	if _, err := a.store.Membership(r.Context(), s.WorkspaceID, s.UserID); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	var profileID *uuid.UUID
+	if raw := r.URL.Query().Get("profile_id"); raw != "" {
+		p, err := uuid.Parse(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "invalid profile id")
+			return
+		}
+		profileID = &p
+	}
+	rows, err := a.store.Retrieve(r.Context(), s.WorkspaceID, profileID, r.URL.Query().Get("q"))
 	if err != nil {
 		writeStoreError(w, err)
 		return
