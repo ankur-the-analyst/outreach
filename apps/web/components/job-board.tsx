@@ -251,7 +251,12 @@ function CheckFit({
         ))}
       </select>
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
-      {score != null ? (
+      {fit && !summary && (score == null || score === 0) ? (
+        <p className="font-body-md text-muted-foreground">
+          Couldn&apos;t score this with the current model.
+        </p>
+      ) : null}
+      {score != null && (summary || score !== 0) ? (
         <p className="font-body-md text-foreground">Score {score}</p>
       ) : null}
       {summary ? (
