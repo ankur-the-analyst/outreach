@@ -87,6 +87,7 @@ export type Mailbox = {
   warmup_kind?: string;
   domain?: string;
   domain_daily_limit?: number;
+  open_today?: boolean;
 };
 
 export function getMailboxes() {

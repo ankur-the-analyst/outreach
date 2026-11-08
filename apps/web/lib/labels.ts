@@ -1,4 +1,4 @@
-import type { Draft } from "@/lib/api";
+import type { Draft, Mailbox } from "@/lib/api";
 
 export const fieldSelect =
   "h-8 w-full rounded-md border border-input bg-card px-2.5 font-[family-name:var(--font-body)] text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -116,10 +116,16 @@ export function authKindLabel(kind: string): string {
   }
 }
 
-export type ReviewFilter = "pending" | "undo" | "checking" | "sent";
+export type ReviewFilter = "pending" | "tomorrow" | "undo" | "checking" | "sent";
 
-export function reviewBucket(draft: Draft): ReviewFilter | "other" {
+export function reviewBucket(
+  draft: Draft,
+  mailbox?: Pick<Mailbox, "open_today">,
+): ReviewFilter | "other" {
   if (draft.status === "pending") {
+    if (mailbox && mailbox.open_today === false) {
+      return "tomorrow";
+    }
     return "pending";
   }
   switch (draft.ledger_state) {
@@ -136,8 +142,14 @@ export function reviewBucket(draft: Draft): ReviewFilter | "other" {
   }
 }
 
-export function sendStatus(draft: Draft): string {
+export function sendStatus(
+  draft: Draft,
+  mailbox?: Pick<Mailbox, "open_today">,
+): string {
   if (draft.status === "pending") {
+    if (mailbox && mailbox.open_today === false) {
+      return "Sends next window";
+    }
     return "Needs approval";
   }
   switch (draft.ledger_state) {

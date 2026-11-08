@@ -38,19 +38,23 @@ export function ReviewQueue({
 }) {
   const [filter, setFilter] = useState<ReviewFilter>("pending");
   const [compose, setCompose] = useState(false);
+  const byMailbox = useMemo(
+    () => new Map(mailboxes.map((m) => [m.id, m])),
+    [mailboxes],
+  );
   const counts = useMemo(() => {
-    const c = { pending: 0, undo: 0, checking: 0, sent: 0 };
+    const c = { pending: 0, tomorrow: 0, undo: 0, checking: 0, sent: 0 };
     for (const d of drafts) {
-      const b = reviewBucket(d);
+      const b = reviewBucket(d, byMailbox.get(d.mailbox_id));
       if (b !== "other") {
         c[b] += 1;
       }
     }
     return c;
-  }, [drafts]);
+  }, [drafts, byMailbox]);
 
   const shown = filters
-    ? drafts.filter((d) => reviewBucket(d) === filter)
+    ? drafts.filter((d) => reviewBucket(d, byMailbox.get(d.mailbox_id)) === filter)
     : drafts;
 
   const list =
@@ -92,6 +96,7 @@ export function ReviewQueue({
         {(
           [
             ["pending", "Needs approval"],
+            ["tomorrow", "Sends next window"],
             ["undo", "You can still undo"],
             ["checking", "Checking if it sent"],
             ["sent", "Sent"],
@@ -163,8 +168,8 @@ function ReviewRow({
   const [subject, setSubject] = useState(draft.subject);
   const [body, setBody] = useState(draft.body_text);
   const mailbox = mailboxes.find((m) => m.id === draft.mailbox_id);
-  const bucket = reviewBucket(draft);
-  const accent = bucket === "undo" || bucket === "pending";
+  const bucket = reviewBucket(draft, mailbox);
+  const accent = bucket === "undo" || bucket === "pending" || bucket === "tomorrow";
 
   async function post(path: string) {
     setMsg("");
@@ -263,7 +268,7 @@ function ReviewRow({
         <Pill
           tone={bucket === "undo" || bucket === "pending" ? "primary" : "muted"}
         >
-          {sendStatus(draft)}
+          {sendStatus(draft, mailbox)}
         </Pill>
       </div>
       {(draft.facts_used ?? []).length > 0 ? (

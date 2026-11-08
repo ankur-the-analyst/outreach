@@ -51,4 +51,15 @@ func TestInWindowWeekdaysAndHours(t *testing.T) {
 	if !from.Equal(time.Date(2026, 11, 9, 0, 0, 0, 0, time.UTC)) || !to.Equal(time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("bounds %s %s", from, to)
 	}
+
+	sun := time.Date(2026, 11, 8, 10, 0, 0, 0, time.UTC)
+	if OpenToday(sun, w) {
+		t.Fatal("sunday not open")
+	}
+	if !OpenToday(mon10, w) {
+		t.Fatal("monday open")
+	}
+	if OpenToday(time.Date(2026, 11, 9, 18, 0, 0, 0, time.UTC), w) {
+		t.Fatal("after close")
+	}
 }

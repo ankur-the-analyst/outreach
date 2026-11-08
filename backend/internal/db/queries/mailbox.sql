@@ -51,6 +51,7 @@ select
   m.smtp_host, m.smtp_port, m.smtp_tls, m.imap_host, m.imap_port, m.username,
   m.sending_domain_id, m.timezone, m.warmup_profile_id, m.warmup_sending_day,
   m.effective_daily_limit, m.status, m.reply_mode, m.created_at,
+  m.window_days, m.window_start, m.window_end,
   w.kind as warmup_kind,
   d.domain, d.daily_limit as domain_daily_limit
 from mailboxes m

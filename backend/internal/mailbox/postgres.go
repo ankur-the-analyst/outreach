@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -37,6 +38,7 @@ type Mailbox struct {
 	WarmupKind          string    `json:"warmup_kind"`
 	Domain              string    `json:"domain,omitempty"`
 	DomainDailyLimit    int32     `json:"domain_daily_limit,omitempty"`
+	OpenToday           bool      `json:"open_today"`
 }
 
 type SendingDomain struct {
@@ -413,6 +415,7 @@ func mailboxFromInsert(row db.InsertMailboxRow) Mailbox {
 }
 
 func mailboxFromList(row db.ListMailboxesRow) Mailbox {
+	w := pacing.WindowFrom(row.WindowDays, row.WindowStart, row.WindowEnd, pacing.LoadZone(row.Timezone))
 	return Mailbox{
 		ID: row.ID, Email: row.Email, DisplayName: row.DisplayName.String,
 		AuthKind: row.AuthKind, Provider: row.Provider, Status: row.Status,
@@ -421,6 +424,7 @@ func mailboxFromList(row db.ListMailboxesRow) Mailbox {
 		WarmupProfileID: row.WarmupProfileID, EffectiveDailyLimit: row.EffectiveDailyLimit,
 		ReplyMode: row.ReplyMode, WarmupKind: row.WarmupKind,
 		Domain: row.Domain, DomainDailyLimit: row.DomainDailyLimit,
+		OpenToday: pacing.OpenToday(time.Now(), w),
 	}
 }
 

@@ -64,6 +64,12 @@ func DayBounds(now time.Time, loc *time.Location) (start, end time.Time) {
 	return start, end
 }
 
+func OpenToday(now time.Time, w Window) bool {
+	next := NextOpen(now, w)
+	_, end := DayBounds(now, w.Loc)
+	return next.Before(end)
+}
+
 func NextOpen(now time.Time, w Window) time.Time {
 	if w.Loc == nil {
 		w.Loc = time.UTC
