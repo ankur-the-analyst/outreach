@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -154,6 +155,7 @@ func (p *Processor) insertReply(ctx context.Context, workspaceID, messageID uuid
 			BodyText:     body,
 			FactsUsed:    []byte("[]"),
 			Status:       "pending",
+			CreatedAt:    pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
 		})
 		return err
 	})

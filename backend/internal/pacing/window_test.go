@@ -46,4 +46,9 @@ func TestInWindowWeekdaysAndHours(t *testing.T) {
 	if !next.Equal(want) {
 		t.Fatalf("next %s want %s", next, want)
 	}
+
+	from, to := DayBounds(time.Date(2026, 11, 9, 18, 0, 0, 0, time.UTC), time.UTC)
+	if !from.Equal(time.Date(2026, 11, 9, 0, 0, 0, 0, time.UTC)) || !to.Equal(time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("bounds %s %s", from, to)
+	}
 }

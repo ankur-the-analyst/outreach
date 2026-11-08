@@ -37,6 +37,24 @@ select
 from campaigns
 where workspace_id = $1 and id = $2;
 
+-- name: LockCampaign :one
+select id
+from campaigns
+where workspace_id = $1 and id = $2
+for update;
+
+-- name: CountCampaignFirstTouchToday :one
+select count(*)::bigint as n
+from drafts d
+join enrolments e
+  on e.workspace_id = d.workspace_id and e.id = d.enrolment_id
+where d.workspace_id = $1
+  and e.campaign_id = $2
+  and d.step_position = 0
+  and d.status in ('pending', 'approved', 'sent')
+  and d.created_at >= sqlc.arg('from_at')::timestamptz
+  and d.created_at < sqlc.arg('to_at')::timestamptz;
+
 -- name: UpdateCampaignStatus :one
 update campaigns
 set status = $3, list_unsubscribe = $4, starts_at = coalesce(starts_at, $5)

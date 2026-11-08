@@ -26,6 +26,28 @@ func (e *OutsideWindowError) Error() string { return ErrOutsideWindow.Error() }
 
 func (e *OutsideWindowError) Unwrap() error { return ErrOutsideWindow }
 
+func (e *OutsideWindowError) RetryAt() time.Time { return e.Until }
+
+var ErrDailyCap = errors.New("daily new-contact cap reached")
+
+type DailyCapError struct {
+	Until time.Time
+}
+
+func (e *DailyCapError) Error() string { return ErrDailyCap.Error() }
+
+func (e *DailyCapError) Unwrap() error { return ErrDailyCap }
+
+func (e *DailyCapError) RetryAt() time.Time { return e.Until }
+
+func RetryAt(err error) (time.Time, bool) {
+	var r interface{ RetryAt() time.Time }
+	if errors.As(err, &r) {
+		return r.RetryAt(), true
+	}
+	return time.Time{}, false
+}
+
 type Draft struct {
 	ID      uuid.UUID `json:"id"`
 	To      string    `json:"to"`
@@ -36,7 +58,7 @@ type Draft struct {
 
 func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uuid.UUID, stepPosition int32, now time.Time) (Draft, error) {
 	var out Draft
-	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+	err := p.pool.InTx(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
 		en, err := q.GetEnrolment(ctx, db.GetEnrolmentParams{WorkspaceID: workspaceID, ID: enrolmentID})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
@@ -97,6 +119,24 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 		if !pacing.InWindow(now, w) {
 			return &OutsideWindowError{Until: pacing.NextOpen(now, w)}
 		}
+		if stepPosition == 0 {
+			if _, err := q.LockCampaign(ctx, db.LockCampaignParams{WorkspaceID: workspaceID, ID: camp.ID}); err != nil {
+				return err
+			}
+			from, to := pacing.DayBounds(now, pacing.LoadZone(win.Timezone))
+			n, err := q.CountCampaignFirstTouchToday(ctx, db.CountCampaignFirstTouchTodayParams{
+				WorkspaceID: workspaceID,
+				CampaignID:  camp.ID,
+				FromAt:      pgtype.Timestamptz{Time: from, Valid: true},
+				ToAt:        pgtype.Timestamptz{Time: to, Valid: true},
+			})
+			if err != nil {
+				return err
+			}
+			if n >= int64(camp.NewContactsPerDay) {
+				return &DailyCapError{Until: to}
+			}
+		}
 		msgid, err := mime.NewMessageID("outreach.test")
 		if err != nil {
 			return err
@@ -120,6 +160,7 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 			BodyText:     body,
 			FactsUsed:    json.RawMessage("[]"),
 			Status:       "pending",
+			CreatedAt:    pgtype.Timestamptz{Time: now.UTC(), Valid: true},
 		})
 		if err != nil {
 			return fmt.Errorf("campaign: draft step: %w", err)

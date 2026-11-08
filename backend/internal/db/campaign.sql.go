@@ -13,6 +13,38 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countCampaignFirstTouchToday = `-- name: CountCampaignFirstTouchToday :one
+select count(*)::bigint as n
+from drafts d
+join enrolments e
+  on e.workspace_id = d.workspace_id and e.id = d.enrolment_id
+where d.workspace_id = $1
+  and e.campaign_id = $2
+  and d.step_position = 0
+  and d.status in ('pending', 'approved', 'sent')
+  and d.created_at >= $3::timestamptz
+  and d.created_at < $4::timestamptz
+`
+
+type CountCampaignFirstTouchTodayParams struct {
+	WorkspaceID uuid.UUID
+	CampaignID  uuid.UUID
+	FromAt      pgtype.Timestamptz
+	ToAt        pgtype.Timestamptz
+}
+
+func (q *Queries) CountCampaignFirstTouchToday(ctx context.Context, arg CountCampaignFirstTouchTodayParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countCampaignFirstTouchToday,
+		arg.WorkspaceID,
+		arg.CampaignID,
+		arg.FromAt,
+		arg.ToAt,
+	)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
+}
+
 const deleteCampaignSendersForWorkspace = `-- name: DeleteCampaignSendersForWorkspace :exec
 delete from campaign_senders where workspace_id = $1
 `
@@ -640,6 +672,25 @@ func (q *Queries) ListEnrolments(ctx context.Context, arg ListEnrolmentsParams) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockCampaign = `-- name: LockCampaign :one
+select id
+from campaigns
+where workspace_id = $1 and id = $2
+for update
+`
+
+type LockCampaignParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) LockCampaign(ctx context.Context, arg LockCampaignParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockCampaign, arg.WorkspaceID, arg.ID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const updateCampaignStatus = `-- name: UpdateCampaignStatus :one

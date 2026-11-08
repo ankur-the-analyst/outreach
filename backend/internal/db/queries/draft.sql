@@ -1,10 +1,10 @@
 -- name: InsertDraft :one
 insert into drafts (
   workspace_id, id, enrolment_id, step_position, mailbox_id, to_addr, rfc_message_id, kind,
-  subject, body_html, body_text, facts_used, status
+  subject, body_html, body_text, facts_used, status, created_at
 ) values (
   $1, $2, $3, $4, $5, $6, $7, $8,
-  $9, $10, $11, $12, $13
+  $9, $10, $11, $12, $13, $14
 )
 returning
   workspace_id, id, enrolment_id, step_position, mailbox_id, to_addr, rfc_message_id, kind,

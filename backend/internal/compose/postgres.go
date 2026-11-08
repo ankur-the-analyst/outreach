@@ -159,6 +159,7 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 			BodyText:     text,
 			FactsUsed:    factsJSON,
 			Status:       "pending",
+			CreatedAt:    pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
 		})
 		if err != nil {
 			return err

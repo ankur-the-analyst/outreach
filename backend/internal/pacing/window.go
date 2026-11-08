@@ -53,6 +53,17 @@ func InWindow(now time.Time, w Window) bool {
 	return tod >= w.Start || tod < w.End
 }
 
+func DayBounds(now time.Time, loc *time.Location) (start, end time.Time) {
+	if loc == nil {
+		loc = time.UTC
+	}
+	local := now.In(loc)
+	y, m, d := local.Date()
+	start = time.Date(y, m, d, 0, 0, 0, 0, loc).UTC()
+	end = time.Date(y, m, d+1, 0, 0, 0, 0, loc).UTC()
+	return start, end
+}
+
 func NextOpen(now time.Time, w Window) time.Time {
 	if w.Loc == nil {
 		w.Loc = time.UTC

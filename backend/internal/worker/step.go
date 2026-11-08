@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -41,9 +40,8 @@ func (w StepWorker) Work(ctx context.Context, job *river.Job[StepArgs]) error {
 		return fmt.Errorf("worker: enrolment_id required")
 	}
 	err := w.Run(ctx, job.Args)
-	var outside *campaign.OutsideWindowError
-	if errors.As(err, &outside) {
-		delay := time.Until(outside.Until)
+	if at, ok := campaign.RetryAt(err); ok {
+		delay := time.Until(at)
 		if delay < time.Minute {
 			delay = time.Minute
 		}
