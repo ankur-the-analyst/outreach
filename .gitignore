@@ -1,5 +1,6 @@
 # Go
 backend/bin/
+backend/api
 backend/vendor/
 *.exe
 *.test

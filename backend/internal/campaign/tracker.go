@@ -10,14 +10,15 @@ import (
 )
 
 type TrackerRow struct {
-	ID         uuid.UUID `json:"id"`
-	Contact    string    `json:"contact"`
-	Email      string    `json:"email"`
-	Company    string    `json:"company,omitempty"`
-	Campaign   string    `json:"campaign"`
-	CampaignID uuid.UUID `json:"campaign_id"`
-	Stage      string    `json:"stage"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID            uuid.UUID  `json:"id"`
+	ApplicationID *uuid.UUID `json:"application_id,omitempty"`
+	Contact       string     `json:"contact"`
+	Email         string     `json:"email"`
+	Company       string     `json:"company,omitempty"`
+	Campaign      string     `json:"campaign"`
+	CampaignID    uuid.UUID  `json:"campaign_id"`
+	Stage         string     `json:"stage"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 func TrackerStage(enrolmentStatus, draftStatus, ledgerState string) string {
@@ -42,6 +43,15 @@ func TrackerStage(enrolmentStatus, draftStatus, ledgerState string) string {
 	return "queued"
 }
 
+func PreferApplicationStage(derived, app string) string {
+	switch app {
+	case "followed_up", "interview", "offer", "rejected", "closed":
+		return app
+	default:
+		return derived
+	}
+}
+
 func (p *Postgres) ListTracker(ctx context.Context, workspaceID uuid.UUID) ([]TrackerRow, error) {
 	var out []TrackerRow
 	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
@@ -55,15 +65,17 @@ func (p *Postgres) ListTracker(ctx context.Context, workspaceID uuid.UUID) ([]Tr
 			if row.DraftCreatedAt.Valid {
 				updated = row.DraftCreatedAt.Time
 			}
+			derived := TrackerStage(row.EnrolmentStatus, row.DraftStatus, row.LedgerState)
 			out = append(out, TrackerRow{
-				ID:         row.ID,
-				Contact:    displayName(row.FirstName, row.LastName, row.Email),
-				Email:      row.Email,
-				Company:    textString(row.CompanyName),
-				Campaign:   row.CampaignName,
-				CampaignID: row.CampaignID,
-				Stage:      TrackerStage(row.EnrolmentStatus, row.DraftStatus, row.LedgerState),
-				UpdatedAt:  updated,
+				ID:            row.ID,
+				ApplicationID: row.ApplicationID,
+				Contact:       displayName(row.FirstName, row.LastName, row.Email),
+				Email:         row.Email,
+				Company:       textString(row.CompanyName),
+				Campaign:      row.CampaignName,
+				CampaignID:    row.CampaignID,
+				Stage:         PreferApplicationStage(derived, row.ApplicationStage),
+				UpdatedAt:     updated,
 			})
 		}
 		return nil

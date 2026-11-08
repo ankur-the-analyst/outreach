@@ -25,6 +25,7 @@ type Store interface {
 	Enrol(ctx context.Context, workspaceID, campaignID uuid.UUID, in EnrolInput) (Enrolment, error)
 	ListEnrolments(ctx context.Context, workspaceID, campaignID uuid.UUID) ([]Enrolment, error)
 	ListTracker(ctx context.Context, workspaceID uuid.UUID) ([]TrackerRow, error)
+	SetStage(ctx context.Context, workspaceID, id uuid.UUID, stage string) (Application, error)
 }
 
 type API struct {
@@ -277,6 +278,30 @@ func (a *API) ListTracker(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"rows": rows})
 }
 
+func (a *API) SetStage(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.edit(w, r)
+	if !ok {
+		return
+	}
+	id, ok := parseID(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Stage string `json:"stage"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
+		return
+	}
+	out, err := a.store.SetStage(r.Context(), s.WorkspaceID, id, strings.TrimSpace(in.Stage))
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 func parseID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
@@ -322,7 +347,7 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, "forbidden", "owner or member role required")
 	case errors.Is(err, ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "not found")
-	case errors.Is(err, ErrIdentity), errors.Is(err, ErrContext), errors.Is(err, ErrPack), errors.Is(err, ErrName), errors.Is(err, ErrMailbox), errors.Is(err, ErrStatus):
+	case errors.Is(err, ErrIdentity), errors.Is(err, ErrContext), errors.Is(err, ErrPack), errors.Is(err, ErrName), errors.Is(err, ErrMailbox), errors.Is(err, ErrStatus), errors.Is(err, ErrStage):
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 	case errors.Is(err, ErrDuplicate):
 		writeError(w, http.StatusConflict, "conflict", err.Error())

@@ -1,12 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Pill } from "@/components/page-header";
 import type { TrackerRow } from "@/lib/api";
-import { trackerStageLabel } from "@/lib/labels";
+import { fieldSelect, trackerStageLabel } from "@/lib/labels";
 
-const stages = ["", "drafted", "sent", "replied"] as const;
+const stages = ["", "drafted", "sent", "replied", "interview", "offer", "closed"] as const;
+const settableStages = [
+  "followed_up",
+  "interview",
+  "offer",
+  "rejected",
+  "closed",
+] as const;
 
 function stageTone(
   stage: string,
@@ -17,10 +25,13 @@ function stageTone(
   if (stage === "sent") {
     return "secondary";
   }
-  if (stage === "drafted") {
+  if (stage === "drafted" || stage === "interview") {
     return "primary";
   }
-  if (stage === "bounced" || stage === "unsubscribed") {
+  if (stage === "offer") {
+    return "success";
+  }
+  if (stage === "bounced" || stage === "unsubscribed" || stage === "rejected") {
     return "danger";
   }
   return "muted";
@@ -116,9 +127,17 @@ export function TrackerBoard({ rows }: { rows: TrackerRow[] }) {
                     {row.campaign}
                   </td>
                   <td className="px-4 py-3">
-                    <Pill tone={stageTone(row.stage)}>
-                      {trackerStageLabel[row.stage] ?? row.stage}
-                    </Pill>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Pill tone={stageTone(row.stage)}>
+                        {trackerStageLabel[row.stage] ?? row.stage}
+                      </Pill>
+                      {row.application_id ? (
+                        <StageSelect
+                          applicationID={row.application_id}
+                          stage={row.stage}
+                        />
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -127,5 +146,52 @@ export function TrackerBoard({ rows }: { rows: TrackerRow[] }) {
         </div>
       )}
     </div>
+  );
+}
+
+function StageSelect({
+  applicationID,
+  stage,
+}: {
+  applicationID: string;
+  stage: string;
+}) {
+  const router = useRouter();
+  const [value, setValue] = useState(
+    (settableStages as readonly string[]).includes(stage) ? stage : "",
+  );
+  const [pending, setPending] = useState(false);
+
+  async function onChange(next: string) {
+    setValue(next);
+    if (!next) {
+      return;
+    }
+    setPending(true);
+    await fetch(`/api/v1/applications/${applicationID}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stage: next }),
+    });
+    setPending(false);
+    router.refresh();
+  }
+
+  return (
+    <select
+      aria-label="Set stage"
+      value={value}
+      disabled={pending}
+      onChange={(e) => onChange(e.target.value)}
+      className={`${fieldSelect} w-auto min-w-[8rem]`}
+    >
+      <option value="">Set stage</option>
+      {settableStages.map((s) => (
+        <option key={s} value={s}>
+          {trackerStageLabel[s] ?? s}
+        </option>
+      ))}
+    </select>
   );
 }

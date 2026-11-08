@@ -132,6 +132,20 @@ from enrolments
 where workspace_id = $1 and campaign_id = $2
 order by created_at desc;
 
+-- name: InsertApplication :one
+insert into applications (
+  workspace_id, id, enrolment_id, contact_id, job_id, profile_id, stage
+) values (
+  $1, $2, $3, $4, $5, $6, $7
+)
+returning workspace_id, id, enrolment_id, contact_id, job_id, profile_id, stage, stage_changed_at;
+
+-- name: UpdateApplicationStage :one
+update applications
+set stage = $3, stage_changed_at = now()
+where workspace_id = $1 and id = $2
+returning workspace_id, id, enrolment_id, contact_id, job_id, profile_id, stage, stage_changed_at;
+
 -- name: ListTrackerRows :many
 select
   e.id,
@@ -145,7 +159,9 @@ select
   co.name as company_name,
   coalesce(d.status, '') as draft_status,
   d.created_at as draft_created_at,
-  coalesce(l.state, '') as ledger_state
+  coalesce(l.state, '') as ledger_state,
+  a.id as application_id,
+  coalesce(a.stage, '') as application_stage
 from enrolments e
 join campaigns camp
   on camp.workspace_id = e.workspace_id and camp.id = e.campaign_id
@@ -153,6 +169,8 @@ join contacts ct
   on ct.workspace_id = e.workspace_id and ct.id = e.contact_id
 left join companies co
   on co.workspace_id = ct.workspace_id and co.id = ct.company_id
+left join applications a
+  on a.workspace_id = e.workspace_id and a.enrolment_id = e.id
 left join lateral (
   select status, created_at
   from drafts

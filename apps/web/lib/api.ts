@@ -243,6 +243,7 @@ export function getJobs() {
 
 export type TrackerRow = {
   id: string;
+  application_id?: string;
   contact: string;
   email: string;
   company?: string;

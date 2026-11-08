@@ -57,6 +57,15 @@ func (f *fakeStore) ListEnrolments(context.Context, uuid.UUID, uuid.UUID) ([]Enr
 func (f *fakeStore) ListTracker(context.Context, uuid.UUID) ([]TrackerRow, error) {
 	return nil, nil
 }
+func (f *fakeStore) SetStage(_ context.Context, _ uuid.UUID, id uuid.UUID, stage string) (Application, error) {
+	if f.err != nil {
+		return Application{}, f.err
+	}
+	if !StageOK(stage) {
+		return Application{}, ErrStage
+	}
+	return Application{ID: id, Stage: stage}, nil
+}
 
 func TestCreateCampaignAcceptsProfileID(t *testing.T) {
 	t.Parallel()
@@ -95,6 +104,26 @@ func TestStartCommercialWithoutIdentity(t *testing.T) {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 	if !bytes.Contains(rec.Body.Bytes(), []byte("sender identity required")) {
+		t.Fatalf("%s", rec.Body.String())
+	}
+}
+
+func TestSetStageHTTP(t *testing.T) {
+	t.Parallel()
+	id := uuid.MustParse("01700000-0000-7000-8000-000000000003")
+	api := New(&fakeStore{role: "owner"})
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/applications/"+id.String(), bytes.NewBufferString(`{"stage":"interview"}`))
+	req.SetPathValue("id", id.String())
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.SetStage(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"interview"`)) {
 		t.Fatalf("%s", rec.Body.String())
 	}
 }

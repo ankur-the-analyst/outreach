@@ -24,6 +24,7 @@ var (
 	ErrStatus    = errors.New("invalid campaign status")
 	ErrName      = errors.New("name required")
 	ErrMailbox   = errors.New("mailbox required")
+	ErrStage     = errors.New("pick a valid stage")
 )
 
 type Identity struct {
@@ -354,8 +355,12 @@ func (p *Postgres) Enrol(ctx context.Context, workspaceID, campaignID uuid.UUID,
 	if err != nil {
 		return Enrolment{}, err
 	}
+	appID, err := uuid.NewV7()
+	if err != nil {
+		return Enrolment{}, err
+	}
 	var out Enrolment
-	err = p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+	err = p.pool.InTx(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.GetContact(ctx, db.GetContactParams{WorkspaceID: workspaceID, ID: in.ContactID}); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
@@ -374,6 +379,17 @@ func (p *Postgres) Enrol(ctx context.Context, workspaceID, campaignID uuid.UUID,
 			Status:      "pending",
 		})
 		if err != nil {
+			return err
+		}
+		if _, err := q.InsertApplication(ctx, db.InsertApplicationParams{
+			WorkspaceID: workspaceID,
+			ID:          appID,
+			EnrolmentID: id,
+			ContactID:   in.ContactID,
+			JobID:       in.JobID,
+			ProfileID:   in.ProfileID,
+			Stage:       "drafted",
+		}); err != nil {
 			return err
 		}
 		out = enrolmentFrom(row.ID, row.CampaignID, row.ContactID, row.JobID, row.ProfileID, row.Intent, row.Context, row.Status, row.CreatedAt)
@@ -435,6 +451,42 @@ func loadCampaign(ctx context.Context, q *db.Queries, workspaceID, id uuid.UUID,
 		c.Senders = append(c.Senders, Sender{MailboxID: s.MailboxID, Position: s.Position, Weight: s.Weight})
 	}
 	return c, nil
+}
+
+type Application struct {
+	ID             uuid.UUID `json:"id"`
+	Stage          string    `json:"stage"`
+	StageChangedAt time.Time `json:"stage_changed_at"`
+}
+
+func StageOK(s string) bool {
+	switch s {
+	case "drafted", "sent", "followed_up", "replied", "interview", "offer", "rejected", "closed":
+		return true
+	default:
+		return false
+	}
+}
+
+func (p *Postgres) SetStage(ctx context.Context, workspaceID, id uuid.UUID, stage string) (Application, error) {
+	if !StageOK(stage) {
+		return Application{}, ErrStage
+	}
+	var out Application
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.UpdateApplicationStage(ctx, db.UpdateApplicationStageParams{
+			WorkspaceID: workspaceID, ID: id, Stage: stage,
+		})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+		out = Application{ID: row.ID, Stage: row.Stage, StageChangedAt: row.StageChangedAt.Time}
+		return nil
+	})
+	return out, err
 }
 
 func enrolmentFrom(id, campaignID, contactID uuid.UUID, jobID, profileID *uuid.UUID, intent string, context json.RawMessage, status string, created pgtype.Timestamptz) Enrolment {

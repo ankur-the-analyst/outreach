@@ -62,6 +62,17 @@ func (ns NullRiverJobState) Value() (driver.Value, error) {
 	return string(ns.RiverJobState), nil
 }
 
+type Application struct {
+	WorkspaceID    uuid.UUID
+	ID             uuid.UUID
+	EnrolmentID    uuid.UUID
+	ContactID      uuid.UUID
+	JobID          *uuid.UUID
+	ProfileID      *uuid.UUID
+	Stage          string
+	StageChangedAt pgtype.Timestamptz
+}
+
 type Campaign struct {
 	WorkspaceID         uuid.UUID
 	ID                  uuid.UUID

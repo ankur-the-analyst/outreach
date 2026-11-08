@@ -32,6 +32,12 @@ func TestTrackerStage(t *testing.T) {
 			t.Fatalf("%s %s %s: got %s want %s", tc.enrol, tc.draft, tc.ledger, got, tc.want)
 		}
 	}
+	if got := PreferApplicationStage("replied", "interview"); got != "interview" {
+		t.Fatalf("prefer %s", got)
+	}
+	if got := PreferApplicationStage("sent", "drafted"); got != "sent" {
+		t.Fatalf("derived %s", got)
+	}
 }
 
 func TestListTrackerMovesDraftedSentReplied(t *testing.T) {
@@ -143,6 +149,15 @@ func TestListTrackerMovesDraftedSentReplied(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertTracker(t, store, ctx, wsID, "replied", "Ada", "Acme", "AE intro")
+
+	rows, err := store.ListTracker(ctx, wsID)
+	if err != nil || len(rows) != 1 || rows[0].ApplicationID == nil {
+		t.Fatalf("application %+v %v", rows, err)
+	}
+	if _, err := store.SetStage(ctx, wsID, *rows[0].ApplicationID, "interview"); err != nil {
+		t.Fatal(err)
+	}
+	assertTracker(t, store, ctx, wsID, "interview", "Ada", "Acme", "AE intro")
 }
 
 func assertTracker(t *testing.T, store *Postgres, ctx context.Context, wsID uuid.UUID, stage, contact, company, campaign string) {

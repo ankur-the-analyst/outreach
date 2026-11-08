@@ -245,6 +245,49 @@ func (q *Queries) GetSenderIdentity(ctx context.Context, workspaceID uuid.UUID) 
 	return i, err
 }
 
+const insertApplication = `-- name: InsertApplication :one
+insert into applications (
+  workspace_id, id, enrolment_id, contact_id, job_id, profile_id, stage
+) values (
+  $1, $2, $3, $4, $5, $6, $7
+)
+returning workspace_id, id, enrolment_id, contact_id, job_id, profile_id, stage, stage_changed_at
+`
+
+type InsertApplicationParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	EnrolmentID uuid.UUID
+	ContactID   uuid.UUID
+	JobID       *uuid.UUID
+	ProfileID   *uuid.UUID
+	Stage       string
+}
+
+func (q *Queries) InsertApplication(ctx context.Context, arg InsertApplicationParams) (Application, error) {
+	row := q.db.QueryRow(ctx, insertApplication,
+		arg.WorkspaceID,
+		arg.ID,
+		arg.EnrolmentID,
+		arg.ContactID,
+		arg.JobID,
+		arg.ProfileID,
+		arg.Stage,
+	)
+	var i Application
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.EnrolmentID,
+		&i.ContactID,
+		&i.JobID,
+		&i.ProfileID,
+		&i.Stage,
+		&i.StageChangedAt,
+	)
+	return i, err
+}
+
 const insertCampaign = `-- name: InsertCampaign :one
 insert into campaigns (
   workspace_id, id, name, profile_id, intent, sender_strategy, status,
@@ -766,7 +809,9 @@ select
   co.name as company_name,
   coalesce(d.status, '') as draft_status,
   d.created_at as draft_created_at,
-  coalesce(l.state, '') as ledger_state
+  coalesce(l.state, '') as ledger_state,
+  a.id as application_id,
+  coalesce(a.stage, '') as application_stage
 from enrolments e
 join campaigns camp
   on camp.workspace_id = e.workspace_id and camp.id = e.campaign_id
@@ -774,6 +819,8 @@ join contacts ct
   on ct.workspace_id = e.workspace_id and ct.id = e.contact_id
 left join companies co
   on co.workspace_id = ct.workspace_id and co.id = ct.company_id
+left join applications a
+  on a.workspace_id = e.workspace_id and a.enrolment_id = e.id
 left join lateral (
   select status, created_at
   from drafts
@@ -793,18 +840,20 @@ order by coalesce(d.created_at, e.created_at) desc
 `
 
 type ListTrackerRowsRow struct {
-	ID              uuid.UUID
-	EnrolmentStatus string
-	CreatedAt       pgtype.Timestamptz
-	CampaignID      uuid.UUID
-	CampaignName    string
-	Email           string
-	FirstName       pgtype.Text
-	LastName        pgtype.Text
-	CompanyName     pgtype.Text
-	DraftStatus     string
-	DraftCreatedAt  pgtype.Timestamptz
-	LedgerState     string
+	ID               uuid.UUID
+	EnrolmentStatus  string
+	CreatedAt        pgtype.Timestamptz
+	CampaignID       uuid.UUID
+	CampaignName     string
+	Email            string
+	FirstName        pgtype.Text
+	LastName         pgtype.Text
+	CompanyName      pgtype.Text
+	DraftStatus      string
+	DraftCreatedAt   pgtype.Timestamptz
+	LedgerState      string
+	ApplicationID    *uuid.UUID
+	ApplicationStage string
 }
 
 func (q *Queries) ListTrackerRows(ctx context.Context, workspaceID uuid.UUID) ([]ListTrackerRowsRow, error) {
@@ -829,6 +878,8 @@ func (q *Queries) ListTrackerRows(ctx context.Context, workspaceID uuid.UUID) ([
 			&i.DraftStatus,
 			&i.DraftCreatedAt,
 			&i.LedgerState,
+			&i.ApplicationID,
+			&i.ApplicationStage,
 		); err != nil {
 			return nil, err
 		}
@@ -857,6 +908,35 @@ func (q *Queries) LockCampaign(ctx context.Context, arg LockCampaignParams) (uui
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const updateApplicationStage = `-- name: UpdateApplicationStage :one
+update applications
+set stage = $3, stage_changed_at = now()
+where workspace_id = $1 and id = $2
+returning workspace_id, id, enrolment_id, contact_id, job_id, profile_id, stage, stage_changed_at
+`
+
+type UpdateApplicationStageParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Stage       string
+}
+
+func (q *Queries) UpdateApplicationStage(ctx context.Context, arg UpdateApplicationStageParams) (Application, error) {
+	row := q.db.QueryRow(ctx, updateApplicationStage, arg.WorkspaceID, arg.ID, arg.Stage)
+	var i Application
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.EnrolmentID,
+		&i.ContactID,
+		&i.JobID,
+		&i.ProfileID,
+		&i.Stage,
+		&i.StageChangedAt,
+	)
+	return i, err
 }
 
 const updateCampaignStatus = `-- name: UpdateCampaignStatus :one

@@ -194,6 +194,7 @@ func main() {
 	mux.Handle("POST /api/v1/campaigns/{id}/enrolments", a.Require(http.HandlerFunc(camp.Enrol)))
 	mux.Handle("GET /api/v1/campaigns/{id}/enrolments", a.Require(http.HandlerFunc(camp.ListEnrolments)))
 	mux.Handle("GET /api/v1/tracker", a.Require(http.HandlerFunc(camp.ListTracker)))
+	mux.Handle("PATCH /api/v1/applications/{id}", a.Require(http.HandlerFunc(camp.SetStage)))
 
 	logger.Info("api listening", "addr", cfg.Addr)
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {
