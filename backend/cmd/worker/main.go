@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -11,10 +12,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
+
+	"outreach/internal/ai"
 	"outreach/internal/campaign"
 	"outreach/internal/config"
 	"outreach/internal/crypto"
 	"outreach/internal/db"
+	"outreach/internal/evidence"
 	"outreach/internal/inbound"
 	"outreach/internal/sender"
 	"outreach/internal/suppression"
@@ -65,7 +69,12 @@ func main() {
 		logger.Error("load packs", "err", err)
 		os.Exit(1)
 	}
-	camp := campaign.NewPostgres(pool, packs)
+	writer := &ai.Fake{
+		Model: "fake-8", Dim: evidence.Dim,
+		Text: "You closed 12 deals last year. Open to a short chat?",
+		JSON: json.RawMessage(`{"score":82,"summary":"deals overlap"}`),
+	}
+	camp := campaign.NewPostgres(pool, packs).WithRetrieve(evidence.NewPostgres(pool, writer))
 
 	client, err := worker.NewWorkerClient(pool, func(w *river.Workers) {
 		worker.AddReconcile(w, func(ctx context.Context, a worker.ReconcileArgs) error {

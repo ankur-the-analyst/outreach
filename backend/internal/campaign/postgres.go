@@ -94,12 +94,18 @@ type EnrolInput struct {
 }
 
 type Postgres struct {
-	pool  *db.Pool
-	packs map[string]Pack
+	pool     *db.Pool
+	packs    map[string]Pack
+	retrieve Retriever
 }
 
 func NewPostgres(pool *db.Pool, packs map[string]Pack) *Postgres {
 	return &Postgres{pool: pool, packs: packs}
+}
+
+func (p *Postgres) WithRetrieve(r Retriever) *Postgres {
+	p.retrieve = r
+	return p
 }
 
 func (p *Postgres) Packs() []Pack {

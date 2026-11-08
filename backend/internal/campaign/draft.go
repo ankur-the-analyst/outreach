@@ -12,9 +12,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/db"
+	"outreach/internal/evidence"
 	"outreach/internal/mime"
 	"outreach/internal/pacing"
 )
+
+type Retriever interface {
+	Retrieve(ctx context.Context, workspaceID uuid.UUID, profileID *uuid.UUID, query string) ([]evidence.Item, error)
+}
 
 var ErrOutsideWindow = errors.New("outside send window")
 
@@ -61,12 +66,18 @@ func (e *StickyDownError) Unwrap() error { return ErrStickyDown }
 func (e *StickyDownError) RetryAt() time.Time { return e.Until }
 
 type Draft struct {
-	ID        uuid.UUID `json:"id"`
-	MailboxID uuid.UUID `json:"mailbox_id"`
-	To        string    `json:"to"`
-	Subject   string    `json:"subject"`
-	Body      string    `json:"body_text"`
-	Status    string    `json:"status"`
+	ID        uuid.UUID   `json:"id"`
+	MailboxID uuid.UUID   `json:"mailbox_id"`
+	To        string      `json:"to"`
+	Subject   string      `json:"subject"`
+	Body      string      `json:"body_text"`
+	Status    string      `json:"status"`
+	FactsUsed []draftFact `json:"facts_used,omitempty"`
+}
+
+type draftFact struct {
+	Claim      string    `json:"claim"`
+	EvidenceID uuid.UUID `json:"evidence_id"`
 }
 
 func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uuid.UUID, stepPosition int32, now time.Time) (Draft, error) {
@@ -178,6 +189,18 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 			return err
 		}
 		body := notesFromContext(en.Context)
+		profileID := en.ProfileID
+		if profileID == nil {
+			profileID = camp.ProfileID
+		}
+		facts, err := factsFromRetrieve(ctx, p.retrieve, workspaceID, profileID, body)
+		if err != nil {
+			return err
+		}
+		factsJSON, err := json.Marshal(facts)
+		if err != nil {
+			return err
+		}
 		row, err := q.InsertDraft(ctx, db.InsertDraftParams{
 			WorkspaceID:  workspaceID,
 			ID:           id,
@@ -190,7 +213,7 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 			Subject:      camp.Name,
 			BodyHtml:     "",
 			BodyText:     body,
-			FactsUsed:    json.RawMessage("[]"),
+			FactsUsed:    factsJSON,
 			Status:       "pending",
 			CreatedAt:    pgtype.Timestamptz{Time: now.UTC(), Valid: true},
 		})
@@ -207,10 +230,25 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 		}); err != nil {
 			return err
 		}
-		out = Draft{ID: row.ID, MailboxID: row.MailboxID, To: row.ToAddr, Subject: row.Subject, Body: row.BodyText, Status: row.Status}
+		out = Draft{ID: row.ID, MailboxID: row.MailboxID, To: row.ToAddr, Subject: row.Subject, Body: row.BodyText, Status: row.Status, FactsUsed: facts}
 		return nil
 	})
 	return out, err
+}
+
+func factsFromRetrieve(ctx context.Context, r Retriever, workspaceID uuid.UUID, profileID *uuid.UUID, query string) ([]draftFact, error) {
+	if r == nil {
+		return []draftFact{}, nil
+	}
+	items, err := r.Retrieve(ctx, workspaceID, profileID, query)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]draftFact, 0, len(items))
+	for _, it := range items {
+		out = append(out, draftFact{Claim: it.Text, EvidenceID: it.ID})
+	}
+	return out, nil
 }
 
 func notesFromContext(raw json.RawMessage) string {
