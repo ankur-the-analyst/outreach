@@ -106,6 +106,45 @@ func TestInterestedMarksEnrolmentReplied(t *testing.T) {
 	}
 }
 
+func TestInterviewSetsTrackerStage(t *testing.T) {
+	ctx, pool, wsID, mb, proc := setupInbound(t)
+	userID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ct, err := contacts.NewPostgres(pool).Create(ctx, wsID, contacts.CreateInput{
+		Email: "lead@acme.test", Source: "typed", AddedBy: userID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	packs, err := campaign.LoadPacks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := campaign.NewPostgres(pool, packs)
+	camp, err := store.Create(ctx, wsID, campaign.CreateInput{
+		Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Enrol(ctx, wsID, camp.ID, campaign.EnrolInput{ContactID: ct.ID, Notes: "met at a meetup"}); err != nil {
+		t.Fatal(err)
+	}
+	src := fakeSource{items: []mailsync.Item{{
+		RFCMessageID: "<iv@x>", Subject: "next step", From: "lead@acme.test",
+		To: []string{"box@example.test"}, Text: "Can we set up an interview next week?", At: time.Now().UTC(),
+	}}}
+	if _, err := mailsync.NewPostgres(pool, src).WithInbound(proc).SyncMailbox(ctx, wsID, mb.ID); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := store.ListTracker(ctx, wsID)
+	if err != nil || len(rows) != 1 || rows[0].Stage != "interview" {
+		t.Fatalf("%+v %v", rows, err)
+	}
+}
+
 func TestReplyModeOffSkipsDraft(t *testing.T) {
 	ctx, pool, wsID, mb, proc := setupInbound(t)
 	err := mailbox.NewPostgres(pool, mustKeys(t)).SetReplyMode(ctx, wsID, mb.ID, "off")

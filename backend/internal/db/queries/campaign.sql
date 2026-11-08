@@ -103,6 +103,11 @@ select
 from enrolments
 where workspace_id = $1 and id = $2;
 
+-- name: UpdateApplicationStageByEnrolment :exec
+update applications
+set stage = $3, stage_changed_at = now()
+where workspace_id = $1 and enrolment_id = $2;
+
 -- name: UpdateEnrolmentStatus :one
 update enrolments
 set status = $3

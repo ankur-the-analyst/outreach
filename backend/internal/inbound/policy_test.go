@@ -25,4 +25,19 @@ func TestPolicyEnrolment(t *testing.T) {
 			t.Fatalf("%s: %s want %s", tc.class, got, tc.want)
 		}
 	}
+	stages := []struct {
+		class Class
+		want  string
+	}{
+		{ClassInterview, "interview"},
+		{ClassInterested, "replied"},
+		{ClassRejection, "rejected"},
+		{ClassUnsubscribe, "closed"},
+		{ClassOutOfOffice, ""},
+	}
+	for _, tc := range stages {
+		if got := Policy(tc.class).Application; got != tc.want {
+			t.Fatalf("%s stage %s want %s", tc.class, got, tc.want)
+		}
+	}
 }

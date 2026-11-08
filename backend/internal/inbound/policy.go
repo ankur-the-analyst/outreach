@@ -1,27 +1,30 @@
 package inbound
 
 type Effect struct {
-	Suppress   bool
-	Hold       bool
-	Stop       bool
-	ReplyDraft bool
-	Enrolment  string
+	Suppress    bool
+	Hold        bool
+	Stop        bool
+	ReplyDraft  bool
+	Enrolment   string
+	Application string
 }
 
 func Policy(c Class) Effect {
 	switch c {
 	case ClassUnsubscribe, ClassComplaint:
-		return Effect{Suppress: true, Enrolment: "unsubscribed"}
+		return Effect{Suppress: true, Enrolment: "unsubscribed", Application: "closed"}
 	case ClassDSN:
 		return Effect{Suppress: true, Enrolment: "bounced"}
 	case ClassOutOfOffice:
 		return Effect{Hold: true, Enrolment: "held"}
 	case ClassNotNow, ClassRejection:
-		return Effect{Stop: true, Enrolment: "stopped"}
-	case ClassInterested, ClassInterview, ClassQuestion, ClassReferral:
-		return Effect{ReplyDraft: true, Enrolment: "replied"}
+		return Effect{Stop: true, Enrolment: "stopped", Application: "rejected"}
+	case ClassInterview:
+		return Effect{ReplyDraft: true, Enrolment: "replied", Application: "interview"}
+	case ClassInterested, ClassQuestion, ClassReferral:
+		return Effect{ReplyDraft: true, Enrolment: "replied", Application: "replied"}
 	case ClassOther:
-		return Effect{Enrolment: "replied"}
+		return Effect{Enrolment: "replied", Application: "replied"}
 	default:
 		return Effect{}
 	}

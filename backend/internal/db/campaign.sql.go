@@ -939,6 +939,23 @@ func (q *Queries) UpdateApplicationStage(ctx context.Context, arg UpdateApplicat
 	return i, err
 }
 
+const updateApplicationStageByEnrolment = `-- name: UpdateApplicationStageByEnrolment :exec
+update applications
+set stage = $3, stage_changed_at = now()
+where workspace_id = $1 and enrolment_id = $2
+`
+
+type UpdateApplicationStageByEnrolmentParams struct {
+	WorkspaceID uuid.UUID
+	EnrolmentID uuid.UUID
+	Stage       string
+}
+
+func (q *Queries) UpdateApplicationStageByEnrolment(ctx context.Context, arg UpdateApplicationStageByEnrolmentParams) error {
+	_, err := q.db.Exec(ctx, updateApplicationStageByEnrolment, arg.WorkspaceID, arg.EnrolmentID, arg.Stage)
+	return err
+}
+
 const updateCampaignStatus = `-- name: UpdateCampaignStatus :one
 update campaigns
 set status = $3, list_unsubscribe = $4, starts_at = coalesce(starts_at, $5)

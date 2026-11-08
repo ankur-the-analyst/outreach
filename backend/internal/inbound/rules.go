@@ -31,6 +31,8 @@ func Rules(from, subject, body string) (Class, bool) {
 		return ClassComplaint, true
 	case containsAny(blob, "out of office", "out-of-office", "automatic reply", "autoreply", "auto-reply", "vacation"):
 		return ClassOutOfOffice, true
+	case containsAny(blob, "interview"):
+		return ClassInterview, true
 	case containsAny(blob, "i'm interested", "i am interested", "we're interested", "we are interested"):
 		return ClassInterested, true
 	default:
