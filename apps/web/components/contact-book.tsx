@@ -7,7 +7,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Pill } from "@/components/page-header";
 import type { Contact } from "@/lib/api";
-import { contactName, fieldTextarea } from "@/lib/labels";
+import { contactName, fieldSelect, fieldTextarea } from "@/lib/labels";
+
+function neverEmailError(message: string): string {
+  if (message.includes("reason required")) {
+    return "Say why";
+  }
+  if (message.includes("value required")) {
+    return "Enter an address or domain";
+  }
+  if (message.includes("duplicate") || message.includes("unique")) {
+    return "Already on the never-email list";
+  }
+  return message;
+}
 
 type PreviewRow = {
   email: string;
@@ -71,6 +84,7 @@ export function ContactBook({ contacts }: { contacts: Contact[] }) {
       </div>
       <div className="flex flex-col gap-4 lg:col-span-5">
         <CreateForm />
+        <NeverEmailForm />
         <CSVPreview />
       </div>
     </div>
@@ -190,6 +204,90 @@ function CreateForm() {
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
       <Button type="submit" className="rounded-md" pending={pending}>
         Save
+      </Button>
+    </form>
+  );
+}
+
+function NeverEmailForm() {
+  const [kind, setKind] = useState("email");
+  const [value, setValue] = useState("");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [done, setDone] = useState("");
+  const [pending, setPending] = useState(false);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setDone("");
+    setPending(true);
+    const res = await fetch("/api/v1/suppression", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, value, reason }),
+    });
+    setPending(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as
+        | { error?: { message?: string } }
+        | null;
+      setError(neverEmailError(data?.error?.message ?? "Could not save"));
+      return;
+    }
+    const data = (await res.json()) as { value?: string };
+    setDone(`Won't send to ${data.value || value}`);
+    setValue("");
+    setReason("");
+  }
+
+  return (
+    <form
+      onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
+      className="flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-6"
+    >
+      <h2 className="font-headline-md text-foreground">Never email</h2>
+      <p className="font-body-md text-muted-foreground">
+        Blocks new sends to this address or whole domain.
+      </p>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="never-kind">Block</Label>
+        <select
+          id="never-kind"
+          value={kind}
+          onChange={(e) => setKind(e.target.value)}
+          className={fieldSelect}
+        >
+          <option value="email">This address</option>
+          <option value="domain">This domain</option>
+        </select>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="never-value">
+          {kind === "domain" ? "Domain" : "Email"}
+        </Label>
+        <Input
+          id="never-value"
+          required
+          type={kind === "domain" ? "text" : "email"}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="never-reason">Why</Label>
+        <Input
+          id="never-reason"
+          required
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+        />
+      </div>
+      {error ? <p className="font-body-md text-destructive">{error}</p> : null}
+      {done ? <p className="font-body-md text-muted-foreground">{done}</p> : null}
+      <Button type="submit" className="rounded-md" pending={pending}>
+        Block sends
       </Button>
     </form>
   );
