@@ -101,6 +101,7 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		MailboxIDs        []string `json:"mailbox_ids"`
 		NewContactsPerDay int32    `json:"new_contacts_per_day"`
 		AIInstructions    string   `json:"ai_instructions"`
+		ProfileID         string   `json:"profile_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
@@ -115,9 +116,19 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		}
 		ids = append(ids, id)
 	}
+	var profileID *uuid.UUID
+	if in.ProfileID != "" {
+		p, err := uuid.Parse(in.ProfileID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "invalid profile id")
+			return
+		}
+		profileID = &p
+	}
 	c, err := a.store.Create(r.Context(), s.WorkspaceID, CreateInput{
 		Name: in.Name, Intent: in.Intent, SenderStrategy: in.SenderStrategy,
 		MailboxIDs: ids, NewContactsPerDay: in.NewContactsPerDay, AIInstructions: in.AIInstructions,
+		ProfileID: profileID,
 	})
 	if err != nil {
 		writeStoreError(w, err)

@@ -140,6 +140,7 @@ export function CampaignBoard({
         <Drawer title="New campaign" onClose={() => setCreateOpen(false)}>
           <CreateCampaign
             mailboxes={mailboxes}
+            profiles={profiles}
             onDone={() => setCreateOpen(false)}
           />
         </Drawer>
@@ -182,6 +183,7 @@ function CampaignCard({
   const [pending, setPending] = useState(false);
   const emails = campaign.steps.filter((s) => s.kind === "email").length;
   const box = mailboxes.find((m) => m.id === campaign.senders[0]?.mailbox_id);
+  const profile = profiles.find((p) => p.id === campaign.profile_id);
 
   async function post(path: string) {
     setMsg("");
@@ -217,6 +219,7 @@ function CampaignCard({
             {" · "}
             {emails} {emails === 1 ? "email" : "emails"}
             {box ? ` · ${box.email}` : ""}
+            {profile ? ` · ${profile.name}` : ""}
           </p>
         </div>
       </div>
@@ -330,15 +333,18 @@ function CampaignCard({
 
 function CreateCampaign({
   mailboxes,
+  profiles,
   onDone,
 }: {
   mailboxes: Mailbox[];
+  profiles: Profile[];
   onDone: () => void;
 }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [intent, setIntent] = useState("job");
   const [mailboxID, setMailboxID] = useState(mailboxes[0]?.id ?? "");
+  const [profileID, setProfileID] = useState("");
   const [perDay, setPerDay] = useState("5");
   const [strategy, setStrategy] = useState("round_robin");
   const [error, setError] = useState("");
@@ -358,6 +364,7 @@ function CreateCampaign({
         mailbox_ids: mailboxID ? [mailboxID] : [],
         new_contacts_per_day: Number(perDay),
         sender_strategy: strategy,
+        profile_id: profileID || undefined,
       }),
     });
     setPending(false);
@@ -418,6 +425,24 @@ function CreateCampaign({
             ))}
           </select>
         </div>
+        {profiles.length > 0 ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="camp-profile">Profile</Label>
+            <select
+              id="camp-profile"
+              value={profileID}
+              onChange={(e) => setProfileID(e.target.value)}
+              className={fieldSelect}
+            >
+              <option value="">None</option>
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="camp-per-day">New contacts per day</Label>
           <Input

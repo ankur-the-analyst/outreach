@@ -170,6 +170,7 @@ export function getNeverEmail() {
 export type Campaign = {
   id: string;
   name: string;
+  profile_id?: string;
   intent: string;
   status: string;
   commercial: boolean;

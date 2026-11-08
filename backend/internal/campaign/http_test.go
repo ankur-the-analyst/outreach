@@ -14,6 +14,7 @@ import (
 type fakeStore struct {
 	role string
 	c    Campaign
+	in   CreateInput
 	err  error
 }
 
@@ -27,7 +28,8 @@ func (f *fakeStore) PutIdentity(context.Context, uuid.UUID, Identity) (Identity,
 func (f *fakeStore) GetIdentity(context.Context, uuid.UUID) (Identity, error) {
 	return Identity{}, ErrNotFound
 }
-func (f *fakeStore) Create(context.Context, uuid.UUID, CreateInput) (Campaign, error) {
+func (f *fakeStore) Create(_ context.Context, _ uuid.UUID, in CreateInput) (Campaign, error) {
+	f.in = in
 	return f.c, nil
 }
 func (f *fakeStore) List(context.Context, uuid.UUID) ([]Campaign, error) { return nil, nil }
@@ -54,6 +56,27 @@ func (f *fakeStore) ListEnrolments(context.Context, uuid.UUID, uuid.UUID) ([]Enr
 }
 func (f *fakeStore) ListTracker(context.Context, uuid.UUID) ([]TrackerRow, error) {
 	return nil, nil
+}
+
+func TestCreateCampaignAcceptsProfileID(t *testing.T) {
+	t.Parallel()
+	store := &fakeStore{role: "owner"}
+	api := New(store)
+	pid := "01700000-0000-7000-8000-000000000009"
+	body := `{"name":"AE","intent":"job","mailbox_ids":["01700000-0000-7000-8000-000000000004"],"profile_id":"` + pid + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/campaigns", bytes.NewBufferString(body))
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Create(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	if store.in.ProfileID == nil || store.in.ProfileID.String() != pid {
+		t.Fatalf("profile %+v", store.in.ProfileID)
+	}
 }
 
 func TestStartCommercialWithoutIdentity(t *testing.T) {

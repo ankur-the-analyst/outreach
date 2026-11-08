@@ -47,19 +47,20 @@ type Sender struct {
 }
 
 type Campaign struct {
-	ID                uuid.UUID `json:"id"`
-	Name              string    `json:"name"`
-	Intent            string    `json:"intent"`
-	SenderStrategy    string    `json:"sender_strategy"`
-	Status            string    `json:"status"`
-	ListUnsubscribe   bool      `json:"list_unsubscribe"`
-	NewContactsPerDay int32     `json:"new_contacts_per_day"`
-	AIInstructions    string    `json:"ai_instructions,omitempty"`
-	UndoHoldS         int32     `json:"undo_hold_s"`
-	Commercial        bool      `json:"commercial"`
-	Steps             []Step    `json:"steps"`
-	Senders           []Sender  `json:"senders"`
-	CreatedAt         time.Time `json:"created_at"`
+	ID                uuid.UUID  `json:"id"`
+	Name              string     `json:"name"`
+	ProfileID         *uuid.UUID `json:"profile_id,omitempty"`
+	Intent            string     `json:"intent"`
+	SenderStrategy    string     `json:"sender_strategy"`
+	Status            string     `json:"status"`
+	ListUnsubscribe   bool       `json:"list_unsubscribe"`
+	NewContactsPerDay int32      `json:"new_contacts_per_day"`
+	AIInstructions    string     `json:"ai_instructions,omitempty"`
+	UndoHoldS         int32      `json:"undo_hold_s"`
+	Commercial        bool       `json:"commercial"`
+	Steps             []Step     `json:"steps"`
+	Senders           []Sender   `json:"senders"`
+	CreatedAt         time.Time  `json:"created_at"`
 }
 
 type Enrolment struct {
@@ -414,7 +415,7 @@ func loadCampaign(ctx context.Context, q *db.Queries, workspaceID, id uuid.UUID,
 		return Campaign{}, err
 	}
 	c := Campaign{
-		ID: row.ID, Name: row.Name, Intent: row.Intent, SenderStrategy: row.SenderStrategy,
+		ID: row.ID, Name: row.Name, ProfileID: row.ProfileID, Intent: row.Intent, SenderStrategy: row.SenderStrategy,
 		Status: row.Status, ListUnsubscribe: row.ListUnsubscribe, NewContactsPerDay: row.NewContactsPerDay,
 		AIInstructions: row.AiInstructions.String, UndoHoldS: row.UndoHoldS, CreatedAt: row.CreatedAt.Time,
 		Steps: make([]Step, 0, len(steps)), Senders: make([]Sender, 0, len(senders)),
