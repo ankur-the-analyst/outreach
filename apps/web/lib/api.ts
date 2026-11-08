@@ -131,6 +131,7 @@ export type Draft = {
   ledger_id?: string;
   ledger_state?: string;
   release_at?: string;
+  facts_used?: { claim: string; evidence_id: string }[];
 };
 
 export function getDrafts() {

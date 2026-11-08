@@ -48,7 +48,7 @@ returning
 -- name: ListReviewDrafts :many
 select
   d.workspace_id, d.id, d.mailbox_id, d.to_addr, d.rfc_message_id,
-  d.kind, d.subject, d.body_html, d.body_text, d.status, d.approved_by, d.created_at,
+  d.kind, d.subject, d.body_html, d.body_text, d.facts_used, d.status, d.approved_by, d.created_at,
   l.id as ledger_id, l.state as ledger_state, l.release_at
 from drafts d
 left join send_ledger l

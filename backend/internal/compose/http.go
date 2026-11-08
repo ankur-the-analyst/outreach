@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"outreach/internal/auth"
@@ -80,6 +81,7 @@ func (a *API) Compose(w http.ResponseWriter, r *http.Request) {
 		MailboxID string `json:"mailbox_id"`
 		To        string `json:"to"`
 		Subject   string `json:"subject"`
+		ProfileID string `json:"profile_id"`
 		Facts     []Fact `json:"facts"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
@@ -91,8 +93,17 @@ func (a *API) Compose(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_input", "invalid mailbox id")
 		return
 	}
+	var profileID *uuid.UUID
+	if strings.TrimSpace(in.ProfileID) != "" {
+		id, err := uuid.Parse(in.ProfileID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "invalid profile id")
+			return
+		}
+		profileID = &id
+	}
 	out, err := a.store.Compose(r.Context(), s.WorkspaceID, ComposeInput{
-		MailboxID: mailboxID, To: in.To, Subject: in.Subject, Facts: in.Facts,
+		MailboxID: mailboxID, To: in.To, Subject: in.Subject, ProfileID: profileID, Facts: in.Facts,
 	})
 	if err != nil {
 		writeStoreError(w, err)
@@ -271,6 +282,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "conflict", err.Error())
 	case errors.Is(err, evidence.ErrUnconfirmed):
 		writeError(w, http.StatusBadRequest, "unconfirmed", err.Error())
+	case errors.Is(err, ErrNoClaims):
+		writeError(w, http.StatusBadRequest, "no_claims", "No confirmed claims for this profile")
 	default:
 		writeError(w, http.StatusInternalServerError, "internal", "internal error")
 	}

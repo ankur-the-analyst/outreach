@@ -22,6 +22,7 @@ var (
 	ErrNotFound  = errors.New("not found")
 	ErrForbidden = errors.New("forbidden")
 	ErrConflict  = errors.New("invalid draft transition")
+	ErrNoClaims  = errors.New("no confirmed claims")
 )
 
 type Draft struct {
@@ -64,10 +65,15 @@ type Citer interface {
 	Cite(ctx context.Context, workspaceID uuid.UUID, ids []uuid.UUID) ([]evidence.Item, error)
 }
 
+type Retriever interface {
+	Retrieve(ctx context.Context, workspaceID uuid.UUID, profileID *uuid.UUID, query string) ([]evidence.Item, error)
+}
+
 type ComposeInput struct {
 	MailboxID uuid.UUID
 	To        string
 	Subject   string
+	ProfileID *uuid.UUID
 	Facts     []Fact
 }
 
@@ -78,10 +84,11 @@ type ComposeResult struct {
 }
 
 type Postgres struct {
-	pool  *db.Pool
-	hold  Holder
-	write Completer
-	cite  Citer
+	pool     *db.Pool
+	hold     Holder
+	write    Completer
+	cite     Citer
+	retrieve Retriever
 }
 
 func NewPostgres(pool *db.Pool, hold Holder) *Postgres {
@@ -95,6 +102,11 @@ func (p *Postgres) WithWriter(w Completer) *Postgres {
 
 func (p *Postgres) WithCite(c Citer) *Postgres {
 	p.cite = c
+	return p
+}
+
+func (p *Postgres) WithRetrieve(r Retriever) *Postgres {
+	p.retrieve = r
 	return p
 }
 
@@ -177,9 +189,31 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 	return out, err
 }
 
+func fillFacts(ctx context.Context, r Retriever, workspaceID uuid.UUID, in ComposeInput) (ComposeInput, error) {
+	if len(in.Facts) > 0 || r == nil {
+		return in, nil
+	}
+	items, err := r.Retrieve(ctx, workspaceID, in.ProfileID, in.Subject)
+	if err != nil {
+		return in, err
+	}
+	if len(items) == 0 {
+		return in, ErrNoClaims
+	}
+	in.Facts = make([]Fact, 0, len(items))
+	for _, it := range items {
+		in.Facts = append(in.Facts, Fact{Claim: it.Text, EvidenceID: it.ID})
+	}
+	return in, nil
+}
+
 func (p *Postgres) Compose(ctx context.Context, workspaceID uuid.UUID, in ComposeInput) (ComposeResult, error) {
 	if p.cite == nil {
 		return ComposeResult{}, fmt.Errorf("compose: citer required")
+	}
+	in, err := fillFacts(ctx, p.retrieve, workspaceID, in)
+	if err != nil {
+		return ComposeResult{}, err
 	}
 	ids := make([]uuid.UUID, 0, len(in.Facts))
 	for _, f := range in.Facts {
@@ -248,7 +282,13 @@ func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID) ([]Draft, er
 		}
 		out = make([]Draft, 0, len(rows))
 		for _, row := range rows {
-			out = append(out, draftFrom(row.ID, row.MailboxID, row.ToAddr, row.RfcMessageID, row.Kind, row.Subject, row.BodyHtml, row.BodyText, row.Status, row.LedgerID, row.LedgerState.String, row.ReleaseAt))
+			d := draftFrom(row.ID, row.MailboxID, row.ToAddr, row.RfcMessageID, row.Kind, row.Subject, row.BodyHtml, row.BodyText, row.Status, row.LedgerID, row.LedgerState.String, row.ReleaseAt)
+			if len(row.FactsUsed) > 0 {
+				if err := json.Unmarshal(row.FactsUsed, &d.FactsUsed); err != nil {
+					return err
+				}
+			}
+			out = append(out, d)
 		}
 		return nil
 	})

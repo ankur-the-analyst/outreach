@@ -15,6 +15,7 @@ type fakeStore struct {
 	role string
 	d    Draft
 	err  error
+	in   ComposeInput
 }
 
 func (f *fakeStore) Membership(context.Context, uuid.UUID, uuid.UUID) (string, error) {
@@ -26,7 +27,8 @@ func (f *fakeStore) Create(context.Context, uuid.UUID, CreateInput) (Draft, erro
 func (f *fakeStore) Patch(context.Context, uuid.UUID, uuid.UUID, PatchInput) (Draft, error) {
 	return f.d, f.err
 }
-func (f *fakeStore) Compose(context.Context, uuid.UUID, ComposeInput) (ComposeResult, error) {
+func (f *fakeStore) Compose(_ context.Context, _ uuid.UUID, in ComposeInput) (ComposeResult, error) {
+	f.in = in
 	return ComposeResult{Draft: f.d, Failures: []Failure{}}, f.err
 }
 func (f *fakeStore) List(context.Context, uuid.UUID) ([]Draft, error) {
@@ -91,6 +93,46 @@ func TestRejectDraftHTTP(t *testing.T) {
 	rec := httptest.NewRecorder()
 	api.Reject(rec, req)
 	if rec.Code != http.StatusOK {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestComposeHTTPProfileID(t *testing.T) {
+	t.Parallel()
+	id := uuid.MustParse("01700000-0000-7000-8000-000000000003")
+	profile := uuid.MustParse("01700000-0000-7000-8000-00000000000a")
+	store := &fakeStore{role: "owner", d: Draft{ID: id, Status: "pending"}}
+	api := New(store)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/drafts/compose", bytes.NewBufferString(
+		`{"mailbox_id":"01700000-0000-7000-8000-000000000004","to":"a@b.co","subject":"hi","profile_id":"`+profile.String()+`"}`,
+	))
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Compose(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	if store.in.ProfileID == nil || *store.in.ProfileID != profile {
+		t.Fatalf("profile_id = %v", store.in.ProfileID)
+	}
+}
+
+func TestComposeHTTPNoClaims(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner", err: ErrNoClaims})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/drafts/compose", bytes.NewBufferString(
+		`{"mailbox_id":"01700000-0000-7000-8000-000000000004","to":"a@b.co","subject":"hi"}`,
+	))
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Compose(rec, req)
+	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 }

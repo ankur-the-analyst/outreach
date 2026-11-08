@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { OneOffDraftForm } from "@/components/one-off-draft-form";
 import { PageBody, PageHeader, Pill } from "@/components/page-header";
 
-import type { Draft, Mailbox } from "@/lib/api";
+import type { Draft, Mailbox, Profile } from "@/lib/api";
 import {
   fieldTextarea,
   reviewBucket,
@@ -28,10 +28,12 @@ function reviewActionError(message: string): string {
 export function ReviewQueue({
   drafts,
   mailboxes = [],
+  profiles = [],
   filters = false,
 }: {
   drafts: Draft[];
   mailboxes?: Mailbox[];
+  profiles?: Profile[];
   filters?: boolean;
 }) {
   const [filter, setFilter] = useState<ReviewFilter>("pending");
@@ -137,6 +139,7 @@ export function ReviewQueue({
             <div className="p-6">
               <OneOffDraftForm
                 mailboxes={mailboxes}
+                profiles={profiles}
                 onSaved={() => setCompose(false)}
               />
             </div>
@@ -263,6 +266,11 @@ function ReviewRow({
           {sendStatus(draft)}
         </Pill>
       </div>
+      {(draft.facts_used ?? []).length > 0 ? (
+        <p className="mt-2 font-body-sm text-muted-foreground">
+          Claims: {(draft.facts_used ?? []).map((f) => f.claim).join(" · ")}
+        </p>
+      ) : null}
       {draft.status === "pending" ? (
         <textarea
           aria-label="Body"
