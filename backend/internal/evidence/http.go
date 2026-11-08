@@ -58,13 +58,23 @@ func (a *API) Propose(w http.ResponseWriter, r *http.Request) {
 		Text      string   `json:"text"`
 		SourceRef string   `json:"source_ref"`
 		Tags      []string `json:"tags"`
+		ProfileID string   `json:"profile_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
 		return
 	}
+	var profileID *uuid.UUID
+	if in.ProfileID != "" {
+		p, err := uuid.Parse(in.ProfileID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "invalid profile id")
+			return
+		}
+		profileID = &p
+	}
 	item, err := a.store.Propose(r.Context(), s.WorkspaceID, ProposeInput{
-		Text: in.Text, SourceRef: in.SourceRef, Tags: in.Tags,
+		Text: in.Text, SourceRef: in.SourceRef, Tags: in.Tags, ProfileID: profileID,
 	})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())

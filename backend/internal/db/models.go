@@ -185,6 +185,7 @@ type EvidenceItem struct {
 	EmbeddingModel pgtype.Text
 	EmbeddedAt     pgtype.Timestamptz
 	CreatedAt      pgtype.Timestamptz
+	ProfileID      *uuid.UUID
 }
 
 type Fit struct {

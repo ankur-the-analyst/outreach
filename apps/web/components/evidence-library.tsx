@@ -6,10 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Pill } from "@/components/page-header";
-import type { EvidenceItem } from "@/lib/api";
-import { fieldTextarea } from "@/lib/labels";
+import type { EvidenceItem, Profile } from "@/lib/api";
+import { fieldSelect, fieldTextarea } from "@/lib/labels";
 
-export function EvidenceLibrary({ items }: { items: EvidenceItem[] }) {
+export function EvidenceLibrary({
+  items,
+  profiles = [],
+}: {
+  items: EvidenceItem[];
+  profiles?: Profile[];
+}) {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
       <div className="lg:col-span-7">
@@ -18,19 +24,25 @@ export function EvidenceLibrary({ items }: { items: EvidenceItem[] }) {
         ) : (
           <ul className="flex flex-col gap-3">
             {items.map((item) => (
-              <EvidenceRow key={item.id} item={item} />
+              <EvidenceRow key={item.id} item={item} profiles={profiles} />
             ))}
           </ul>
         )}
       </div>
       <div className="lg:col-span-5">
-        <ProposeForm />
+        <ProposeForm profiles={profiles} />
       </div>
     </div>
   );
 }
 
-function EvidenceRow({ item }: { item: EvidenceItem }) {
+function EvidenceRow({
+  item,
+  profiles,
+}: {
+  item: EvidenceItem;
+  profiles: Profile[];
+}) {
   const router = useRouter();
   const [msg, setMsg] = useState("");
   const [pending, setPending] = useState(false);
@@ -58,6 +70,7 @@ function EvidenceRow({ item }: { item: EvidenceItem }) {
     : item.confirmed
       ? "Confirmed"
       : "Unconfirmed";
+  const profile = profiles.find((p) => p.id === item.profile_id);
 
   return (
     <li className="rounded-md border border-border bg-card p-4">
@@ -69,9 +82,9 @@ function EvidenceRow({ item }: { item: EvidenceItem }) {
         >
           {status}
         </Pill>
-        {item.source_ref ? (
+        {profile?.name || item.source_ref ? (
           <span className="font-body-sm text-muted-foreground">
-            {item.source_ref}
+            {[profile?.name, item.source_ref].filter(Boolean).join(" · ")}
           </span>
         ) : null}
       </div>
@@ -95,10 +108,11 @@ function EvidenceRow({ item }: { item: EvidenceItem }) {
   );
 }
 
-function ProposeForm() {
+function ProposeForm({ profiles }: { profiles: Profile[] }) {
   const router = useRouter();
   const [text, setText] = useState("");
   const [sourceRef, setSourceRef] = useState("");
+  const [profileID, setProfileID] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
@@ -113,6 +127,7 @@ function ProposeForm() {
       body: JSON.stringify({
         text,
         source_ref: sourceRef,
+        profile_id: profileID || undefined,
       }),
     });
     setPending(false);
@@ -125,6 +140,7 @@ function ProposeForm() {
     }
     setText("");
     setSourceRef("");
+    setProfileID("");
     router.refresh();
   }
 
@@ -145,6 +161,24 @@ function ProposeForm() {
           className={fieldTextarea}
         />
       </div>
+      {profiles.length > 0 ? (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="evidence-profile">Profile</Label>
+          <select
+            id="evidence-profile"
+            value={profileID}
+            onChange={(e) => setProfileID(e.target.value)}
+            className={fieldSelect}
+          >
+            <option value="">None</option>
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="evidence-source">Source (optional)</Label>
         <Input

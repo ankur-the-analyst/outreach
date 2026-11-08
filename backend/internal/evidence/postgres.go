@@ -33,20 +33,22 @@ type Embedder interface {
 }
 
 type Item struct {
-	ID        uuid.UUID `json:"id"`
-	Text      string    `json:"text"`
-	SourceRef string    `json:"source_ref,omitempty"`
-	Tags      []string  `json:"tags"`
-	DoNotUse  bool      `json:"do_not_use"`
-	Confirmed bool      `json:"confirmed"`
-	Model     string    `json:"embedding_model,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        uuid.UUID  `json:"id"`
+	ProfileID *uuid.UUID `json:"profile_id,omitempty"`
+	Text      string     `json:"text"`
+	SourceRef string     `json:"source_ref,omitempty"`
+	Tags      []string   `json:"tags"`
+	DoNotUse  bool       `json:"do_not_use"`
+	Confirmed bool       `json:"confirmed"`
+	Model     string     `json:"embedding_model,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
 type ProposeInput struct {
 	Text      string
 	SourceRef string
 	Tags      []string
+	ProfileID *uuid.UUID
 }
 
 type Postgres struct {
@@ -94,6 +96,7 @@ func (p *Postgres) Propose(ctx context.Context, workspaceID uuid.UUID, in Propos
 		row, err := q.InsertEvidence(ctx, db.InsertEvidenceParams{
 			WorkspaceID: workspaceID,
 			ID:          id,
+			ProfileID:   in.ProfileID,
 			Text:        text,
 			SourceRef:   pgtype.Text{String: in.SourceRef, Valid: in.SourceRef != ""},
 			Tags:        tags,
@@ -101,7 +104,7 @@ func (p *Postgres) Propose(ctx context.Context, workspaceID uuid.UUID, in Propos
 		if err != nil {
 			return err
 		}
-		out = itemFrom(row.ID, row.Text, row.SourceRef, row.Tags, row.DoNotUse, row.ConfirmedAt, row.EmbeddingModel, row.CreatedAt)
+		out = itemFrom(row.ID, row.ProfileID, row.Text, row.SourceRef, row.Tags, row.DoNotUse, row.ConfirmedAt, row.EmbeddingModel, row.CreatedAt)
 		return nil
 	})
 	return out, err
@@ -116,7 +119,7 @@ func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID) ([]Item, err
 		}
 		out = make([]Item, 0, len(rows))
 		for _, row := range rows {
-			out = append(out, itemFrom(row.ID, row.Text, row.SourceRef, row.Tags, row.DoNotUse, row.ConfirmedAt, row.EmbeddingModel, row.CreatedAt))
+			out = append(out, itemFrom(row.ID, row.ProfileID, row.Text, row.SourceRef, row.Tags, row.DoNotUse, row.ConfirmedAt, row.EmbeddingModel, row.CreatedAt))
 		}
 		return nil
 	})
@@ -160,7 +163,7 @@ func (p *Postgres) Confirm(ctx context.Context, workspaceID, id uuid.UUID) (Item
 		if err != nil {
 			return err
 		}
-		out = itemFrom(row.ID, row.Text, row.SourceRef, row.Tags, row.DoNotUse, row.ConfirmedAt, row.EmbeddingModel, row.CreatedAt)
+		out = itemFrom(row.ID, row.ProfileID, row.Text, row.SourceRef, row.Tags, row.DoNotUse, row.ConfirmedAt, row.EmbeddingModel, row.CreatedAt)
 		return nil
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -231,16 +234,16 @@ func (p *Postgres) Cite(ctx context.Context, workspaceID uuid.UUID, ids []uuid.U
 		if !ok || !row.ConfirmedAt.Valid || row.DoNotUse {
 			return nil, ErrUnconfirmed
 		}
-		out = append(out, itemFrom(row.ID, row.Text, row.SourceRef, row.Tags, row.DoNotUse, row.ConfirmedAt, row.EmbeddingModel, row.CreatedAt))
+		out = append(out, itemFrom(row.ID, row.ProfileID, row.Text, row.SourceRef, row.Tags, row.DoNotUse, row.ConfirmedAt, row.EmbeddingModel, row.CreatedAt))
 	}
 	return out, nil
 }
 
-func itemFrom(id uuid.UUID, text string, source pgtype.Text, tags []string, doNotUse bool, confirmed pgtype.Timestamptz, model pgtype.Text, created pgtype.Timestamptz) Item {
+func itemFrom(id uuid.UUID, profileID *uuid.UUID, text string, source pgtype.Text, tags []string, doNotUse bool, confirmed pgtype.Timestamptz, model pgtype.Text, created pgtype.Timestamptz) Item {
 	if tags == nil {
 		tags = []string{}
 	}
-	it := Item{ID: id, Text: text, Tags: tags, DoNotUse: doNotUse, Confirmed: confirmed.Valid}
+	it := Item{ID: id, ProfileID: profileID, Text: text, Tags: tags, DoNotUse: doNotUse, Confirmed: confirmed.Valid}
 	if source.Valid {
 		it.SourceRef = source.String
 	}
@@ -256,7 +259,7 @@ func itemFrom(id uuid.UUID, text string, source pgtype.Text, tags []string, doNo
 func itemsFromConfirmed(rows []db.ListConfirmedEvidenceRow) []Item {
 	out := make([]Item, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, itemFrom(row.ID, row.Text, row.SourceRef, row.Tags, row.DoNotUse, row.ConfirmedAt, row.EmbeddingModel, row.CreatedAt))
+		out = append(out, itemFrom(row.ID, row.ProfileID, row.Text, row.SourceRef, row.Tags, row.DoNotUse, row.ConfirmedAt, row.EmbeddingModel, row.CreatedAt))
 	}
 	return out
 }
@@ -264,7 +267,7 @@ func itemsFromConfirmed(rows []db.ListConfirmedEvidenceRow) []Item {
 func itemsFromRetrieve(rows []db.RetrieveEvidenceRow) []Item {
 	out := make([]Item, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, itemFrom(row.ID, row.Text, row.SourceRef, row.Tags, row.DoNotUse, row.ConfirmedAt, row.EmbeddingModel, row.CreatedAt))
+		out = append(out, itemFrom(row.ID, row.ProfileID, row.Text, row.SourceRef, row.Tags, row.DoNotUse, row.ConfirmedAt, row.EmbeddingModel, row.CreatedAt))
 	}
 	return out
 }

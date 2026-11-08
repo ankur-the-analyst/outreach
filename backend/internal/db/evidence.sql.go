@@ -20,7 +20,7 @@ set confirmed_at = now(),
     embedding_model = $2,
     embedded_at = now()
 where workspace_id = $3 and id = $4
-returning workspace_id, id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
+returning workspace_id, id, profile_id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
 `
 
 type ConfirmEvidenceParams struct {
@@ -33,6 +33,7 @@ type ConfirmEvidenceParams struct {
 type ConfirmEvidenceRow struct {
 	WorkspaceID    uuid.UUID
 	ID             uuid.UUID
+	ProfileID      *uuid.UUID
 	Text           string
 	SourceRef      pgtype.Text
 	Tags           []string
@@ -53,6 +54,7 @@ func (q *Queries) ConfirmEvidence(ctx context.Context, arg ConfirmEvidenceParams
 	err := row.Scan(
 		&i.WorkspaceID,
 		&i.ID,
+		&i.ProfileID,
 		&i.Text,
 		&i.SourceRef,
 		&i.Tags,
@@ -95,7 +97,7 @@ func (q *Queries) DeleteEvidenceForWorkspace(ctx context.Context, workspaceID uu
 }
 
 const getEvidence = `-- name: GetEvidence :one
-select workspace_id, id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
+select workspace_id, id, profile_id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
 from evidence_items
 where workspace_id = $1 and id = $2
 `
@@ -108,6 +110,7 @@ type GetEvidenceParams struct {
 type GetEvidenceRow struct {
 	WorkspaceID    uuid.UUID
 	ID             uuid.UUID
+	ProfileID      *uuid.UUID
 	Text           string
 	SourceRef      pgtype.Text
 	Tags           []string
@@ -123,6 +126,7 @@ func (q *Queries) GetEvidence(ctx context.Context, arg GetEvidenceParams) (GetEv
 	err := row.Scan(
 		&i.WorkspaceID,
 		&i.ID,
+		&i.ProfileID,
 		&i.Text,
 		&i.SourceRef,
 		&i.Tags,
@@ -135,7 +139,7 @@ func (q *Queries) GetEvidence(ctx context.Context, arg GetEvidenceParams) (GetEv
 }
 
 const getEvidenceByIDs = `-- name: GetEvidenceByIDs :many
-select workspace_id, id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
+select workspace_id, id, profile_id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
 from evidence_items
 where workspace_id = $1 and id = any($2::uuid[])
 `
@@ -148,6 +152,7 @@ type GetEvidenceByIDsParams struct {
 type GetEvidenceByIDsRow struct {
 	WorkspaceID    uuid.UUID
 	ID             uuid.UUID
+	ProfileID      *uuid.UUID
 	Text           string
 	SourceRef      pgtype.Text
 	Tags           []string
@@ -169,6 +174,7 @@ func (q *Queries) GetEvidenceByIDs(ctx context.Context, arg GetEvidenceByIDsPara
 		if err := rows.Scan(
 			&i.WorkspaceID,
 			&i.ID,
+			&i.ProfileID,
 			&i.Text,
 			&i.SourceRef,
 			&i.Tags,
@@ -189,16 +195,17 @@ func (q *Queries) GetEvidenceByIDs(ctx context.Context, arg GetEvidenceByIDsPara
 
 const insertEvidence = `-- name: InsertEvidence :one
 insert into evidence_items (
-  workspace_id, id, text, source_ref, tags
+  workspace_id, id, profile_id, text, source_ref, tags
 ) values (
-  $1, $2, $3, $4, $5
+  $1, $2, $3, $4, $5, $6
 )
-returning workspace_id, id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
+returning workspace_id, id, profile_id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
 `
 
 type InsertEvidenceParams struct {
 	WorkspaceID uuid.UUID
 	ID          uuid.UUID
+	ProfileID   *uuid.UUID
 	Text        string
 	SourceRef   pgtype.Text
 	Tags        []string
@@ -207,6 +214,7 @@ type InsertEvidenceParams struct {
 type InsertEvidenceRow struct {
 	WorkspaceID    uuid.UUID
 	ID             uuid.UUID
+	ProfileID      *uuid.UUID
 	Text           string
 	SourceRef      pgtype.Text
 	Tags           []string
@@ -220,6 +228,7 @@ func (q *Queries) InsertEvidence(ctx context.Context, arg InsertEvidenceParams) 
 	row := q.db.QueryRow(ctx, insertEvidence,
 		arg.WorkspaceID,
 		arg.ID,
+		arg.ProfileID,
 		arg.Text,
 		arg.SourceRef,
 		arg.Tags,
@@ -228,6 +237,7 @@ func (q *Queries) InsertEvidence(ctx context.Context, arg InsertEvidenceParams) 
 	err := row.Scan(
 		&i.WorkspaceID,
 		&i.ID,
+		&i.ProfileID,
 		&i.Text,
 		&i.SourceRef,
 		&i.Tags,
@@ -240,7 +250,7 @@ func (q *Queries) InsertEvidence(ctx context.Context, arg InsertEvidenceParams) 
 }
 
 const listConfirmedEvidence = `-- name: ListConfirmedEvidence :many
-select workspace_id, id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
+select workspace_id, id, profile_id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
 from evidence_items
 where workspace_id = $1
   and confirmed_at is not null
@@ -257,6 +267,7 @@ type ListConfirmedEvidenceParams struct {
 type ListConfirmedEvidenceRow struct {
 	WorkspaceID    uuid.UUID
 	ID             uuid.UUID
+	ProfileID      *uuid.UUID
 	Text           string
 	SourceRef      pgtype.Text
 	Tags           []string
@@ -278,6 +289,7 @@ func (q *Queries) ListConfirmedEvidence(ctx context.Context, arg ListConfirmedEv
 		if err := rows.Scan(
 			&i.WorkspaceID,
 			&i.ID,
+			&i.ProfileID,
 			&i.Text,
 			&i.SourceRef,
 			&i.Tags,
@@ -297,7 +309,7 @@ func (q *Queries) ListConfirmedEvidence(ctx context.Context, arg ListConfirmedEv
 }
 
 const listEvidence = `-- name: ListEvidence :many
-select workspace_id, id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
+select workspace_id, id, profile_id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
 from evidence_items
 where workspace_id = $1
 order by created_at desc
@@ -306,6 +318,7 @@ order by created_at desc
 type ListEvidenceRow struct {
 	WorkspaceID    uuid.UUID
 	ID             uuid.UUID
+	ProfileID      *uuid.UUID
 	Text           string
 	SourceRef      pgtype.Text
 	Tags           []string
@@ -327,6 +340,7 @@ func (q *Queries) ListEvidence(ctx context.Context, workspaceID uuid.UUID) ([]Li
 		if err := rows.Scan(
 			&i.WorkspaceID,
 			&i.ID,
+			&i.ProfileID,
 			&i.Text,
 			&i.SourceRef,
 			&i.Tags,
@@ -346,7 +360,7 @@ func (q *Queries) ListEvidence(ctx context.Context, workspaceID uuid.UUID) ([]Li
 }
 
 const retrieveEvidence = `-- name: RetrieveEvidence :many
-select workspace_id, id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
+select workspace_id, id, profile_id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
 from evidence_items
 where workspace_id = $1
   and confirmed_at is not null
@@ -365,6 +379,7 @@ type RetrieveEvidenceParams struct {
 type RetrieveEvidenceRow struct {
 	WorkspaceID    uuid.UUID
 	ID             uuid.UUID
+	ProfileID      *uuid.UUID
 	Text           string
 	SourceRef      pgtype.Text
 	Tags           []string
@@ -386,6 +401,7 @@ func (q *Queries) RetrieveEvidence(ctx context.Context, arg RetrieveEvidencePara
 		if err := rows.Scan(
 			&i.WorkspaceID,
 			&i.ID,
+			&i.ProfileID,
 			&i.Text,
 			&i.SourceRef,
 			&i.Tags,

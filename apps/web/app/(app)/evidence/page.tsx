@@ -1,17 +1,20 @@
 import { Suspense } from "react";
 import { EvidenceLibrary } from "@/components/evidence-library";
 import { PageBody, PageHeader, PageLoading } from "@/components/page-header";
-import { getEvidence } from "@/lib/api";
+import { getEvidence, getProfiles } from "@/lib/api";
 
 export const instant = false;
 
 async function EvidenceBody() {
-  const data = await getEvidence();
+  const [data, profiles] = await Promise.all([getEvidence(), getProfiles()]);
   return (
     <main className="flex min-h-0 flex-1 flex-col">
       <PageHeader title="Evidence" />
       <PageBody>
-        <EvidenceLibrary items={data?.evidence ?? []} />
+        <EvidenceLibrary
+          items={data?.evidence ?? []}
+          profiles={profiles?.profiles ?? []}
+        />
       </PageBody>
     </main>
   );

@@ -126,6 +126,7 @@ export function getDrafts() {
 
 export type EvidenceItem = {
   id: string;
+  profile_id?: string;
   text: string;
   source_ref?: string;
   tags: string[];
