@@ -28,16 +28,21 @@ func (StepArgs) InsertOpts() river.InsertOpts {
 
 type StepWorker struct {
 	river.WorkerDefaults[StepArgs]
+	Run func(ctx context.Context, args StepArgs) error
 }
 
-func (StepWorker) Work(ctx context.Context, job *river.Job[StepArgs]) error {
-	if QueriesFrom(ctx) == nil {
-		return fmt.Errorf("worker: guc queries missing")
+func (w StepWorker) Work(ctx context.Context, job *river.Job[StepArgs]) error {
+	if w.Run == nil {
+		return fmt.Errorf("worker: step run missing")
 	}
 	if job.Args.EnrolmentID == uuid.Nil {
 		return fmt.Errorf("worker: enrolment_id required")
 	}
-	return nil
+	return w.Run(ctx, job.Args)
+}
+
+func AddStep(workers *river.Workers, run func(ctx context.Context, args StepArgs) error) {
+	river.AddWorker(workers, StepWorker{Run: run})
 }
 
 type ClaimResult struct {

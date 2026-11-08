@@ -13,7 +13,6 @@ import (
 func NewWorkers() *river.Workers {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, PingWorker{})
-	river.AddWorker(workers, StepWorker{})
 	return workers
 }
 

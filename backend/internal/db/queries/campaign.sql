@@ -78,6 +78,21 @@ insert into enrolments (
 returning
   workspace_id, id, campaign_id, contact_id, job_id, profile_id, intent, context, status, created_at;
 
+-- name: GetEnrolment :one
+select
+  workspace_id, id, campaign_id, contact_id, job_id, profile_id, intent, context,
+  mailbox_id, current_step, status, next_action_at, created_at
+from enrolments
+where workspace_id = $1 and id = $2;
+
+-- name: UpdateEnrolmentStatus :one
+update enrolments
+set status = $3
+where workspace_id = $1 and id = $2
+returning
+  workspace_id, id, campaign_id, contact_id, job_id, profile_id, intent, context,
+  mailbox_id, current_step, status, next_action_at, created_at;
+
 -- name: ListEnrolments :many
 select
   workspace_id, id, campaign_id, contact_id, job_id, profile_id, intent, context, status, created_at

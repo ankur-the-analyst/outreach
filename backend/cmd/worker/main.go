@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
+	"outreach/internal/campaign"
 	"outreach/internal/config"
 	"outreach/internal/crypto"
 	"outreach/internal/db"
@@ -58,6 +59,12 @@ func main() {
 	suppStore := suppression.NewPostgres(pool, keys)
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
 	ing := mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc)
+	packs, err := campaign.LoadPacks()
+	if err != nil {
+		logger.Error("load packs", "err", err)
+		os.Exit(1)
+	}
+	camp := campaign.NewPostgres(pool, packs)
 
 	client, err := worker.NewWorkerClient(pool, func(w *river.Workers) {
 		worker.AddReconcile(w, func(ctx context.Context, a worker.ReconcileArgs) error {
@@ -72,6 +79,10 @@ func main() {
 		})
 		worker.AddClassify(w, func(ctx context.Context, a worker.ClassifyArgs) error {
 			return proc.ClassifyStored(ctx, a.WorkspaceID, a.MessageID)
+		})
+		worker.AddStep(w, func(ctx context.Context, a worker.StepArgs) error {
+			_, err := camp.DraftDueStep(ctx, a.WorkspaceID, a.EnrolmentID, a.StepPosition)
+			return err
 		})
 	})
 	if err != nil {

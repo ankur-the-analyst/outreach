@@ -1,14 +1,26 @@
 -- name: InsertDraft :one
 insert into drafts (
-  workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
+  workspace_id, id, enrolment_id, step_position, mailbox_id, to_addr, rfc_message_id, kind,
   subject, body_html, body_text, facts_used, status
 ) values (
-  $1, $2, $3, $4, $5, $6,
-  $7, $8, $9, $10, $11
+  $1, $2, $3, $4, $5, $6, $7, $8,
+  $9, $10, $11, $12, $13
 )
 returning
-  workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
+  workspace_id, id, enrolment_id, step_position, mailbox_id, to_addr, rfc_message_id, kind,
   subject, body_html, body_text, facts_used, status, approved_by, created_at;
+
+-- name: GetDraftByEnrolmentStep :one
+select
+  workspace_id, id, enrolment_id, step_position, mailbox_id, to_addr, rfc_message_id, kind,
+  subject, body_html, body_text, facts_used, status, approved_by, created_at
+from drafts
+where workspace_id = $1
+  and enrolment_id = $2
+  and step_position = $3
+  and status in ('pending', 'approved')
+order by created_at desc
+limit 1;
 
 -- name: GetDraft :one
 select

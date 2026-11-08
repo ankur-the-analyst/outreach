@@ -106,6 +106,56 @@ func (q *Queries) GetCampaign(ctx context.Context, arg GetCampaignParams) (GetCa
 	return i, err
 }
 
+const getEnrolment = `-- name: GetEnrolment :one
+select
+  workspace_id, id, campaign_id, contact_id, job_id, profile_id, intent, context,
+  mailbox_id, current_step, status, next_action_at, created_at
+from enrolments
+where workspace_id = $1 and id = $2
+`
+
+type GetEnrolmentParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+type GetEnrolmentRow struct {
+	WorkspaceID  uuid.UUID
+	ID           uuid.UUID
+	CampaignID   uuid.UUID
+	ContactID    uuid.UUID
+	JobID        *uuid.UUID
+	ProfileID    *uuid.UUID
+	Intent       string
+	Context      json.RawMessage
+	MailboxID    *uuid.UUID
+	CurrentStep  int32
+	Status       string
+	NextActionAt pgtype.Timestamptz
+	CreatedAt    pgtype.Timestamptz
+}
+
+func (q *Queries) GetEnrolment(ctx context.Context, arg GetEnrolmentParams) (GetEnrolmentRow, error) {
+	row := q.db.QueryRow(ctx, getEnrolment, arg.WorkspaceID, arg.ID)
+	var i GetEnrolmentRow
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.CampaignID,
+		&i.ContactID,
+		&i.JobID,
+		&i.ProfileID,
+		&i.Intent,
+		&i.Context,
+		&i.MailboxID,
+		&i.CurrentStep,
+		&i.Status,
+		&i.NextActionAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getSenderIdentity = `-- name: GetSenderIdentity :one
 select workspace_id, legal_name, reply_address, postal_address
 from sender_identities
@@ -645,6 +695,58 @@ func (q *Queries) UpdateCampaignStatus(ctx context.Context, arg UpdateCampaignSt
 		&i.NewContactsPerDay,
 		&i.AiInstructions,
 		&i.UndoHoldS,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateEnrolmentStatus = `-- name: UpdateEnrolmentStatus :one
+update enrolments
+set status = $3
+where workspace_id = $1 and id = $2
+returning
+  workspace_id, id, campaign_id, contact_id, job_id, profile_id, intent, context,
+  mailbox_id, current_step, status, next_action_at, created_at
+`
+
+type UpdateEnrolmentStatusParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Status      string
+}
+
+type UpdateEnrolmentStatusRow struct {
+	WorkspaceID  uuid.UUID
+	ID           uuid.UUID
+	CampaignID   uuid.UUID
+	ContactID    uuid.UUID
+	JobID        *uuid.UUID
+	ProfileID    *uuid.UUID
+	Intent       string
+	Context      json.RawMessage
+	MailboxID    *uuid.UUID
+	CurrentStep  int32
+	Status       string
+	NextActionAt pgtype.Timestamptz
+	CreatedAt    pgtype.Timestamptz
+}
+
+func (q *Queries) UpdateEnrolmentStatus(ctx context.Context, arg UpdateEnrolmentStatusParams) (UpdateEnrolmentStatusRow, error) {
+	row := q.db.QueryRow(ctx, updateEnrolmentStatus, arg.WorkspaceID, arg.ID, arg.Status)
+	var i UpdateEnrolmentStatusRow
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.CampaignID,
+		&i.ContactID,
+		&i.JobID,
+		&i.ProfileID,
+		&i.Intent,
+		&i.Context,
+		&i.MailboxID,
+		&i.CurrentStep,
+		&i.Status,
+		&i.NextActionAt,
 		&i.CreatedAt,
 	)
 	return i, err

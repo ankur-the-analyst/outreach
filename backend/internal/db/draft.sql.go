@@ -71,6 +71,66 @@ func (q *Queries) GetDraft(ctx context.Context, arg GetDraftParams) (GetDraftRow
 	return i, err
 }
 
+const getDraftByEnrolmentStep = `-- name: GetDraftByEnrolmentStep :one
+select
+  workspace_id, id, enrolment_id, step_position, mailbox_id, to_addr, rfc_message_id, kind,
+  subject, body_html, body_text, facts_used, status, approved_by, created_at
+from drafts
+where workspace_id = $1
+  and enrolment_id = $2
+  and step_position = $3
+  and status in ('pending', 'approved')
+order by created_at desc
+limit 1
+`
+
+type GetDraftByEnrolmentStepParams struct {
+	WorkspaceID  uuid.UUID
+	EnrolmentID  *uuid.UUID
+	StepPosition pgtype.Int4
+}
+
+type GetDraftByEnrolmentStepRow struct {
+	WorkspaceID  uuid.UUID
+	ID           uuid.UUID
+	EnrolmentID  *uuid.UUID
+	StepPosition pgtype.Int4
+	MailboxID    uuid.UUID
+	ToAddr       string
+	RfcMessageID string
+	Kind         string
+	Subject      string
+	BodyHtml     string
+	BodyText     string
+	FactsUsed    json.RawMessage
+	Status       string
+	ApprovedBy   *uuid.UUID
+	CreatedAt    pgtype.Timestamptz
+}
+
+func (q *Queries) GetDraftByEnrolmentStep(ctx context.Context, arg GetDraftByEnrolmentStepParams) (GetDraftByEnrolmentStepRow, error) {
+	row := q.db.QueryRow(ctx, getDraftByEnrolmentStep, arg.WorkspaceID, arg.EnrolmentID, arg.StepPosition)
+	var i GetDraftByEnrolmentStepRow
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.EnrolmentID,
+		&i.StepPosition,
+		&i.MailboxID,
+		&i.ToAddr,
+		&i.RfcMessageID,
+		&i.Kind,
+		&i.Subject,
+		&i.BodyHtml,
+		&i.BodyText,
+		&i.FactsUsed,
+		&i.Status,
+		&i.ApprovedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getLedgerByDraft = `-- name: GetLedgerByDraft :one
 select
   workspace_id, id, mailbox_id, sending_domain_id, enrolment_id, draft_id,
@@ -110,20 +170,22 @@ func (q *Queries) GetLedgerByDraft(ctx context.Context, arg GetLedgerByDraftPara
 
 const insertDraft = `-- name: InsertDraft :one
 insert into drafts (
-  workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
+  workspace_id, id, enrolment_id, step_position, mailbox_id, to_addr, rfc_message_id, kind,
   subject, body_html, body_text, facts_used, status
 ) values (
-  $1, $2, $3, $4, $5, $6,
-  $7, $8, $9, $10, $11
+  $1, $2, $3, $4, $5, $6, $7, $8,
+  $9, $10, $11, $12, $13
 )
 returning
-  workspace_id, id, mailbox_id, to_addr, rfc_message_id, kind,
+  workspace_id, id, enrolment_id, step_position, mailbox_id, to_addr, rfc_message_id, kind,
   subject, body_html, body_text, facts_used, status, approved_by, created_at
 `
 
 type InsertDraftParams struct {
 	WorkspaceID  uuid.UUID
 	ID           uuid.UUID
+	EnrolmentID  *uuid.UUID
+	StepPosition pgtype.Int4
 	MailboxID    uuid.UUID
 	ToAddr       string
 	RfcMessageID string
@@ -138,6 +200,8 @@ type InsertDraftParams struct {
 type InsertDraftRow struct {
 	WorkspaceID  uuid.UUID
 	ID           uuid.UUID
+	EnrolmentID  *uuid.UUID
+	StepPosition pgtype.Int4
 	MailboxID    uuid.UUID
 	ToAddr       string
 	RfcMessageID string
@@ -155,6 +219,8 @@ func (q *Queries) InsertDraft(ctx context.Context, arg InsertDraftParams) (Inser
 	row := q.db.QueryRow(ctx, insertDraft,
 		arg.WorkspaceID,
 		arg.ID,
+		arg.EnrolmentID,
+		arg.StepPosition,
 		arg.MailboxID,
 		arg.ToAddr,
 		arg.RfcMessageID,
@@ -169,6 +235,8 @@ func (q *Queries) InsertDraft(ctx context.Context, arg InsertDraftParams) (Inser
 	err := row.Scan(
 		&i.WorkspaceID,
 		&i.ID,
+		&i.EnrolmentID,
+		&i.StepPosition,
 		&i.MailboxID,
 		&i.ToAddr,
 		&i.RfcMessageID,
