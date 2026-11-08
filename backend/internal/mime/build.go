@@ -13,12 +13,13 @@ import (
 )
 
 type Message struct {
-	From      string
-	To        []string
-	Subject   string
-	Text      string
-	HTML      string
-	MessageID string
+	From            string
+	To              []string
+	Subject         string
+	Text            string
+	HTML            string
+	MessageID       string
+	ListUnsubscribe string
 }
 
 func NewMessageID(host string) (string, error) {
@@ -95,6 +96,10 @@ func Build(m Message) (*Built, error) {
 	fmt.Fprintf(&msg, "Subject: %s\r\n", m.Subject)
 	fmt.Fprintf(&msg, "Message-ID: %s\r\n", msgid)
 	fmt.Fprintf(&msg, "Date: %s\r\n", time.Now().UTC().Format(time.RFC1123Z))
+	if u := strings.TrimSpace(m.ListUnsubscribe); u != "" {
+		fmt.Fprintf(&msg, "List-Unsubscribe: <%s>\r\n", u)
+		fmt.Fprintf(&msg, "List-Unsubscribe-Post: List-Unsubscribe=One-Click\r\n")
+	}
 	fmt.Fprintf(&msg, "MIME-Version: 1.0\r\n")
 	fmt.Fprintf(&msg, "Content-Type: multipart/alternative; boundary=%s\r\n\r\n", mp.Boundary())
 	msg.Write(body.Bytes())

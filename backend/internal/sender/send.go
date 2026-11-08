@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/db"
 	"outreach/internal/mailbox"
@@ -55,10 +56,7 @@ func (p *Postgres) Send(ctx context.Context, workspaceID, ledgerID uuid.UUID, in
 		_, _ = p.Advance(ctx, workspaceID, ledgerID, pacing.StateFailed)
 		return Entry{}, err
 	}
-	built, err := mime.Build(mime.Message{
-		From: from, To: in.To, Subject: in.Subject, Text: in.Text, HTML: in.HTML,
-		MessageID: ent.RFCMessageID,
-	})
+	built, err := p.buildMIME(ctx, workspaceID, ledgerID, from, ent.RFCMessageID, in)
 	if err != nil {
 		_, _ = p.Advance(ctx, workspaceID, ledgerID, pacing.StateFailed)
 		return Entry{}, err
@@ -122,4 +120,46 @@ func (p *Postgres) recordAttempt(ctx context.Context, workspaceID, ledgerID uuid
 			ProviderResponse: resp,
 		})
 	})
+}
+
+func (p *Postgres) buildMIME(ctx context.Context, workspaceID, ledgerID uuid.UUID, from, messageID string, in SendInput) (*mime.Built, error) {
+	msg := mime.Message{
+		From: from, To: in.To, Subject: in.Subject, Text: in.Text, HTML: in.HTML,
+		MessageID: messageID,
+	}
+	if u := p.listUnsubURL(ctx, workspaceID, ledgerID, in.To); u != "" {
+		msg.ListUnsubscribe = u
+	}
+	return mime.Build(msg)
+}
+
+func (p *Postgres) listUnsubURL(ctx context.Context, workspaceID, ledgerID uuid.UUID, to []string) string {
+	if p.hmac == nil || p.publicBase == "" || len(to) == 0 {
+		return ""
+	}
+	var want bool
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		ok, err := q.CampaignWantsListUnsubscribe(ctx, db.CampaignWantsListUnsubscribeParams{
+			WorkspaceID: workspaceID, ID: ledgerID,
+		})
+		if err != nil {
+			return err
+		}
+		want = ok
+		return nil
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ""
+		}
+		return ""
+	}
+	if !want {
+		return ""
+	}
+	u, err := suppression.OneClickURL(p.publicBase, p.hmac, workspaceID, to[0])
+	if err != nil {
+		return ""
+	}
+	return u
 }

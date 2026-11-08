@@ -161,6 +161,17 @@ left join lateral (
 where e.workspace_id = $1
 order by coalesce(d.created_at, e.created_at) desc;
 
+-- name: CampaignWantsListUnsubscribe :one
+select c.list_unsubscribe
+from send_ledger l
+join drafts d
+  on d.workspace_id = l.workspace_id and d.id = l.draft_id
+join enrolments e
+  on e.workspace_id = d.workspace_id and e.id = d.enrolment_id
+join campaigns c
+  on c.workspace_id = e.workspace_id and c.id = e.campaign_id
+where l.workspace_id = $1 and l.id = $2;
+
 -- name: ListDueEmailSteps :many
 select e.id as enrolment_id, s.position as step_position
 from enrolments e

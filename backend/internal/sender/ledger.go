@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/db"
 	"outreach/internal/pacing"
+	"outreach/internal/suppression"
 )
 
 var (
@@ -47,13 +48,15 @@ type ReconcileEnqueuer interface {
 }
 
 type Postgres struct {
-	pool    *db.Pool
-	now     func() time.Time
-	hold    time.Duration
-	unknown time.Duration
-	dial    Dialer
-	queue   ReconcileEnqueuer
-	block   Blocker
+	pool       *db.Pool
+	now        func() time.Time
+	hold       time.Duration
+	unknown    time.Duration
+	dial       Dialer
+	queue      ReconcileEnqueuer
+	block      Blocker
+	publicBase string
+	hmac       suppression.Hasher
 }
 
 func NewPostgres(pool *db.Pool, now func() time.Time, hold time.Duration) *Postgres {
@@ -78,6 +81,12 @@ func (p *Postgres) WithQueue(q ReconcileEnqueuer) *Postgres {
 
 func (p *Postgres) WithBlocker(b Blocker) *Postgres {
 	p.block = b
+	return p
+}
+
+func (p *Postgres) WithUnsub(base string, h suppression.Hasher) *Postgres {
+	p.publicBase = strings.TrimRight(strings.TrimSpace(base), "/")
+	p.hmac = h
 	return p
 }
 

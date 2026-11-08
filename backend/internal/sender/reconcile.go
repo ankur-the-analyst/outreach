@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"outreach/internal/db"
-	"outreach/internal/mime"
 	"outreach/internal/pacing"
 )
 
@@ -82,10 +81,7 @@ func (p *Postgres) Reconcile(ctx context.Context, workspaceID, ledgerID uuid.UUI
 		return p.Advance(ctx, workspaceID, ledgerID, pacing.StateFailed)
 	}
 
-	built, err := mime.Build(mime.Message{
-		From: from, To: in.To, Subject: in.Subject, Text: in.Text, HTML: in.HTML,
-		MessageID: row.RfcMessageID,
-	})
+	built, err := p.buildMIME(ctx, workspaceID, ledgerID, from, row.RfcMessageID, in)
 	if err != nil {
 		_, _ = p.Advance(ctx, workspaceID, ledgerID, pacing.StateFailed)
 		return Entry{}, err

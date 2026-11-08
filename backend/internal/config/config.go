@@ -14,6 +14,7 @@ type Config struct {
 	UndoHoldS       int    `split_words:"true" default:"300"`
 	UnknownTimeoutS int    `split_words:"true" default:"900"`
 	MailpitAPI      string `split_words:"true" default:"http://127.0.0.1:8025"`
+	PublicBaseURL   string `split_words:"true" default:"http://127.0.0.1:8080"`
 }
 
 func Load() (Config, error) {

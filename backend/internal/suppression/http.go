@@ -16,10 +16,11 @@ type Store interface {
 
 type API struct {
 	store Store
+	hmac  Hasher
 }
 
-func New(store Store) *API {
-	return &API{store: store}
+func New(store Store, hmac Hasher) *API {
+	return &API{store: store, hmac: hmac}
 }
 
 func (a *API) Create(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +53,21 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, ent)
+}
+
+func (a *API) OneClick(w http.ResponseWriter, r *http.Request) {
+	wsID, email, err := ParseToken(a.hmac, r.PathValue("token"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	if _, err := a.store.Add(r.Context(), wsID, KindEmail, email, "opt-out"); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "internal error")
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte("You've been unsubscribed.\n"))
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

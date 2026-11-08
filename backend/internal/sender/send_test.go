@@ -1,6 +1,7 @@
 package sender
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -96,7 +97,7 @@ func TestAppendSentFailureStillSent(t *testing.T) {
 		t.Fatal(err)
 	}
 	stub := &stubTransport{appendErr: errors.New("imap down")}
-	led := NewPostgres(pool, time.Now, time.Minute).WithDialer(stubDialer{tr: stub})
+	led := NewPostgres(pool, time.Now, time.Minute).WithDialer(stubDialer{tr: stub}).WithUnsub("http://127.0.0.1:8080", keys)
 	held, err := led.Hold(ctx, wsID, HoldInput{MailboxID: mb.ID, RFCMessageID: "<stable@outreach.test>"})
 	if err != nil {
 		t.Fatal(err)
@@ -113,6 +114,9 @@ func TestAppendSentFailureStillSent(t *testing.T) {
 	}
 	if stub.last == nil || stub.last.MessageID != "<stable@outreach.test>" {
 		t.Fatalf("%+v", stub.last)
+	}
+	if bytes.Contains(stub.last.Bytes, []byte("List-Unsubscribe:")) {
+		t.Fatal("one-off must not set List-Unsubscribe")
 	}
 }
 

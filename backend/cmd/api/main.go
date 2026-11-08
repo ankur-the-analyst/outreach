@@ -93,12 +93,13 @@ func main() {
 	hold := time.Duration(cfg.UndoHoldS) * time.Second
 	unknown := time.Duration(cfg.UnknownTimeoutS) * time.Second
 	suppStore := suppression.NewPostgres(pool, keys)
-	supp := suppression.New(suppStore)
+	supp := suppression.New(suppStore, keys)
 	led := sender.NewPostgres(pool, time.Now, hold).
 		WithDialer(sender.NewMailboxDialer(pool, keys)).
 		WithUnknownTimeout(unknown).
 		WithQueue(reconcileJobs{client: jobs}).
-		WithBlocker(suppStore)
+		WithBlocker(suppStore).
+		WithUnsub(cfg.PublicBaseURL, keys)
 	snd := sender.New(led)
 	writer := &ai.Fake{
 		Model: "fake-8", Dim: evidence.Dim,
@@ -121,6 +122,8 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
+	mux.HandleFunc("POST /api/v1/unsubscribe/{token}", supp.OneClick)
+	mux.HandleFunc("GET /api/v1/unsubscribe/{token}", supp.OneClick)
 	mux.HandleFunc("POST /api/v1/auth/register", a.Register)
 	mux.HandleFunc("POST /api/v1/auth/login", a.Login)
 	mux.Handle("POST /api/v1/auth/logout", a.Require(http.HandlerFunc(a.Logout)))

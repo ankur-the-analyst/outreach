@@ -50,7 +50,8 @@ func main() {
 	unknown := time.Duration(cfg.UnknownTimeoutS) * time.Second
 	led := sender.NewPostgres(pool, time.Now, hold).
 		WithDialer(sender.NewMailboxDialer(pool, keys)).
-		WithUnknownTimeout(unknown)
+		WithUnknownTimeout(unknown).
+		WithUnsub(cfg.PublicBaseURL, keys)
 	jobs, err := worker.NewInsertClient(pool)
 	if err != nil {
 		logger.Error("river insert client", "err", err)

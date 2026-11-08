@@ -13,6 +13,30 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const campaignWantsListUnsubscribe = `-- name: CampaignWantsListUnsubscribe :one
+select c.list_unsubscribe
+from send_ledger l
+join drafts d
+  on d.workspace_id = l.workspace_id and d.id = l.draft_id
+join enrolments e
+  on e.workspace_id = d.workspace_id and e.id = d.enrolment_id
+join campaigns c
+  on c.workspace_id = e.workspace_id and c.id = e.campaign_id
+where l.workspace_id = $1 and l.id = $2
+`
+
+type CampaignWantsListUnsubscribeParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) CampaignWantsListUnsubscribe(ctx context.Context, arg CampaignWantsListUnsubscribeParams) (bool, error) {
+	row := q.db.QueryRow(ctx, campaignWantsListUnsubscribe, arg.WorkspaceID, arg.ID)
+	var list_unsubscribe bool
+	err := row.Scan(&list_unsubscribe)
+	return list_unsubscribe, err
+}
+
 const countCampaignFirstTouchToday = `-- name: CountCampaignFirstTouchToday :one
 select count(*)::bigint as n
 from drafts d
