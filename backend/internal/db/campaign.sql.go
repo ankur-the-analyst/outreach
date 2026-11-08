@@ -713,6 +713,46 @@ func (q *Queries) ListEnrolments(ctx context.Context, arg ListEnrolmentsParams) 
 	return items, nil
 }
 
+const listOpenEnrolmentsByEmail = `-- name: ListOpenEnrolmentsByEmail :many
+select e.id, e.status
+from enrolments e
+join contacts c
+  on c.workspace_id = e.workspace_id and c.id = e.contact_id
+where e.workspace_id = $1
+  and c.email = $2
+  and e.status in ('pending', 'active', 'waiting_review', 'held')
+`
+
+type ListOpenEnrolmentsByEmailParams struct {
+	WorkspaceID uuid.UUID
+	Email       string
+}
+
+type ListOpenEnrolmentsByEmailRow struct {
+	ID     uuid.UUID
+	Status string
+}
+
+func (q *Queries) ListOpenEnrolmentsByEmail(ctx context.Context, arg ListOpenEnrolmentsByEmailParams) ([]ListOpenEnrolmentsByEmailRow, error) {
+	rows, err := q.db.Query(ctx, listOpenEnrolmentsByEmail, arg.WorkspaceID, arg.Email)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOpenEnrolmentsByEmailRow
+	for rows.Next() {
+		var i ListOpenEnrolmentsByEmailRow
+		if err := rows.Scan(&i.ID, &i.Status); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTrackerRows = `-- name: ListTrackerRows :many
 select
   e.id,

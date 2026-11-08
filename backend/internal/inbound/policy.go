@@ -5,20 +5,23 @@ type Effect struct {
 	Hold       bool
 	Stop       bool
 	ReplyDraft bool
+	Enrolment  string
 }
 
 func Policy(c Class) Effect {
 	switch c {
-	case ClassUnsubscribe, ClassComplaint, ClassDSN:
-		return Effect{Suppress: true}
+	case ClassUnsubscribe, ClassComplaint:
+		return Effect{Suppress: true, Enrolment: "unsubscribed"}
+	case ClassDSN:
+		return Effect{Suppress: true, Enrolment: "bounced"}
 	case ClassOutOfOffice:
-		return Effect{Hold: true}
+		return Effect{Hold: true, Enrolment: "held"}
 	case ClassNotNow, ClassRejection:
-		return Effect{Stop: true}
+		return Effect{Stop: true, Enrolment: "stopped"}
 	case ClassInterested, ClassInterview, ClassQuestion, ClassReferral:
-		return Effect{ReplyDraft: true}
+		return Effect{ReplyDraft: true, Enrolment: "replied"}
 	case ClassOther:
-		return Effect{}
+		return Effect{Enrolment: "replied"}
 	default:
 		return Effect{}
 	}

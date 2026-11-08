@@ -75,10 +75,35 @@ func (p *Processor) Apply(ctx context.Context, workspaceID, messageID uuid.UUID,
 			return fmt.Errorf("inbound: suppress: %w", err)
 		}
 	}
+	if from != "" && eff.Enrolment != "" {
+		if err := p.setEnrolments(ctx, workspaceID, from, eff.Enrolment); err != nil {
+			return err
+		}
+	}
 	if !eff.ReplyDraft || from == "" {
 		return nil
 	}
 	return p.insertReply(ctx, workspaceID, messageID, from, subject)
+}
+
+func (p *Processor) setEnrolments(ctx context.Context, workspaceID uuid.UUID, from, status string) error {
+	email := strings.ToLower(strings.TrimSpace(from))
+	return p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		rows, err := q.ListOpenEnrolmentsByEmail(ctx, db.ListOpenEnrolmentsByEmailParams{
+			WorkspaceID: workspaceID, Email: email,
+		})
+		if err != nil {
+			return fmt.Errorf("inbound: enrolments: %w", err)
+		}
+		for _, row := range rows {
+			if _, err := q.UpdateEnrolmentStatus(ctx, db.UpdateEnrolmentStatusParams{
+				WorkspaceID: workspaceID, ID: row.ID, Status: status,
+			}); err != nil {
+				return fmt.Errorf("inbound: enrolment status: %w", err)
+			}
+		}
+		return nil
+	})
 }
 
 func (p *Processor) ClassifyStored(ctx context.Context, workspaceID, messageID uuid.UUID) error {

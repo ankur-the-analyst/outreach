@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"outreach/internal/campaign"
+	"outreach/internal/contacts"
 	"outreach/internal/crypto"
 	"outreach/internal/db"
 	"outreach/internal/mailbox"
@@ -64,6 +66,46 @@ func TestInterestedCreatesPendingReplyDraft(t *testing.T) {
 	}
 }
 
+func TestInterestedMarksEnrolmentReplied(t *testing.T) {
+	ctx, pool, wsID, mb, proc := setupInbound(t)
+	userID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ct, err := contacts.NewPostgres(pool).Create(ctx, wsID, contacts.CreateInput{
+		Email: "lead@acme.test", Source: "typed", AddedBy: userID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	packs, err := campaign.LoadPacks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := campaign.NewPostgres(pool, packs)
+	camp, err := store.Create(ctx, wsID, campaign.CreateInput{
+		Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	en, err := store.Enrol(ctx, wsID, camp.ID, campaign.EnrolInput{ContactID: ct.ID, Notes: "met at a meetup"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := fakeSource{items: []mailsync.Item{{
+		RFCMessageID: "<yes3@x>", Subject: "re: role", From: "lead@acme.test",
+		To: []string{"box@example.test"}, Text: "I'm interested in chatting.", At: time.Now().UTC(),
+	}}}
+	if _, err := mailsync.NewPostgres(pool, src).WithInbound(proc).SyncMailbox(ctx, wsID, mb.ID); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.ListEnrolments(ctx, wsID, camp.ID)
+	if err != nil || len(got) != 1 || got[0].ID != en.ID || got[0].Status != "replied" {
+		t.Fatalf("%+v %v", got, err)
+	}
+}
+
 func TestReplyModeOffSkipsDraft(t *testing.T) {
 	ctx, pool, wsID, mb, proc := setupInbound(t)
 	err := mailbox.NewPostgres(pool, mustKeys(t)).SetReplyMode(ctx, wsID, mb.ID, "off")
@@ -110,7 +152,13 @@ func setupInbound(t *testing.T) (context.Context, *db.Pool, uuid.UUID, mailbox.M
 			_ = q.DeleteMessagesForWorkspace(ctx, wsID)
 			_ = q.DeleteThreadsForWorkspace(ctx, wsID)
 			_ = q.DeleteSyncStateForWorkspace(ctx, wsID)
+			_ = q.DeleteEnrolmentsForWorkspace(ctx, wsID)
+			_ = q.DeleteCampaignSendersForWorkspace(ctx, wsID)
+			_ = q.DeleteCampaignStepsForWorkspace(ctx, wsID)
+			_ = q.DeleteCampaignsForWorkspace(ctx, wsID)
 			_ = q.DeleteSuppressionForWorkspace(ctx, wsID)
+			_ = q.DeleteContactsForWorkspace(ctx, wsID)
+			_ = q.DeleteCompaniesForWorkspace(ctx, wsID)
 			_ = q.DeleteMailboxesForWorkspace(ctx, wsID)
 			_ = q.DeleteSecretsForWorkspace(ctx, wsID)
 			_ = q.DeleteWarmupProfilesForWorkspace(ctx, wsID)
