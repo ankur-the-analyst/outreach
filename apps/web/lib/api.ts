@@ -145,6 +145,23 @@ export function getCampaigns() {
   return apiGet<{ campaigns: Campaign[] }>("/api/v1/campaigns");
 }
 
+export type CampaignPerson = {
+  id: string;
+  campaign_id: string;
+  contact_id: string;
+  job_id?: string;
+  profile_id?: string;
+  status: string;
+  created_at: string;
+};
+
+export async function getCampaignPeople(campaignID: string) {
+  const data = await apiGet<{ enrolments: CampaignPerson[] }>(
+    `/api/v1/campaigns/${campaignID}/enrolments`,
+  );
+  return data?.enrolments ?? [];
+}
+
 export type Profile = {
   id: string;
   name: string;

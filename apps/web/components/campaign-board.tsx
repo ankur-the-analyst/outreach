@@ -8,8 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageBody, PageHeader, Pill } from "@/components/page-header";
 import { SenderIdentityForm } from "@/components/sender-identity-form";
-import type { Campaign, Contact, Job, Mailbox, Profile } from "@/lib/api";
+import type {
+  Campaign,
+  CampaignPerson,
+  Contact,
+  Job,
+  Mailbox,
+  Profile,
+} from "@/lib/api";
 import {
+  campaignPersonStatus,
   campaignStatusLabel,
   contactName,
   fieldSelect,
@@ -56,12 +64,14 @@ export function CampaignBoard({
   mailboxes,
   jobs,
   profiles,
+  peopleByCampaign,
 }: {
   campaigns: Campaign[];
   contacts: Contact[];
   mailboxes: Mailbox[];
   jobs: Job[];
   profiles: Profile[];
+  peopleByCampaign: Record<string, CampaignPerson[]>;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [addFor, setAddFor] = useState<string | null>(null);
@@ -112,6 +122,10 @@ export function CampaignBoard({
                 key={c.id}
                 campaign={c}
                 mailboxes={mailboxes}
+                contacts={contacts}
+                jobs={jobs}
+                profiles={profiles}
+                people={peopleByCampaign[c.id] ?? []}
                 onAdd={() => setAddFor(c.id)}
               />
             ))
@@ -149,10 +163,18 @@ export function CampaignBoard({
 function CampaignCard({
   campaign,
   mailboxes,
+  contacts,
+  jobs,
+  profiles,
+  people,
   onAdd,
 }: {
   campaign: Campaign;
   mailboxes: Mailbox[];
+  contacts: Contact[];
+  jobs: Job[];
+  profiles: Profile[];
+  people: CampaignPerson[];
   onAdd: () => void;
 }) {
   const router = useRouter();
@@ -191,6 +213,8 @@ function CampaignCard({
           </div>
           <p className="mt-1 font-body-sm text-muted-foreground">
             {campaign.list_unsubscribe ? "Includes unsubscribe · " : ""}
+            {people.length} {people.length === 1 ? "person" : "people"}
+            {" · "}
             {emails} {emails === 1 ? "email" : "emails"}
             {box ? ` · ${box.email}` : ""}
           </p>
@@ -219,6 +243,44 @@ function CampaignCard({
           </li>
         ))}
       </ol>
+      <div className="mb-4">
+        {people.length === 0 ? (
+          <p className="font-body-md text-muted-foreground">
+            No one in this campaign yet.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {people.map((p) => {
+              const contact = contacts.find((c) => c.id === p.contact_id);
+              const job = jobs.find((j) => j.id === p.job_id);
+              const profile = profiles.find((pr) => pr.id === p.profile_id);
+              const who = contact ? contactName(contact) : p.contact_id;
+              const bits = [
+                job?.title || (job ? "Untitled job" : null),
+                profile?.name,
+              ].filter(Boolean);
+              return (
+                <li
+                  key={p.id}
+                  className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-border bg-muted px-2.5 py-2"
+                >
+                  <div>
+                    <p className="font-label-md text-foreground">{who}</p>
+                    {bits.length > 0 ? (
+                      <p className="font-body-sm text-muted-foreground">
+                        {bits.join(" · ")}
+                      </p>
+                    ) : null}
+                  </div>
+                  <p className="font-body-sm text-muted-foreground">
+                    {campaignPersonStatus[p.status] ?? p.status}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
       <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
         {campaign.status === "draft" || campaign.status === "paused" ? (
           <Button

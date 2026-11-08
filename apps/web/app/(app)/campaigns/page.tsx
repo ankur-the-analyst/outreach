@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { CampaignBoard } from "@/components/campaign-board";
 import { PageLoading } from "@/components/page-header";
 import {
+  getCampaignPeople,
   getCampaigns,
   getContacts,
   getJobs,
@@ -19,14 +20,20 @@ async function CampaignsBody() {
     getJobs(),
     getProfiles(),
   ]);
+  const list = campaigns?.campaigns ?? [];
+  const peopleEntries = await Promise.all(
+    list.map(async (c) => [c.id, await getCampaignPeople(c.id)] as const),
+  );
+  const peopleByCampaign = Object.fromEntries(peopleEntries);
   return (
     <main className="flex min-h-0 flex-1 flex-col">
       <CampaignBoard
-        campaigns={campaigns?.campaigns ?? []}
+        campaigns={list}
         contacts={contacts?.contacts ?? []}
         mailboxes={mailboxes?.mailboxes ?? []}
         jobs={jobs?.jobs ?? []}
         profiles={profiles?.profiles ?? []}
+        peopleByCampaign={peopleByCampaign}
       />
     </main>
   );

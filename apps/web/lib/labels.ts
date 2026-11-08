@@ -22,6 +22,14 @@ export const campaignStatusLabel: Record<string, string> = {
   completed: "Done",
 };
 
+export const campaignPersonStatus: Record<string, string> = {
+  pending: "Queued",
+  waiting_review: "Drafted",
+  active: "In sequence",
+  replied: "Replied",
+  stopped: "Stopped",
+};
+
 export const trackerStageLabel: Record<string, string> = {
   queued: "Queued",
   drafted: "Drafted",
