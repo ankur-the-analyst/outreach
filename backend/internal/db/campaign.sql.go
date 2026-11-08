@@ -96,6 +96,21 @@ func (q *Queries) DeleteCampaignsForWorkspace(ctx context.Context, workspaceID u
 	return err
 }
 
+const deleteEnrolmentsForContact = `-- name: DeleteEnrolmentsForContact :exec
+delete from enrolments
+where workspace_id = $1 and contact_id = $2
+`
+
+type DeleteEnrolmentsForContactParams struct {
+	WorkspaceID uuid.UUID
+	ContactID   uuid.UUID
+}
+
+func (q *Queries) DeleteEnrolmentsForContact(ctx context.Context, arg DeleteEnrolmentsForContactParams) error {
+	_, err := q.db.Exec(ctx, deleteEnrolmentsForContact, arg.WorkspaceID, arg.ContactID)
+	return err
+}
+
 const deleteEnrolmentsForWorkspace = `-- name: DeleteEnrolmentsForWorkspace :exec
 delete from enrolments where workspace_id = $1
 `

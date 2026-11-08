@@ -54,3 +54,19 @@ group by mailbox_id;
 -- name: DeleteLedgerForWorkspace :exec
 delete from send_ledger
 where workspace_id = $1;
+
+-- name: DeleteLedgerForContact :exec
+delete from send_ledger l
+where l.workspace_id = sqlc.arg('workspace_id')
+  and (
+    exists (
+      select 1 from enrolments e
+      where e.workspace_id = l.workspace_id and e.id = l.enrolment_id
+        and e.contact_id = sqlc.arg('contact_id')
+    )
+    or exists (
+      select 1 from drafts d
+      where d.workspace_id = l.workspace_id and d.id = l.draft_id
+        and d.to_addr = sqlc.arg('email')
+    )
+  );

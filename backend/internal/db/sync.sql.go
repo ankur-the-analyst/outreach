@@ -21,6 +21,30 @@ func (q *Queries) AdvisoryLockMailbox(ctx context.Context, dollar_1 string) erro
 	return err
 }
 
+const deleteMessagesForContact = `-- name: DeleteMessagesForContact :exec
+delete from messages
+where messages.workspace_id = $1
+  and (
+    from_addr = $2
+    or $2::text = any(to_addrs)
+    or enrolment_id in (
+      select id from enrolments
+      where workspace_id = $1 and contact_id = $3
+    )
+  )
+`
+
+type DeleteMessagesForContactParams struct {
+	WorkspaceID uuid.UUID
+	Email       pgtype.Text
+	ContactID   uuid.UUID
+}
+
+func (q *Queries) DeleteMessagesForContact(ctx context.Context, arg DeleteMessagesForContactParams) error {
+	_, err := q.db.Exec(ctx, deleteMessagesForContact, arg.WorkspaceID, arg.Email, arg.ContactID)
+	return err
+}
+
 const deleteMessagesForWorkspace = `-- name: DeleteMessagesForWorkspace :exec
 delete from messages where workspace_id = $1
 `
@@ -36,6 +60,21 @@ delete from sync_state where workspace_id = $1
 
 func (q *Queries) DeleteSyncStateForWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteSyncStateForWorkspace, workspaceID)
+	return err
+}
+
+const deleteThreadsForContact = `-- name: DeleteThreadsForContact :exec
+delete from threads
+where workspace_id = $1 and contact_id = $2
+`
+
+type DeleteThreadsForContactParams struct {
+	WorkspaceID uuid.UUID
+	ContactID   *uuid.UUID
+}
+
+func (q *Queries) DeleteThreadsForContact(ctx context.Context, arg DeleteThreadsForContactParams) error {
+	_, err := q.db.Exec(ctx, deleteThreadsForContact, arg.WorkspaceID, arg.ContactID)
 	return err
 }
 

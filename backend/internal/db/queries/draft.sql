@@ -63,3 +63,14 @@ limit 1;
 -- name: DeleteDraftsForWorkspace :exec
 delete from drafts
 where workspace_id = $1;
+
+-- name: DeleteDraftsForContact :exec
+delete from drafts
+where drafts.workspace_id = sqlc.arg('workspace_id')
+  and (
+    to_addr = sqlc.arg('email')
+    or enrolment_id in (
+      select id from enrolments
+      where workspace_id = sqlc.arg('workspace_id') and contact_id = sqlc.arg('contact_id')
+    )
+  );

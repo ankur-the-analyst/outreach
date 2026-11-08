@@ -191,6 +191,10 @@ order by e.created_at, e.id;
 -- name: DeleteEnrolmentsForWorkspace :exec
 delete from enrolments where workspace_id = $1;
 
+-- name: DeleteEnrolmentsForContact :exec
+delete from enrolments
+where workspace_id = $1 and contact_id = $2;
+
 -- name: DeleteCampaignSendersForWorkspace :exec
 delete from campaign_senders where workspace_id = $1;
 

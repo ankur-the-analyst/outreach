@@ -78,6 +78,22 @@ set last_synced_at = excluded.last_synced_at, last_error = excluded.last_error;
 -- name: DeleteMessagesForWorkspace :exec
 delete from messages where workspace_id = $1;
 
+-- name: DeleteMessagesForContact :exec
+delete from messages
+where messages.workspace_id = sqlc.arg('workspace_id')
+  and (
+    from_addr = sqlc.arg('email')
+    or sqlc.arg('email')::text = any(to_addrs)
+    or enrolment_id in (
+      select id from enrolments
+      where workspace_id = sqlc.arg('workspace_id') and contact_id = sqlc.arg('contact_id')
+    )
+  );
+
+-- name: DeleteThreadsForContact :exec
+delete from threads
+where workspace_id = $1 and contact_id = $2;
+
 -- name: DeleteThreadsForWorkspace :exec
 delete from threads where workspace_id = $1;
 

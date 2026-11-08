@@ -39,6 +39,7 @@ func (f *fakeStore) Patch(context.Context, uuid.UUID, uuid.UUID, PatchInput) (Co
 	return f.c, nil
 }
 func (f *fakeStore) Delete(context.Context, uuid.UUID, uuid.UUID) error { return nil }
+func (f *fakeStore) Erase(context.Context, uuid.UUID, uuid.UUID) error  { return f.err }
 
 func TestCreateRejectsEmptyProvenance(t *testing.T) {
 	t.Parallel()
@@ -55,6 +56,23 @@ func TestCreateRejectsEmptyProvenance(t *testing.T) {
 	}
 	if !bytes.Contains(rec.Body.Bytes(), []byte("provenance required")) {
 		t.Fatalf("%s", rec.Body.String())
+	}
+}
+
+func TestEraseHTTP(t *testing.T) {
+	t.Parallel()
+	id := uuid.MustParse("01700000-0000-7000-8000-000000000003")
+	api := New(&fakeStore{role: "owner"})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/contacts/"+id.String()+"/erase", nil)
+	req.SetPathValue("id", id.String())
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Erase(rec, req)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 }
 

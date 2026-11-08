@@ -49,6 +49,35 @@ func (q *Queries) CountAttemptsByOutcome(ctx context.Context, arg CountAttemptsB
 	return n, err
 }
 
+const deleteAttemptsForContact = `-- name: DeleteAttemptsForContact :exec
+delete from send_attempts
+where send_attempts.workspace_id = $1
+  and ledger_id in (
+    select l.id
+    from send_ledger l
+    left join enrolments e
+      on e.workspace_id = l.workspace_id and e.id = l.enrolment_id
+    left join drafts d
+      on d.workspace_id = l.workspace_id and d.id = l.draft_id
+    where l.workspace_id = $1
+      and (
+        e.contact_id = $2
+        or d.to_addr = $3
+      )
+  )
+`
+
+type DeleteAttemptsForContactParams struct {
+	WorkspaceID uuid.UUID
+	ContactID   uuid.UUID
+	Email       string
+}
+
+func (q *Queries) DeleteAttemptsForContact(ctx context.Context, arg DeleteAttemptsForContactParams) error {
+	_, err := q.db.Exec(ctx, deleteAttemptsForContact, arg.WorkspaceID, arg.ContactID, arg.Email)
+	return err
+}
+
 const deleteAttemptsForWorkspace = `-- name: DeleteAttemptsForWorkspace :exec
 delete from send_attempts
 where workspace_id = $1

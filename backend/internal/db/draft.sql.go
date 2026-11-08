@@ -13,6 +13,29 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteDraftsForContact = `-- name: DeleteDraftsForContact :exec
+delete from drafts
+where drafts.workspace_id = $1
+  and (
+    to_addr = $2
+    or enrolment_id in (
+      select id from enrolments
+      where workspace_id = $1 and contact_id = $3
+    )
+  )
+`
+
+type DeleteDraftsForContactParams struct {
+	WorkspaceID uuid.UUID
+	Email       string
+	ContactID   uuid.UUID
+}
+
+func (q *Queries) DeleteDraftsForContact(ctx context.Context, arg DeleteDraftsForContactParams) error {
+	_, err := q.db.Exec(ctx, deleteDraftsForContact, arg.WorkspaceID, arg.Email, arg.ContactID)
+	return err
+}
+
 const deleteDraftsForWorkspace = `-- name: DeleteDraftsForWorkspace :exec
 delete from drafts
 where workspace_id = $1

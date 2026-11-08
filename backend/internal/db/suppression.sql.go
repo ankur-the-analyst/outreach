@@ -12,6 +12,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearSuppressionPlaintext = `-- name: ClearSuppressionPlaintext :exec
+update suppression
+set value_citext = null
+where workspace_id = $1 and kind = $2 and value_hash = $3
+`
+
+type ClearSuppressionPlaintextParams struct {
+	WorkspaceID uuid.UUID
+	Kind        string
+	ValueHash   []byte
+}
+
+func (q *Queries) ClearSuppressionPlaintext(ctx context.Context, arg ClearSuppressionPlaintextParams) error {
+	_, err := q.db.Exec(ctx, clearSuppressionPlaintext, arg.WorkspaceID, arg.Kind, arg.ValueHash)
+	return err
+}
+
 const deleteSuppressionForWorkspace = `-- name: DeleteSuppressionForWorkspace :exec
 delete from suppression
 where workspace_id = $1
@@ -20,6 +37,32 @@ where workspace_id = $1
 func (q *Queries) DeleteSuppressionForWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteSuppressionForWorkspace, workspaceID)
 	return err
+}
+
+const getSuppression = `-- name: GetSuppression :one
+select workspace_id, kind, value_hash, value_citext, reason, created_at
+from suppression
+where workspace_id = $1 and kind = $2 and value_hash = $3
+`
+
+type GetSuppressionParams struct {
+	WorkspaceID uuid.UUID
+	Kind        string
+	ValueHash   []byte
+}
+
+func (q *Queries) GetSuppression(ctx context.Context, arg GetSuppressionParams) (Suppression, error) {
+	row := q.db.QueryRow(ctx, getSuppression, arg.WorkspaceID, arg.Kind, arg.ValueHash)
+	var i Suppression
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.Kind,
+		&i.ValueHash,
+		&i.ValueCitext,
+		&i.Reason,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const insertSuppression = `-- name: InsertSuppression :exec

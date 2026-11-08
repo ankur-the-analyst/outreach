@@ -10,6 +10,16 @@ select exists(
   where workspace_id = $1 and kind = $2 and value_hash = $3
 )::bool as present;
 
+-- name: GetSuppression :one
+select workspace_id, kind, value_hash, value_citext, reason, created_at
+from suppression
+where workspace_id = $1 and kind = $2 and value_hash = $3;
+
+-- name: ClearSuppressionPlaintext :exec
+update suppression
+set value_citext = null
+where workspace_id = $1 and kind = $2 and value_hash = $3;
+
 -- name: DeleteSuppressionForWorkspace :exec
 delete from suppression
 where workspace_id = $1;

@@ -18,6 +18,7 @@ type Store interface {
 	Get(ctx context.Context, workspaceID, id uuid.UUID) (Contact, error)
 	Patch(ctx context.Context, workspaceID, id uuid.UUID, in PatchInput) (Contact, error)
 	Delete(ctx context.Context, workspaceID, id uuid.UUID) error
+	Erase(ctx context.Context, workspaceID, id uuid.UUID) error
 }
 
 type API struct {
@@ -159,6 +160,23 @@ func (a *API) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := a.store.Delete(r.Context(), s.WorkspaceID, id); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *API) Erase(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.edit(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", "invalid id")
+		return
+	}
+	if err := a.store.Erase(r.Context(), s.WorkspaceID, id); err != nil {
 		writeStoreError(w, err)
 		return
 	}

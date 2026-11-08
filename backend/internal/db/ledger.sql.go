@@ -52,6 +52,34 @@ func (q *Queries) CountMailboxUsage(ctx context.Context, arg CountMailboxUsagePa
 	return n, err
 }
 
+const deleteLedgerForContact = `-- name: DeleteLedgerForContact :exec
+delete from send_ledger l
+where l.workspace_id = $1
+  and (
+    exists (
+      select 1 from enrolments e
+      where e.workspace_id = l.workspace_id and e.id = l.enrolment_id
+        and e.contact_id = $2
+    )
+    or exists (
+      select 1 from drafts d
+      where d.workspace_id = l.workspace_id and d.id = l.draft_id
+        and d.to_addr = $3
+    )
+  )
+`
+
+type DeleteLedgerForContactParams struct {
+	WorkspaceID uuid.UUID
+	ContactID   uuid.UUID
+	Email       string
+}
+
+func (q *Queries) DeleteLedgerForContact(ctx context.Context, arg DeleteLedgerForContactParams) error {
+	_, err := q.db.Exec(ctx, deleteLedgerForContact, arg.WorkspaceID, arg.ContactID, arg.Email)
+	return err
+}
+
 const deleteLedgerForWorkspace = `-- name: DeleteLedgerForWorkspace :exec
 delete from send_ledger
 where workspace_id = $1

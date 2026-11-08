@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/db"
+	"outreach/internal/suppression"
 )
 
 var (
@@ -69,6 +70,7 @@ type PatchInput struct {
 
 type Postgres struct {
 	pool *db.Pool
+	hmac suppression.Hasher
 }
 
 func NewPostgres(pool *db.Pool) *Postgres {

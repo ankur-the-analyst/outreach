@@ -45,17 +45,20 @@ export function ContactBook({ contacts }: { contacts: Contact[] }) {
                       {c.title ? ` · ${c.title}` : ""}
                     </p>
                   </div>
-                  <Pill
-                    tone={
-                      c.readiness === "blocked"
-                        ? "danger"
-                        : c.readiness === "risky"
-                          ? "primary"
-                          : "success"
-                    }
-                  >
-                    {c.readiness}
-                  </Pill>
+                  <div className="flex items-center gap-2">
+                    <Pill
+                      tone={
+                        c.readiness === "blocked"
+                          ? "danger"
+                          : c.readiness === "risky"
+                            ? "primary"
+                            : "success"
+                      }
+                    >
+                      {c.readiness}
+                    </Pill>
+                    <RemoveButton id={c.id} />
+                  </div>
                 </div>
                 <p className="mt-2 font-body-sm text-muted-foreground">
                   {c.role_class ? `${c.role_class.replaceAll("_", " ")} · ` : ""}
@@ -71,6 +74,37 @@ export function ContactBook({ contacts }: { contacts: Contact[] }) {
         <CSVPreview />
       </div>
     </div>
+  );
+}
+
+function RemoveButton({ id }: { id: string }) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+
+  async function onRemove() {
+    setPending(true);
+    const res = await fetch(`/api/v1/contacts/${id}/erase`, {
+      method: "POST",
+      credentials: "include",
+    });
+    setPending(false);
+    if (!res.ok) {
+      return;
+    }
+    router.refresh();
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="xs"
+      className="rounded-md"
+      pending={pending}
+      onClick={onRemove}
+    >
+      Remove
+    </Button>
   );
 }
 

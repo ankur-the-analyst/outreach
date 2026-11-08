@@ -112,7 +112,7 @@ func main() {
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
 	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc))
 	jd := jobsjd.New(jobsjd.NewPostgres(pool, storage.NewMemory(), writer))
-	ct := contacts.New(contacts.NewPostgres(pool))
+	ct := contacts.New(contacts.NewPostgres(pool).WithHMAC(keys))
 	packs, err := campaign.LoadPacks()
 	if err != nil {
 		logger.Error("load packs", "err", err)
@@ -174,6 +174,7 @@ func main() {
 	mux.Handle("GET /api/v1/contacts/{id}", a.Require(http.HandlerFunc(ct.Get)))
 	mux.Handle("PATCH /api/v1/contacts/{id}", a.Require(http.HandlerFunc(ct.Patch)))
 	mux.Handle("DELETE /api/v1/contacts/{id}", a.Require(http.HandlerFunc(ct.Delete)))
+	mux.Handle("POST /api/v1/contacts/{id}/erase", a.Require(http.HandlerFunc(ct.Erase)))
 	mux.Handle("GET /api/v1/packs", a.Require(http.HandlerFunc(camp.ListPacks)))
 	mux.Handle("GET /api/v1/sender-identity", a.Require(http.HandlerFunc(camp.GetIdentity)))
 	mux.Handle("PUT /api/v1/sender-identity", a.Require(http.HandlerFunc(camp.PutIdentity)))
