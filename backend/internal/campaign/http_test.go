@@ -52,6 +52,9 @@ func (f *fakeStore) Enrol(context.Context, uuid.UUID, uuid.UUID, EnrolInput) (En
 func (f *fakeStore) ListEnrolments(context.Context, uuid.UUID, uuid.UUID) ([]Enrolment, error) {
 	return nil, nil
 }
+func (f *fakeStore) ListTracker(context.Context, uuid.UUID) ([]TrackerRow, error) {
+	return nil, nil
+}
 
 func TestStartCommercialWithoutIdentity(t *testing.T) {
 	t.Parallel()

@@ -22,6 +22,16 @@ export const campaignStatusLabel: Record<string, string> = {
   completed: "Done",
 };
 
+export const trackerStageLabel: Record<string, string> = {
+  queued: "Queued",
+  drafted: "Drafted",
+  sent: "Sent",
+  replied: "Replied",
+  stopped: "Stopped",
+  bounced: "Bounced",
+  unsubscribed: "Unsubscribed",
+};
+
 export function mailboxStatus(status: string): string {
   switch (status) {
     case "warming":

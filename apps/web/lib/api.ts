@@ -124,6 +124,21 @@ export function getCampaigns() {
   return apiGet<{ campaigns: Campaign[] }>("/api/v1/campaigns");
 }
 
+export type TrackerRow = {
+  id: string;
+  contact: string;
+  email: string;
+  company?: string;
+  campaign: string;
+  campaign_id: string;
+  stage: string;
+  updated_at: string;
+};
+
+export function getTracker() {
+  return apiGet<{ rows: TrackerRow[] }>("/api/v1/tracker");
+}
+
 export type ThreadMessage = {
   id: string;
   direction: string;

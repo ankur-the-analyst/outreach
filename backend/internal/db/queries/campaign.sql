@@ -123,6 +123,44 @@ from enrolments
 where workspace_id = $1 and campaign_id = $2
 order by created_at desc;
 
+-- name: ListTrackerRows :many
+select
+  e.id,
+  e.status as enrolment_status,
+  e.created_at,
+  camp.id as campaign_id,
+  camp.name as campaign_name,
+  ct.email,
+  ct.first_name,
+  ct.last_name,
+  co.name as company_name,
+  coalesce(d.status, '') as draft_status,
+  d.created_at as draft_created_at,
+  coalesce(l.state, '') as ledger_state
+from enrolments e
+join campaigns camp
+  on camp.workspace_id = e.workspace_id and camp.id = e.campaign_id
+join contacts ct
+  on ct.workspace_id = e.workspace_id and ct.id = e.contact_id
+left join companies co
+  on co.workspace_id = ct.workspace_id and co.id = ct.company_id
+left join lateral (
+  select status, created_at
+  from drafts
+  where workspace_id = e.workspace_id and enrolment_id = e.id
+  order by created_at desc
+  limit 1
+) d on true
+left join lateral (
+  select state
+  from send_ledger
+  where workspace_id = e.workspace_id and enrolment_id = e.id
+  order by created_at desc
+  limit 1
+) l on true
+where e.workspace_id = $1
+order by coalesce(d.created_at, e.created_at) desc;
+
 -- name: ListDueEmailSteps :many
 select e.id as enrolment_id, s.position as step_position
 from enrolments e

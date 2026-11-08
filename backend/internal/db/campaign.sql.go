@@ -674,6 +674,93 @@ func (q *Queries) ListEnrolments(ctx context.Context, arg ListEnrolmentsParams) 
 	return items, nil
 }
 
+const listTrackerRows = `-- name: ListTrackerRows :many
+select
+  e.id,
+  e.status as enrolment_status,
+  e.created_at,
+  camp.id as campaign_id,
+  camp.name as campaign_name,
+  ct.email,
+  ct.first_name,
+  ct.last_name,
+  co.name as company_name,
+  coalesce(d.status, '') as draft_status,
+  d.created_at as draft_created_at,
+  coalesce(l.state, '') as ledger_state
+from enrolments e
+join campaigns camp
+  on camp.workspace_id = e.workspace_id and camp.id = e.campaign_id
+join contacts ct
+  on ct.workspace_id = e.workspace_id and ct.id = e.contact_id
+left join companies co
+  on co.workspace_id = ct.workspace_id and co.id = ct.company_id
+left join lateral (
+  select status, created_at
+  from drafts
+  where workspace_id = e.workspace_id and enrolment_id = e.id
+  order by created_at desc
+  limit 1
+) d on true
+left join lateral (
+  select state
+  from send_ledger
+  where workspace_id = e.workspace_id and enrolment_id = e.id
+  order by created_at desc
+  limit 1
+) l on true
+where e.workspace_id = $1
+order by coalesce(d.created_at, e.created_at) desc
+`
+
+type ListTrackerRowsRow struct {
+	ID              uuid.UUID
+	EnrolmentStatus string
+	CreatedAt       pgtype.Timestamptz
+	CampaignID      uuid.UUID
+	CampaignName    string
+	Email           string
+	FirstName       pgtype.Text
+	LastName        pgtype.Text
+	CompanyName     pgtype.Text
+	DraftStatus     string
+	DraftCreatedAt  pgtype.Timestamptz
+	LedgerState     string
+}
+
+func (q *Queries) ListTrackerRows(ctx context.Context, workspaceID uuid.UUID) ([]ListTrackerRowsRow, error) {
+	rows, err := q.db.Query(ctx, listTrackerRows, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTrackerRowsRow
+	for rows.Next() {
+		var i ListTrackerRowsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EnrolmentStatus,
+			&i.CreatedAt,
+			&i.CampaignID,
+			&i.CampaignName,
+			&i.Email,
+			&i.FirstName,
+			&i.LastName,
+			&i.CompanyName,
+			&i.DraftStatus,
+			&i.DraftCreatedAt,
+			&i.LedgerState,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockCampaign = `-- name: LockCampaign :one
 select id
 from campaigns

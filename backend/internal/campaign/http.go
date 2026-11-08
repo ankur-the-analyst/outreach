@@ -24,6 +24,7 @@ type Store interface {
 	Stop(ctx context.Context, workspaceID, id uuid.UUID) (Campaign, error)
 	Enrol(ctx context.Context, workspaceID, campaignID uuid.UUID, in EnrolInput) (Enrolment, error)
 	ListEnrolments(ctx context.Context, workspaceID, campaignID uuid.UUID) ([]Enrolment, error)
+	ListTracker(ctx context.Context, workspaceID uuid.UUID) ([]TrackerRow, error)
 }
 
 type API struct {
@@ -247,6 +248,22 @@ func (a *API) ListEnrolments(w http.ResponseWriter, r *http.Request) {
 		rows = []Enrolment{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"enrolments": rows})
+}
+
+func (a *API) ListTracker(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.member(w, r)
+	if !ok {
+		return
+	}
+	rows, err := a.store.ListTracker(r.Context(), s.WorkspaceID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if rows == nil {
+		rows = []TrackerRow{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"rows": rows})
 }
 
 func parseID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
