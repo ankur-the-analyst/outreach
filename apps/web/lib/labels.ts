@@ -71,6 +71,19 @@ export function mailboxStatus(status: string): string {
   }
 }
 
+export function jobAnalysisLabel(status: string): string {
+  switch (status) {
+    case "pending":
+      return "Not summarized yet";
+    case "ready":
+      return "Summarized";
+    case "failed":
+      return "Couldn't summarize";
+    default:
+      return status;
+  }
+}
+
 export function warmupKindLabel(kind: string): string {
   switch (kind) {
     case "standard":

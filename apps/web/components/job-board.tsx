@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Pill } from "@/components/page-header";
 import type { Fit, Job, Profile } from "@/lib/api";
-import { fieldSelect, fieldTextarea } from "@/lib/labels";
+import { fieldSelect, fieldTextarea, jobAnalysisLabel } from "@/lib/labels";
 
 export function JobBoard({
   jobs,
@@ -29,12 +30,30 @@ export function JobBoard({
                 key={job.id}
                 className="rounded-md border border-border bg-card p-4"
               >
-                <p className="font-label-md text-foreground">
-                  {job.title || "Untitled job"}
-                </p>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <p className="font-label-md text-foreground">
+                    {job.title || "Untitled job"}
+                  </p>
+                  <Pill
+                    tone={
+                      job.analysis_status === "ready"
+                        ? "success"
+                        : job.analysis_status === "failed"
+                          ? "danger"
+                          : "muted"
+                    }
+                  >
+                    {jobAnalysisLabel(job.analysis_status)}
+                  </Pill>
+                </div>
                 {job.source_url ? (
                   <p className="mt-1 break-all font-body-md text-muted-foreground">
                     {job.source_url}
+                  </p>
+                ) : null}
+                {job.analysis?.summary ? (
+                  <p className="mt-2 font-body-md text-foreground">
+                    {job.analysis.summary}
                   </p>
                 ) : null}
                 <p className="mt-2 line-clamp-4 whitespace-pre-wrap font-body-md text-muted-foreground">

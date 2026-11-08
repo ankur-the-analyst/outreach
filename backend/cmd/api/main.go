@@ -113,7 +113,7 @@ func main() {
 	cmp := compose.New(compose.NewPostgres(pool, led).WithWriter(writer).WithBinder(aiStore).WithCite(evStore).WithRetrieve(evStore))
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
 	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc))
-	jd := jobsjd.New(jobsjd.NewPostgres(pool, storage.NewMemory(), writer))
+	jd := jobsjd.New(jobsjd.NewPostgres(pool, storage.NewMemory(), writer).WithBinder(aiStore))
 	ct := contacts.New(contacts.NewPostgres(pool).WithHMAC(keys))
 	packs, err := campaign.LoadPacks()
 	if err != nil {

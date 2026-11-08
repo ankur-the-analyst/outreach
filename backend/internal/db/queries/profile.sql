@@ -50,6 +50,12 @@ from jobs
 where workspace_id = $1
 order by created_at desc;
 
+-- name: UpdateJobAnalysis :one
+update jobs
+set analysis = $3, analysis_status = $4
+where workspace_id = $1 and id = $2
+returning workspace_id, id, source_url, raw_text, title, analysis, analysis_status, created_at;
+
 -- name: UpsertFit :one
 insert into fits (
   workspace_id, id, job_id, profile_id, resume_id, score, result

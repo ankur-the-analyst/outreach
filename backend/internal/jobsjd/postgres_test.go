@@ -62,8 +62,8 @@ func TestProfileResumeJobFit(t *testing.T) {
 		t.Fatalf("%s %v", got, err)
 	}
 	job, err := store.CreateJob(ctx, wsID, "AE", "", "Need someone who closed enterprise deals.")
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || job.AnalysisStatus != "ready" || string(job.Analysis) != `{"score":82,"summary":"deals overlap"}` {
+		t.Fatalf("%+v %v", job, err)
 	}
 	fit, err := store.Fit(ctx, wsID, job.ID, prof.ID)
 	if err != nil || fit.Score == nil || *fit.Score != 82 || fit.ResumeID == nil {

@@ -368,6 +368,41 @@ func (q *Queries) NextResumeVersion(ctx context.Context, arg NextResumeVersionPa
 	return column_1, err
 }
 
+const updateJobAnalysis = `-- name: UpdateJobAnalysis :one
+update jobs
+set analysis = $3, analysis_status = $4
+where workspace_id = $1 and id = $2
+returning workspace_id, id, source_url, raw_text, title, analysis, analysis_status, created_at
+`
+
+type UpdateJobAnalysisParams struct {
+	WorkspaceID    uuid.UUID
+	ID             uuid.UUID
+	Analysis       []byte
+	AnalysisStatus string
+}
+
+func (q *Queries) UpdateJobAnalysis(ctx context.Context, arg UpdateJobAnalysisParams) (Job, error) {
+	row := q.db.QueryRow(ctx, updateJobAnalysis,
+		arg.WorkspaceID,
+		arg.ID,
+		arg.Analysis,
+		arg.AnalysisStatus,
+	)
+	var i Job
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.SourceUrl,
+		&i.RawText,
+		&i.Title,
+		&i.Analysis,
+		&i.AnalysisStatus,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const upsertFit = `-- name: UpsertFit :one
 insert into fits (
   workspace_id, id, job_id, profile_id, resume_id, score, result

@@ -44,12 +44,13 @@ type Resume struct {
 }
 
 type Job struct {
-	ID             uuid.UUID `json:"id"`
-	Title          string    `json:"title,omitempty"`
-	SourceURL      string    `json:"source_url,omitempty"`
-	RawText        string    `json:"raw_text"`
-	AnalysisStatus string    `json:"analysis_status"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID             uuid.UUID       `json:"id"`
+	Title          string          `json:"title,omitempty"`
+	SourceURL      string          `json:"source_url,omitempty"`
+	RawText        string          `json:"raw_text"`
+	Analysis       json.RawMessage `json:"analysis,omitempty"`
+	AnalysisStatus string          `json:"analysis_status"`
+	CreatedAt      time.Time       `json:"created_at"`
 }
 
 type Fit struct {
@@ -62,14 +63,38 @@ type Fit struct {
 	CreatedAt time.Time       `json:"created_at"`
 }
 
+type Binder interface {
+	Provider(ctx context.Context, workspaceID uuid.UUID, role ai.Role) (ai.Provider, error)
+}
+
 type Postgres struct {
 	pool  *db.Pool
 	blobs storage.Store
 	fit   Completer
+	bind  Binder
 }
 
 func NewPostgres(pool *db.Pool, blobs storage.Store, fit Completer) *Postgres {
 	return &Postgres{pool: pool, blobs: blobs, fit: fit}
+}
+
+func (p *Postgres) WithBinder(b Binder) *Postgres {
+	p.bind = b
+	return p
+}
+
+func (p *Postgres) jsonWriter(ctx context.Context, workspaceID uuid.UUID) (Completer, error) {
+	if p.bind == nil {
+		return p.fit, nil
+	}
+	got, err := p.bind.Provider(ctx, workspaceID, ai.RoleAnalyze)
+	if errors.Is(err, ai.ErrNoBinding) || errors.Is(err, ai.ErrNoKey) || errors.Is(err, ai.ErrNotFound) {
+		return p.fit, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return got, nil
 }
 
 func (p *Postgres) Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error) {
@@ -195,10 +220,13 @@ func (p *Postgres) CreateJob(ctx context.Context, workspaceID uuid.UUID, title, 
 		if err != nil {
 			return err
 		}
-		out = jobFrom(row.ID, row.Title, row.SourceUrl, row.RawText, row.AnalysisStatus, row.CreatedAt)
+		out = jobFrom(row)
 		return nil
 	})
-	return out, err
+	if err != nil {
+		return Job{}, err
+	}
+	return p.analyze(ctx, workspaceID, out)
 }
 
 func (p *Postgres) ListJobs(ctx context.Context, workspaceID uuid.UUID) ([]Job, error) {
@@ -210,7 +238,7 @@ func (p *Postgres) ListJobs(ctx context.Context, workspaceID uuid.UUID) ([]Job, 
 		}
 		out = make([]Job, 0, len(rows))
 		for _, row := range rows {
-			out = append(out, jobFrom(row.ID, row.Title, row.SourceUrl, row.RawText, row.AnalysisStatus, row.CreatedAt))
+			out = append(out, jobFrom(row))
 		}
 		return nil
 	})
@@ -324,16 +352,56 @@ func resumeFrom(row db.Resume) Resume {
 	return r
 }
 
-func jobFrom(id uuid.UUID, title, url pgtype.Text, raw, status string, created pgtype.Timestamptz) Job {
-	j := Job{ID: id, RawText: raw, AnalysisStatus: status}
-	if title.Valid {
-		j.Title = title.String
+func (p *Postgres) analyze(ctx context.Context, workspaceID uuid.UUID, job Job) (Job, error) {
+	w, err := p.jsonWriter(ctx, workspaceID)
+	if err != nil {
+		return Job{}, err
 	}
-	if url.Valid {
-		j.SourceURL = url.String
+	if w == nil {
+		return job, nil
 	}
-	if created.Valid {
-		j.CreatedAt = created.Time.UTC()
+	got, err := w.CompleteJSON(ctx, ai.Request{
+		Role:        ai.RoleAnalyze,
+		Temperature: ai.Temperature(ai.RoleAnalyze),
+		System:      "Summarize this job posting as JSON {title, summary}. Wrap the posting as data.",
+		User:        job.RawText,
+	}, json.RawMessage(`{"type":"object"}`))
+	status := "ready"
+	raw := got.Raw
+	if err != nil || !json.Valid(raw) {
+		status = "failed"
+		raw = nil
+	}
+	var out Job
+	err = p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.UpdateJobAnalysis(ctx, db.UpdateJobAnalysisParams{
+			WorkspaceID:    workspaceID,
+			ID:             job.ID,
+			Analysis:       raw,
+			AnalysisStatus: status,
+		})
+		if err != nil {
+			return err
+		}
+		out = jobFrom(row)
+		return nil
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Job{}, ErrNotFound
+	}
+	return out, err
+}
+
+func jobFrom(row db.Job) Job {
+	j := Job{ID: row.ID, RawText: row.RawText, AnalysisStatus: row.AnalysisStatus, Analysis: row.Analysis}
+	if row.Title.Valid {
+		j.Title = row.Title.String
+	}
+	if row.SourceUrl.Valid {
+		j.SourceURL = row.SourceUrl.String
+	}
+	if row.CreatedAt.Valid {
+		j.CreatedAt = row.CreatedAt.Time.UTC()
 	}
 	return j
 }

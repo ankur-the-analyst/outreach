@@ -246,6 +246,7 @@ export type Job = {
   title?: string;
   source_url?: string;
   raw_text: string;
+  analysis?: { summary?: string; title?: string } | null;
   analysis_status: string;
   created_at: string;
 };
