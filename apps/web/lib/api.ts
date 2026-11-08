@@ -71,6 +71,7 @@ export type Mailbox = {
   smtp_port: number;
   effective_daily_limit: number;
   reply_mode?: string;
+  warmup_kind?: string;
 };
 
 export function getMailboxes() {

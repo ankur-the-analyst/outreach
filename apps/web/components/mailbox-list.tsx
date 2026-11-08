@@ -11,6 +11,7 @@ import {
   mailboxStatus,
   mailboxUsageLabel,
   replyModeLabel,
+  warmupKindLabel,
 } from "@/lib/labels";
 
 function mailboxError(message: string): string {
@@ -19,6 +20,8 @@ function mailboxError(message: string): string {
       return "This mailbox has no SMTP server to test";
     case "reply_mode must be draft or off":
       return "Pick draft replies or don't draft";
+    case "not found":
+      return "Unknown send ramp";
     default:
       return message;
   }
@@ -59,6 +62,9 @@ function MailboxRow({
   const [pending, setPending] = useState(false);
   const [replyMode, setReplyModeState] = useState(
     mailbox.reply_mode === "off" ? "off" : "draft",
+  );
+  const [warmupKind, setWarmupKind] = useState(
+    mailbox.warmup_kind || "standard",
   );
 
   async function post(path: string, opts?: { okMsg?: string; refresh?: boolean }) {
@@ -104,6 +110,29 @@ function MailboxRow({
     router.refresh();
   }
 
+  async function setRamp(kind: string) {
+    const prev = warmupKind;
+    setWarmupKind(kind);
+    setMsg("");
+    setPending(true);
+    const res = await fetch(`/api/v1/mailboxes/${mailbox.id}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ warmup_kind: kind }),
+    });
+    setPending(false);
+    if (!res.ok) {
+      setWarmupKind(prev);
+      const data = (await res.json().catch(() => null)) as
+        | { error?: { message?: string } }
+        | null;
+      setMsg(mailboxError(data?.error?.message ?? "Could not update send ramp"));
+      return;
+    }
+    router.refresh();
+  }
+
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card p-4">
       <div>
@@ -133,6 +162,18 @@ function MailboxRow({
         {msg ? (
           <p className="font-body-md text-muted-foreground">{msg}</p>
         ) : null}
+        <select
+          aria-label="Send ramp"
+          disabled={pending}
+          value={warmupKind}
+          onChange={(e) => setRamp(e.target.value)}
+          className={`${fieldSelect} w-auto min-w-[11rem]`}
+        >
+          <option value="standard">{warmupKindLabel("standard")}</option>
+          <option value="conservative">{warmupKindLabel("conservative")}</option>
+          <option value="fast">{warmupKindLabel("fast")}</option>
+          <option value="off">{warmupKindLabel("off")}</option>
+        </select>
         <select
           aria-label="When they reply"
           disabled={pending}

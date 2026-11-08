@@ -66,6 +66,21 @@ export function mailboxStatus(status: string): string {
   }
 }
 
+export function warmupKindLabel(kind: string): string {
+  switch (kind) {
+    case "standard":
+      return "Standard ramp";
+    case "conservative":
+      return "Conservative ramp";
+    case "fast":
+      return "Faster ramp";
+    case "off":
+      return "No ramp";
+    default:
+      return kind;
+  }
+}
+
 export function authKindLabel(kind: string): string {
   switch (kind) {
     case "app_password":

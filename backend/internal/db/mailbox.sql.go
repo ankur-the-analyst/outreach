@@ -569,13 +569,16 @@ func (q *Queries) ListGoogleServiceAccounts(ctx context.Context, workspaceID uui
 
 const listMailboxes = `-- name: ListMailboxes :many
 select
-  workspace_id, id, email, display_name, auth_kind, provider,
-  smtp_host, smtp_port, smtp_tls, imap_host, imap_port, username,
-  sending_domain_id, timezone, warmup_profile_id, warmup_sending_day,
-  effective_daily_limit, status, reply_mode, created_at
-from mailboxes
-where workspace_id = $1
-order by email
+  m.workspace_id, m.id, m.email, m.display_name, m.auth_kind, m.provider,
+  m.smtp_host, m.smtp_port, m.smtp_tls, m.imap_host, m.imap_port, m.username,
+  m.sending_domain_id, m.timezone, m.warmup_profile_id, m.warmup_sending_day,
+  m.effective_daily_limit, m.status, m.reply_mode, m.created_at,
+  w.kind as warmup_kind
+from mailboxes m
+join warmup_profiles w
+  on w.workspace_id = m.workspace_id and w.id = m.warmup_profile_id
+where m.workspace_id = $1
+order by m.email
 `
 
 type ListMailboxesRow struct {
@@ -599,6 +602,7 @@ type ListMailboxesRow struct {
 	Status              string
 	ReplyMode           string
 	CreatedAt           pgtype.Timestamptz
+	WarmupKind          string
 }
 
 func (q *Queries) ListMailboxes(ctx context.Context, workspaceID uuid.UUID) ([]ListMailboxesRow, error) {
@@ -631,6 +635,7 @@ func (q *Queries) ListMailboxes(ctx context.Context, workspaceID uuid.UUID) ([]L
 			&i.Status,
 			&i.ReplyMode,
 			&i.CreatedAt,
+			&i.WarmupKind,
 		); err != nil {
 			return nil, err
 		}
