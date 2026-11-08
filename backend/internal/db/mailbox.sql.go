@@ -200,7 +200,7 @@ func (q *Queries) GetMailboxReplyMode(ctx context.Context, arg GetMailboxReplyMo
 }
 
 const getMailboxWindow = `-- name: GetMailboxWindow :one
-select timezone, window_days, window_start, window_end
+select timezone, window_days, window_start, window_end, status
 from mailboxes
 where workspace_id = $1 and id = $2
 `
@@ -215,6 +215,7 @@ type GetMailboxWindowRow struct {
 	WindowDays  []int32
 	WindowStart pgtype.Time
 	WindowEnd   pgtype.Time
+	Status      string
 }
 
 func (q *Queries) GetMailboxWindow(ctx context.Context, arg GetMailboxWindowParams) (GetMailboxWindowRow, error) {
@@ -225,6 +226,7 @@ func (q *Queries) GetMailboxWindow(ctx context.Context, arg GetMailboxWindowPara
 		&i.WindowDays,
 		&i.WindowStart,
 		&i.WindowEnd,
+		&i.Status,
 	)
 	return i, err
 }

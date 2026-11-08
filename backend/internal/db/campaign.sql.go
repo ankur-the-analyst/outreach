@@ -751,6 +751,23 @@ func (q *Queries) UpdateCampaignStatus(ctx context.Context, arg UpdateCampaignSt
 	return i, err
 }
 
+const updateEnrolmentMailbox = `-- name: UpdateEnrolmentMailbox :exec
+update enrolments
+set mailbox_id = $3
+where workspace_id = $1 and id = $2
+`
+
+type UpdateEnrolmentMailboxParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	MailboxID   *uuid.UUID
+}
+
+func (q *Queries) UpdateEnrolmentMailbox(ctx context.Context, arg UpdateEnrolmentMailboxParams) error {
+	_, err := q.db.Exec(ctx, updateEnrolmentMailbox, arg.WorkspaceID, arg.ID, arg.MailboxID)
+	return err
+}
+
 const updateEnrolmentStatus = `-- name: UpdateEnrolmentStatus :one
 update enrolments
 set status = $3

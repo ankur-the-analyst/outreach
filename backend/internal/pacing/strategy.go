@@ -57,10 +57,12 @@ func Lookup(name string) (Strategy, error) {
 	return s, nil
 }
 
+func MailboxReady(status string) bool {
+	return status == StatusHealthy || status == StatusWarming
+}
+
 func Eligible(v MailboxView) bool {
-	switch v.Status {
-	case StatusHealthy, StatusWarming:
-	default:
+	if !MailboxReady(v.Status) {
 		return false
 	}
 	if v.DailyLimit > 0 && v.Used >= v.DailyLimit {

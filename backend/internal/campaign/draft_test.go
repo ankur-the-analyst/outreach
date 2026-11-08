@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"outreach/internal/contacts"
 	"outreach/internal/crypto"
 	"outreach/internal/db"
@@ -331,5 +332,124 @@ func TestDraftDueStepRespectsNewContactsPerDay(t *testing.T) {
 	at, ok := RetryAt(err)
 	if !ok || !at.Equal(time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("retry %v %v", at, ok)
+	}
+}
+
+func TestDraftDueStepFollowUpStaysOnStickyMailbox(t *testing.T) {
+	url := os.Getenv("DATABASE_APP_URL")
+	if url == "" {
+		t.Skip("DATABASE_APP_URL not set")
+	}
+	keys, err := crypto.NewKeyring("1:0000000000000000000000000000000000000000000000000000000000000001", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	pool, err := db.Open(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	userID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		c, done := context.WithTimeout(context.Background(), 5*time.Second)
+		defer done()
+		_ = pool.WithGUC(c, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, q *db.Queries) error {
+			_ = q.DeleteDraftsForWorkspace(ctx, wsID)
+			_ = q.DeleteEnrolmentsForWorkspace(ctx, wsID)
+			_ = q.DeleteCampaignSendersForWorkspace(ctx, wsID)
+			_ = q.DeleteCampaignStepsForWorkspace(ctx, wsID)
+			_ = q.DeleteCampaignsForWorkspace(ctx, wsID)
+			_ = q.DeleteContactsForWorkspace(ctx, wsID)
+			_ = q.DeleteCompaniesForWorkspace(ctx, wsID)
+			_ = q.DeleteMailboxesForWorkspace(ctx, wsID)
+			_ = q.DeleteSecretsForWorkspace(ctx, wsID)
+			_ = q.DeleteWarmupProfilesForWorkspace(ctx, wsID)
+			_ = q.DeleteSendingDomainsForWorkspace(ctx, wsID)
+			_ = q.DeleteWorkspace(ctx, wsID)
+			return nil
+		})
+		pool.Close()
+	})
+	err = pool.WithGUC(ctx, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, q *db.Queries) error {
+		if err := q.InsertWorkspace(ctx, db.InsertWorkspaceParams{ID: wsID, Name: "m63-sticky"}); err != nil {
+			return err
+		}
+		return pacing.SeedPresets(ctx, q, wsID)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mbStore := mailbox.NewPostgres(pool, keys)
+	mb1, err := mbStore.Connect(ctx, wsID, mailbox.ConnectInput{
+		Email: "one@example.test", AuthKind: "smtp_imap", Timezone: "UTC",
+		SMTPHost: "127.0.0.1", SMTPPort: 1025,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mb2, err := mbStore.Connect(ctx, wsID, mailbox.ConnectInput{
+		Email: "two@example.test", AuthKind: "smtp_imap", Timezone: "UTC",
+		SMTPHost: "127.0.0.1", SMTPPort: 1025,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ct, err := contacts.NewPostgres(pool).Create(ctx, wsID, contacts.CreateInput{
+		Email: "ada@acme.com", Source: "typed", AddedBy: userID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	packs, err := LoadPacks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := NewPostgres(pool, packs)
+	camp, err := store.Create(ctx, wsID, CreateInput{
+		Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb1.ID, mb2.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	en, err := store.Enrol(ctx, wsID, camp.ID, EnrolInput{ContactID: ct.ID, Notes: "met at a meetup"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Start(ctx, wsID, camp.ID); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 11, 9, 10, 0, 0, 0, time.UTC)
+	first, err := store.DraftDueStep(ctx, wsID, en.ID, 0, now)
+	if err != nil || first.MailboxID != mb1.ID {
+		t.Fatalf("first %+v %v", first, err)
+	}
+	err = pool.ExecTx(ctx, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, _ *db.Queries, tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `update enrolments set current_step = 2, status = 'active' where id = $1`, en.ID)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mbStore.Pause(ctx, wsID, mb1.ID); err != nil {
+		t.Fatal(err)
+	}
+	down, err := store.DraftDueStep(ctx, wsID, en.ID, 2, now)
+	if !errors.Is(err, ErrStickyDown) || down.ID != uuid.Nil {
+		t.Fatalf("paused %+v %v", down, err)
+	}
+	if err := mbStore.Reconnect(ctx, wsID, mb1.ID); err != nil {
+		t.Fatal(err)
+	}
+	follow, err := store.DraftDueStep(ctx, wsID, en.ID, 2, now)
+	if err != nil || follow.MailboxID != mb1.ID {
+		t.Fatalf("follow %+v %v", follow, err)
 	}
 }

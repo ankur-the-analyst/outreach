@@ -48,12 +48,25 @@ func RetryAt(err error) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+var ErrStickyDown = errors.New("follow-up mailbox unavailable")
+
+type StickyDownError struct {
+	Until time.Time
+}
+
+func (e *StickyDownError) Error() string { return ErrStickyDown.Error() }
+
+func (e *StickyDownError) Unwrap() error { return ErrStickyDown }
+
+func (e *StickyDownError) RetryAt() time.Time { return e.Until }
+
 type Draft struct {
-	ID      uuid.UUID `json:"id"`
-	To      string    `json:"to"`
-	Subject string    `json:"subject"`
-	Body    string    `json:"body_text"`
-	Status  string    `json:"status"`
+	ID        uuid.UUID `json:"id"`
+	MailboxID uuid.UUID `json:"mailbox_id"`
+	To        string    `json:"to"`
+	Subject   string    `json:"subject"`
+	Body      string    `json:"body_text"`
+	Status    string    `json:"status"`
 }
 
 func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uuid.UUID, stepPosition int32, now time.Time) (Draft, error) {
@@ -79,7 +92,7 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 			StepPosition: pgtype.Int4{Int32: stepPosition, Valid: true},
 		})
 		if err == nil {
-			out = Draft{ID: existing.ID, To: existing.ToAddr, Subject: existing.Subject, Body: existing.BodyText, Status: existing.Status}
+			out = Draft{ID: existing.ID, MailboxID: existing.MailboxID, To: existing.ToAddr, Subject: existing.Subject, Body: existing.BodyText, Status: existing.Status}
 			return nil
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
@@ -100,7 +113,23 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 			return err
 		}
 		mailboxID := en.MailboxID
+		if mailboxID == nil && stepPosition > 0 {
+			prev, err := q.GetDraftByEnrolmentStep(ctx, db.GetDraftByEnrolmentStepParams{
+				WorkspaceID:  workspaceID,
+				EnrolmentID:  &enrolmentID,
+				StepPosition: pgtype.Int4{Int32: 0, Valid: true},
+			})
+			if err == nil {
+				id := prev.MailboxID
+				mailboxID = &id
+			} else if !errors.Is(err, pgx.ErrNoRows) {
+				return err
+			}
+		}
 		if mailboxID == nil {
+			if stepPosition > 0 {
+				return ErrMailbox
+			}
 			if len(camp.Senders) == 0 {
 				return ErrMailbox
 			}
@@ -110,6 +139,9 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 		win, err := q.GetMailboxWindow(ctx, db.GetMailboxWindowParams{WorkspaceID: workspaceID, ID: *mailboxID})
 		if err != nil {
 			return err
+		}
+		if stepPosition > 0 && !pacing.MailboxReady(win.Status) {
+			return &StickyDownError{Until: now.UTC().Add(15 * time.Minute)}
 		}
 		zone := win.Timezone
 		if ct.Timezone.Valid && strings.TrimSpace(ct.Timezone.String) != "" {
@@ -165,12 +197,17 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 		if err != nil {
 			return fmt.Errorf("campaign: draft step: %w", err)
 		}
+		if err := q.UpdateEnrolmentMailbox(ctx, db.UpdateEnrolmentMailboxParams{
+			WorkspaceID: workspaceID, ID: enrolmentID, MailboxID: mailboxID,
+		}); err != nil {
+			return err
+		}
 		if _, err := q.UpdateEnrolmentStatus(ctx, db.UpdateEnrolmentStatusParams{
 			WorkspaceID: workspaceID, ID: enrolmentID, Status: "waiting_review",
 		}); err != nil {
 			return err
 		}
-		out = Draft{ID: row.ID, To: row.ToAddr, Subject: row.Subject, Body: row.BodyText, Status: row.Status}
+		out = Draft{ID: row.ID, MailboxID: row.MailboxID, To: row.ToAddr, Subject: row.Subject, Body: row.BodyText, Status: row.Status}
 		return nil
 	})
 	return out, err

@@ -111,6 +111,11 @@ returning
   workspace_id, id, campaign_id, contact_id, job_id, profile_id, intent, context,
   mailbox_id, current_step, status, next_action_at, created_at;
 
+-- name: UpdateEnrolmentMailbox :exec
+update enrolments
+set mailbox_id = $3
+where workspace_id = $1 and id = $2;
+
 -- name: ListEnrolments :many
 select
   workspace_id, id, campaign_id, contact_id, job_id, profile_id, intent, context, status, created_at

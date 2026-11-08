@@ -69,7 +69,7 @@ from mailboxes
 where workspace_id = $1 and id = $2;
 
 -- name: GetMailboxWindow :one
-select timezone, window_days, window_start, window_end
+select timezone, window_days, window_start, window_end, status
 from mailboxes
 where workspace_id = $1 and id = $2;
 
