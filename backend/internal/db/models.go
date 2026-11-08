@@ -478,3 +478,11 @@ type Workspace struct {
 	SendsPaused bool
 	CreatedAt   pgtype.Timestamptz
 }
+
+type WorkspaceAi struct {
+	WorkspaceID uuid.UUID
+	Providers   json.RawMessage
+	Models      json.RawMessage
+	Fallback    []byte
+	UpdatedAt   pgtype.Timestamptz
+}

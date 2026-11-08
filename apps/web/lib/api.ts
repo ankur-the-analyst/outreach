@@ -59,6 +59,19 @@ export function getMembers() {
   return apiGet<{ members: Member[] }>("/api/v1/workspace/members");
 }
 
+export type ModelSettings = {
+  kind?: string;
+  has_key: boolean;
+  hint?: string;
+  base_url?: string;
+  compose_model?: string;
+  embed_model?: string;
+};
+
+export function getModelSettings() {
+  return apiGet<ModelSettings>("/api/v1/settings/ai");
+}
+
 export type Mailbox = {
   id: string;
   email: string;

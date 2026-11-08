@@ -107,6 +107,9 @@ func (p *Postgres) Delete(ctx context.Context, workspaceID uuid.UUID) error {
 		if err := q.DeleteGoogleServiceAccountsForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: service accounts: %w", err)
 		}
+		if err := q.DeleteWorkspaceAIForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: models: %w", err)
+		}
 		if err := q.DeleteSecretsForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: secrets: %w", err)
 		}

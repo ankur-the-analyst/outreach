@@ -108,6 +108,7 @@ func main() {
 	}
 	evStore := evidence.NewPostgres(pool, writer)
 	ev := evidence.New(evStore)
+	aiHTTP := ai.NewAPI(ai.NewPostgres(pool, keys))
 	cmp := compose.New(compose.NewPostgres(pool, led).WithWriter(writer).WithCite(evStore))
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
 	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc))
@@ -182,6 +183,8 @@ func main() {
 	mux.Handle("GET /api/v1/packs", a.Require(http.HandlerFunc(camp.ListPacks)))
 	mux.Handle("GET /api/v1/sender-identity", a.Require(http.HandlerFunc(camp.GetIdentity)))
 	mux.Handle("PUT /api/v1/sender-identity", a.Require(http.HandlerFunc(camp.PutIdentity)))
+	mux.Handle("GET /api/v1/settings/ai", a.Require(http.HandlerFunc(aiHTTP.Get)))
+	mux.Handle("PUT /api/v1/settings/ai", a.Require(http.HandlerFunc(aiHTTP.Put)))
 	mux.Handle("GET /api/v1/campaigns", a.Require(http.HandlerFunc(camp.List)))
 	mux.Handle("POST /api/v1/campaigns", a.Require(http.HandlerFunc(camp.Create)))
 	mux.Handle("GET /api/v1/campaigns/{id}", a.Require(http.HandlerFunc(camp.Get)))

@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageBody, PageHeader, Pill } from "@/components/page-header";
+import { AISettingsForm } from "@/components/ai-settings";
 import { SenderIdentityForm } from "@/components/sender-identity-form";
-import type { Member, SenderIdentity, Workspace } from "@/lib/api";
+import type { Member, ModelSettings, SenderIdentity, Workspace } from "@/lib/api";
 
 function roleLabel(role: string): string {
   if (role === "owner") {
@@ -23,10 +24,12 @@ export function SettingsBoard({
   workspace,
   identity,
   members,
+  models,
 }: {
   workspace: Workspace | null;
   identity: SenderIdentity | null;
   members: Member[];
+  models?: ModelSettings | null;
 }) {
   const owner = workspace?.role === "owner";
 
@@ -40,6 +43,7 @@ export function SettingsBoard({
             canEdit={owner}
           />
           <SenderIdentityForm identity={identity} />
+          <AISettingsForm settings={models} />
           <div className="lg:col-span-2">
             <MembersList members={members} canInvite={owner} />
           </div>
