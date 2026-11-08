@@ -146,7 +146,7 @@ func TestCommercialSendSetsRFC8058(t *testing.T) {
 	if stub.last == nil || !bytes.Contains(stub.last.Bytes, []byte("List-Unsubscribe-Post: List-Unsubscribe=One-Click")) {
 		t.Fatalf("%s", stub.last)
 	}
-	if !bytes.Contains(stub.last.Bytes, []byte("List-Unsubscribe: <http://127.0.0.1:8080/api/v1/unsubscribe/")) {
+	if !bytes.Contains(stub.last.Bytes, []byte("List-Unsubscribe: <http://127.0.0.1:8080/u/")) {
 		t.Fatalf("%s", stub.last.Bytes)
 	}
 	want, err := suppression.OneClickURL("http://127.0.0.1:8080", keys, wsID, ct.Email)

@@ -66,7 +66,7 @@ func OneClickURL(base string, h Hasher, workspaceID uuid.UUID, email string) (st
 	if base == "" {
 		return "", fmt.Errorf("suppression: public url required")
 	}
-	u, err := url.Parse(base + "/api/v1/unsubscribe/" + tok)
+	u, err := url.Parse(base + "/u/" + tok)
 	if err != nil {
 		return "", err
 	}

@@ -31,7 +31,7 @@ func TestBuildUsesProvidedMessageID(t *testing.T) {
 
 func TestBuildRFC8058Headers(t *testing.T) {
 	t.Parallel()
-	u := "http://127.0.0.1:8080/api/v1/unsubscribe/tok"
+	u := "http://127.0.0.1:8080/u/tok"
 	built, err := Build(Message{
 		From: "dev@example.test", To: []string{"sink@outreach.test"},
 		Text: "hi", ListUnsubscribe: u,

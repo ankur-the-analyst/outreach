@@ -71,12 +71,19 @@ func TestOneClick(t *testing.T) {
 	}
 	store := &fakeStore{ent: Entry{Kind: KindEmail, Value: "ada@acme.com", Reason: "opt-out"}}
 	api := New(store, k)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/unsubscribe/"+tok, bytes.NewBufferString("List-Unsubscribe=One-Click"))
+	req := httptest.NewRequest(http.MethodPost, "/u/"+tok, bytes.NewBufferString("List-Unsubscribe=One-Click"))
 	req.SetPathValue("token", tok)
 	rec := httptest.NewRecorder()
 	api.OneClick(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	legacy := httptest.NewRequest(http.MethodGet, "/api/v1/unsubscribe/"+tok, nil)
+	legacy.SetPathValue("token", tok)
+	rec = httptest.NewRecorder()
+	api.OneClick(rec, legacy)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("legacy %d %s", rec.Code, rec.Body.String())
 	}
 	bad := httptest.NewRequest(http.MethodPost, "/api/v1/unsubscribe/nope", nil)
 	bad.SetPathValue("token", "nope")

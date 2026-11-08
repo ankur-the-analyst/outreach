@@ -1,6 +1,7 @@
 package suppression
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -24,5 +25,21 @@ func TestTokenRoundTrip(t *testing.T) {
 	}
 	if _, _, err := ParseToken(k, tok+"x"); err == nil {
 		t.Fatal("want invalid")
+	}
+}
+
+func TestOneClickURLUsesPublicPath(t *testing.T) {
+	t.Parallel()
+	k, err := crypto.NewKeyring("1:0000000000000000000000000000000000000000000000000000000000000001", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws := uuid.MustParse("01700000-0000-7000-8000-000000000001")
+	u, err := OneClickURL("http://127.0.0.1:8080/", k, ws, "ada@acme.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(u, "http://127.0.0.1:8080/u/") {
+		t.Fatalf("%s", u)
 	}
 }

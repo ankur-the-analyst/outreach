@@ -123,6 +123,8 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health.Handler(pool))
+	mux.HandleFunc("POST /u/{token}", supp.OneClick)
+	mux.HandleFunc("GET /u/{token}", supp.OneClick)
 	mux.HandleFunc("POST /api/v1/unsubscribe/{token}", supp.OneClick)
 	mux.HandleFunc("GET /api/v1/unsubscribe/{token}", supp.OneClick)
 	mux.HandleFunc("POST /api/v1/auth/register", a.Register)
