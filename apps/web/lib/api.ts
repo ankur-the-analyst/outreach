@@ -77,6 +77,19 @@ export function getMailboxes() {
   return apiGet<{ mailboxes: Mailbox[] }>("/api/v1/mailboxes");
 }
 
+export type WorkspaceKey = {
+  id: string;
+  domain: string;
+  client_email: string;
+  client_id: string;
+};
+
+export function getWorkspaceKeys() {
+  return apiGet<{ service_accounts: WorkspaceKey[] }>(
+    "/api/v1/google-service-accounts",
+  );
+}
+
 export async function getMailboxUsage(mailboxID: string) {
   const data = await apiGet<{ used: number }>(
     `/api/v1/mailboxes/${mailboxID}/usage`,
