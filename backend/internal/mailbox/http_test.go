@@ -24,6 +24,10 @@ func (f *fakeStore) List(context.Context, uuid.UUID) ([]Mailbox, error) { return
 func (f *fakeStore) ListDomains(context.Context, uuid.UUID) ([]SendingDomain, error) {
 	return []SendingDomain{{Domain: "acme.com", DailyLimit: 40}}, f.err
 }
+func (f *fakeStore) ListWarmups(context.Context, uuid.UUID) ([]Warmup, error) {
+	n := int32(2)
+	return []Warmup{{Name: "Standard", Kind: "standard", FirstDay: &n}}, f.err
+}
 func (f *fakeStore) Connect(_ context.Context, _ uuid.UUID, in ConnectInput) (Mailbox, error) {
 	f.connect = in
 	if f.err != nil {
@@ -195,6 +199,21 @@ func TestListDomainsHTTP(t *testing.T) {
 	}
 	if !bytes.Contains(rec.Body.Bytes(), []byte(`"acme.com"`)) {
 		t.Fatalf("body %s", rec.Body.Bytes())
+	}
+}
+
+func TestListWarmupsHTTP(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner"}, fakeTester{})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/warmup-profiles", nil)
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.ListWarmups(rec, req)
+	if rec.Code != http.StatusOK || !bytes.Contains(rec.Body.Bytes(), []byte(`"first_day":2`)) {
+		t.Fatalf("got %d %s", rec.Code, rec.Body.Bytes())
 	}
 }
 

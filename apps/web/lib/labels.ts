@@ -94,6 +94,8 @@ export function warmupKindLabel(kind: string): string {
       return "Faster ramp";
     case "off":
       return "No ramp";
+    case "custom":
+      return "Custom ramp";
     default:
       return kind;
   }

@@ -15,6 +15,7 @@ type Store interface {
 	Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error)
 	List(ctx context.Context, workspaceID uuid.UUID) ([]Mailbox, error)
 	ListDomains(ctx context.Context, workspaceID uuid.UUID) ([]SendingDomain, error)
+	ListWarmups(ctx context.Context, workspaceID uuid.UUID) ([]Warmup, error)
 	Connect(ctx context.Context, workspaceID uuid.UUID, in ConnectInput) (Mailbox, error)
 	Pause(ctx context.Context, workspaceID, id uuid.UUID) error
 	Reconnect(ctx context.Context, workspaceID, id uuid.UUID) error
@@ -72,6 +73,26 @@ func (a *API) ListDomains(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"domains": items})
+}
+
+func (a *API) ListWarmups(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.session(w, r)
+	if !ok {
+		return
+	}
+	if _, err := a.store.Membership(r.Context(), s.WorkspaceID, s.UserID); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	items, err := a.store.ListWarmups(r.Context(), s.WorkspaceID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if items == nil {
+		items = []Warmup{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"profiles": items})
 }
 
 func (a *API) Create(w http.ResponseWriter, r *http.Request) {

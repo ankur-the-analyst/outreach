@@ -138,6 +138,7 @@ func main() {
 	mux.Handle("PUT /api/v1/workspace/kill-switch", a.Require(http.HandlerFunc(ws.PutKillSwitch)))
 	mux.Handle("GET /api/v1/workspace/members", a.Require(http.HandlerFunc(ws.ListMembers)))
 	mux.Handle("POST /api/v1/workspace/members", a.Require(http.HandlerFunc(ws.Invite)))
+	mux.Handle("GET /api/v1/warmup-profiles", a.Require(http.HandlerFunc(mb.ListWarmups)))
 	mux.Handle("GET /api/v1/mailbox-pools", a.Require(http.HandlerFunc(mb.ListPools)))
 	mux.Handle("POST /api/v1/mailbox-pools", a.Require(http.HandlerFunc(mb.CreatePool)))
 	mux.Handle("GET /api/v1/mailboxes", a.Require(http.HandlerFunc(mb.List)))

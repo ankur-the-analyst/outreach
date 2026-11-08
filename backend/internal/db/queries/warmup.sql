@@ -6,6 +6,12 @@ values ($1, $2, $3, $4, $5, $6);
 select count(*)::bigint as n
 from warmup_profiles;
 
+-- name: ListWarmupProfiles :many
+select workspace_id, id, name, kind, spec, version
+from warmup_profiles
+where workspace_id = $1
+order by kind;
+
 -- name: DeleteWarmupProfilesForWorkspace :exec
 delete from warmup_profiles
 where workspace_id = $1;

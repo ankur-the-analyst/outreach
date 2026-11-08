@@ -91,3 +91,37 @@ func (q *Queries) InsertWarmupProfile(ctx context.Context, arg InsertWarmupProfi
 	)
 	return err
 }
+
+const listWarmupProfiles = `-- name: ListWarmupProfiles :many
+select workspace_id, id, name, kind, spec, version
+from warmup_profiles
+where workspace_id = $1
+order by kind
+`
+
+func (q *Queries) ListWarmupProfiles(ctx context.Context, workspaceID uuid.UUID) ([]WarmupProfile, error) {
+	rows, err := q.db.Query(ctx, listWarmupProfiles, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WarmupProfile
+	for rows.Next() {
+		var i WarmupProfile
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.ID,
+			&i.Name,
+			&i.Kind,
+			&i.Spec,
+			&i.Version,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

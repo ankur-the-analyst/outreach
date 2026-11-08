@@ -103,6 +103,17 @@ export function getMailboxPools() {
   return apiGet<{ pools: MailboxPool[] }>("/api/v1/mailbox-pools");
 }
 
+export type WarmupProfile = {
+  id: string;
+  name: string;
+  kind: string;
+  first_day?: number;
+};
+
+export function getWarmupProfiles() {
+  return apiGet<{ profiles: WarmupProfile[] }>("/api/v1/warmup-profiles");
+}
+
 export type SendingDomain = {
   id: string;
   domain: string;

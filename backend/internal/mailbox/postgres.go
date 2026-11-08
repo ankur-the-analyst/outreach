@@ -45,6 +45,13 @@ type SendingDomain struct {
 	DailyLimit int32     `json:"daily_limit"`
 }
 
+type Warmup struct {
+	ID       uuid.UUID `json:"id"`
+	Name     string    `json:"name"`
+	Kind     string    `json:"kind"`
+	FirstDay *int32    `json:"first_day,omitempty"`
+}
+
 type ConnectInput struct {
 	Email       string
 	DisplayName string
@@ -98,6 +105,36 @@ func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID) ([]Mailbox, 
 		return nil
 	})
 	return out, err
+}
+
+func (p *Postgres) ListWarmups(ctx context.Context, workspaceID uuid.UUID) ([]Warmup, error) {
+	var out []Warmup
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		rows, err := q.ListWarmupProfiles(ctx, workspaceID)
+		if err != nil {
+			return err
+		}
+		out = make([]Warmup, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, warmupFrom(row))
+		}
+		return nil
+	})
+	return out, err
+}
+
+func warmupFrom(row db.WarmupProfile) Warmup {
+	w := Warmup{ID: row.ID, Name: row.Name, Kind: row.Kind}
+	spec, err := pacing.ParseSpec(row.Spec)
+	if err != nil {
+		return w
+	}
+	if spec.Uncapped {
+		return w
+	}
+	n := int32(pacing.Ramp(spec, 1, pacing.Health{Status: pacing.StatusHealthy}))
+	w.FirstDay = &n
+	return w
 }
 
 func (p *Postgres) ListDomains(ctx context.Context, workspaceID uuid.UUID) ([]SendingDomain, error) {
