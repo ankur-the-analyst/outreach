@@ -221,6 +221,17 @@ type GoogleServiceAccount struct {
 	CreatedAt   pgtype.Timestamptz
 }
 
+type HealthSample struct {
+	WorkspaceID     uuid.UUID
+	ID              int64
+	MailboxID       *uuid.UUID
+	SendingDomainID *uuid.UUID
+	Metric          string
+	Value           float64
+	Window          string
+	CreatedAt       pgtype.Timestamptz
+}
+
 type Job struct {
 	WorkspaceID    uuid.UUID
 	ID             uuid.UUID

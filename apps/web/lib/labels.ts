@@ -45,6 +45,19 @@ export const trackerStageLabel: Record<string, string> = {
   unsubscribed: "Unsubscribed",
 };
 
+export function healthMetricLabel(metric: string): string {
+  switch (metric) {
+    case "unknown":
+      return "Sends we're still checking";
+    case "paused":
+      return "Paused mailboxes";
+    case "sync_lag_s":
+      return "Oldest inbox sync (seconds)";
+    default:
+      return metric;
+  }
+}
+
 export function replyModeLabel(mode: string): string {
   if (mode === "off") {
     return "Don't draft replies";

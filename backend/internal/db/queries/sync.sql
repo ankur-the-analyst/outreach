@@ -75,6 +75,11 @@ values ($1, $2, $3, $4, $5)
 on conflict (workspace_id, mailbox_id, folder) do update
 set last_synced_at = excluded.last_synced_at, last_error = excluded.last_error;
 
+-- name: OldestSyncAt :one
+select min(last_synced_at)::timestamptz as last_at
+from sync_state
+where workspace_id = $1;
+
 -- name: DeleteMessagesForWorkspace :exec
 delete from messages where workspace_id = $1;
 

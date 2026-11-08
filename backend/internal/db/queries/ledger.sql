@@ -28,6 +28,11 @@ returning
   workspace_id, id, mailbox_id, sending_domain_id, enrolment_id, draft_id,
   step_position, is_first_touch, rfc_message_id, state, reserved_at, release_at, sent_at, created_at;
 
+-- name: CountLedgerState :one
+select count(*)::bigint as n
+from send_ledger
+where workspace_id = $1 and state = $2;
+
 -- name: CountMailboxUsage :one
 select count(*)::bigint as n
 from send_ledger

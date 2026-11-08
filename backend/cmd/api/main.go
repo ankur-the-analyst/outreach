@@ -123,6 +123,7 @@ func main() {
 	camp := campaign.New(campaign.NewPostgres(pool, packs))
 
 	mux := http.NewServeMux()
+	hs := health.New(health.NewPostgres(pool))
 	mux.HandleFunc("GET /health", health.Handler(pool))
 	mux.HandleFunc("POST /u/{token}", supp.OneClick)
 	mux.HandleFunc("GET /u/{token}", supp.OneClick)
@@ -138,6 +139,7 @@ func main() {
 	mux.Handle("PUT /api/v1/workspace/kill-switch", a.Require(http.HandlerFunc(ws.PutKillSwitch)))
 	mux.Handle("GET /api/v1/workspace/members", a.Require(http.HandlerFunc(ws.ListMembers)))
 	mux.Handle("POST /api/v1/workspace/members", a.Require(http.HandlerFunc(ws.Invite)))
+	mux.Handle("GET /api/v1/health-samples", a.Require(http.HandlerFunc(hs.List)))
 	mux.Handle("GET /api/v1/warmup-profiles", a.Require(http.HandlerFunc(mb.ListWarmups)))
 	mux.Handle("GET /api/v1/mailbox-pools", a.Require(http.HandlerFunc(mb.ListPools)))
 	mux.Handle("POST /api/v1/mailbox-pools", a.Require(http.HandlerFunc(mb.CreatePool)))

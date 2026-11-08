@@ -430,6 +430,19 @@ func (q *Queries) MarkThreadRead(ctx context.Context, arg MarkThreadReadParams) 
 	return result.RowsAffected(), nil
 }
 
+const oldestSyncAt = `-- name: OldestSyncAt :one
+select min(last_synced_at)::timestamptz as last_at
+from sync_state
+where workspace_id = $1
+`
+
+func (q *Queries) OldestSyncAt(ctx context.Context, workspaceID uuid.UUID) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, oldestSyncAt, workspaceID)
+	var last_at pgtype.Timestamptz
+	err := row.Scan(&last_at)
+	return last_at, err
+}
+
 const touchThread = `-- name: TouchThread :exec
 update threads
 set last_message_at = $4, unread = unread or $5

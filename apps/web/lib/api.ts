@@ -115,6 +115,18 @@ export function getWarmupProfiles() {
   return apiGet<{ profiles: WarmupProfile[] }>("/api/v1/warmup-profiles");
 }
 
+export type HealthSample = {
+  id: number;
+  metric: string;
+  value: number;
+  window: string;
+  created_at: string;
+};
+
+export function getHealthSamples() {
+  return apiGet<{ samples: HealthSample[] }>("/api/v1/health-samples");
+}
+
 export type SendingDomain = {
   id: string;
   domain: string;

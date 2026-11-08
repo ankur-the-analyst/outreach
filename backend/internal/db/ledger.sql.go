@@ -32,6 +32,24 @@ func (q *Queries) CountDomainUsage(ctx context.Context, arg CountDomainUsagePara
 	return n, err
 }
 
+const countLedgerState = `-- name: CountLedgerState :one
+select count(*)::bigint as n
+from send_ledger
+where workspace_id = $1 and state = $2
+`
+
+type CountLedgerStateParams struct {
+	WorkspaceID uuid.UUID
+	State       string
+}
+
+func (q *Queries) CountLedgerState(ctx context.Context, arg CountLedgerStateParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countLedgerState, arg.WorkspaceID, arg.State)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
+}
+
 const countMailboxUsage = `-- name: CountMailboxUsage :one
 select count(*)::bigint as n
 from send_ledger

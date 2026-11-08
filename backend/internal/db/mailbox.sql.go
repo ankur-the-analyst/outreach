@@ -12,6 +12,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countMailboxesStatus = `-- name: CountMailboxesStatus :one
+select count(*)::bigint as n
+from mailboxes
+where workspace_id = $1 and status = $2
+`
+
+type CountMailboxesStatusParams struct {
+	WorkspaceID uuid.UUID
+	Status      string
+}
+
+func (q *Queries) CountMailboxesStatus(ctx context.Context, arg CountMailboxesStatusParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countMailboxesStatus, arg.WorkspaceID, arg.Status)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
+}
+
 const deleteGoogleServiceAccountsForWorkspace = `-- name: DeleteGoogleServiceAccountsForWorkspace :exec
 delete from google_service_accounts
 where workspace_id = $1

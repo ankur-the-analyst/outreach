@@ -121,6 +121,11 @@ from sending_domains
 where workspace_id = $1 and id = $2
 for update;
 
+-- name: CountMailboxesStatus :one
+select count(*)::bigint as n
+from mailboxes
+where workspace_id = $1 and status = $2;
+
 -- name: SetMailboxStatus :exec
 update mailboxes
 set status = $3, status_reason = $4
