@@ -58,8 +58,18 @@ func TestNewOpenAINeedsKey(t *testing.T) {
 	if !errors.Is(err, ErrNoKey) {
 		t.Fatalf("%v", err)
 	}
-	_, err = New(Binding{Kind: KindOpenAI, APIKey: "sk"})
-	if !errors.Is(err, ErrNotConfigured) {
-		t.Fatalf("%v", err)
+	p, err := New(Binding{Kind: KindOpenAI, APIKey: "sk", Model: "gpt-4o-mini"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := p.(*OpenAI); !ok {
+		t.Fatalf("%T", p)
+	}
+	g, err := New(Binding{Kind: KindGoogle, APIKey: "studio"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := g.(*Gemini); !ok {
+		t.Fatalf("%T", g)
 	}
 }

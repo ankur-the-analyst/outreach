@@ -14,16 +14,17 @@ import (
 	"outreach/internal/db"
 )
 
-type Sealer interface {
+type Keys interface {
 	Seal(plain []byte) (crypto.Sealed, error)
+	Open(s crypto.Sealed) ([]byte, error)
 }
 
 type Postgres struct {
 	pool *db.Pool
-	keys Sealer
+	keys Keys
 }
 
-func NewPostgres(pool *db.Pool, keys Sealer) *Postgres {
+func NewPostgres(pool *db.Pool, keys Keys) *Postgres {
 	return &Postgres{pool: pool, keys: keys}
 }
 
@@ -161,6 +162,73 @@ func (p *Postgres) Put(ctx context.Context, workspaceID uuid.UUID, in PutInput) 
 			return err
 		}
 		out = settingsFromJSON(row.Providers, row.Models)
+		return nil
+	})
+	return out, err
+}
+
+func (p *Postgres) Provider(ctx context.Context, workspaceID uuid.UUID, role Role) (Provider, error) {
+	b, err := p.Binding(ctx, workspaceID, role)
+	if err != nil {
+		return nil, err
+	}
+	return New(b)
+}
+
+func (p *Postgres) Binding(ctx context.Context, workspaceID uuid.UUID, role Role) (Binding, error) {
+	var out Binding
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.GetWorkspaceAI(ctx, workspaceID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNoBinding
+		}
+		if err != nil {
+			return err
+		}
+		var ps []storedProvider
+		if len(row.Providers) > 0 {
+			if err := json.Unmarshal(row.Providers, &ps); err != nil {
+				return err
+			}
+		}
+		if len(ps) == 0 {
+			return ErrNoBinding
+		}
+		var mm map[string]string
+		if len(row.Models) > 0 {
+			_ = json.Unmarshal(row.Models, &mm)
+		}
+		kind, model, ok := splitKindModel(mm[string(role)])
+		if !ok {
+			kind, model, ok = splitKindModel(mm["compose"])
+		}
+		if !ok {
+			kind = ps[0].Kind
+		}
+		out = Binding{Role: role, Kind: kind, Model: model, BaseURL: ps[0].BaseURL}
+		if ps[0].SecretID == uuid.Nil {
+			return ErrNoKey
+		}
+		sec, err := q.GetSecret(ctx, db.GetSecretParams{WorkspaceID: workspaceID, ID: ps[0].SecretID})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNoKey
+		}
+		if err != nil {
+			return err
+		}
+		if p.keys == nil {
+			return ErrNoKey
+		}
+		plain, err := p.keys.Open(crypto.Sealed{
+			KeyVersion: int(sec.KeyVersion),
+			WrappedDEK: sec.WrappedDek,
+			Nonce:      sec.Nonce,
+			Ciphertext: sec.Ciphertext,
+		})
+		if err != nil {
+			return fmt.Errorf("ai: secret: %w", err)
+		}
+		out.APIKey = string(plain)
 		return nil
 	})
 	return out, err

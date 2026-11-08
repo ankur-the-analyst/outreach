@@ -2,6 +2,11 @@
 insert into secrets (workspace_id, id, kind, key_version, wrapped_dek, nonce, ciphertext, hint)
 values ($1, $2, $3, $4, $5, $6, $7, $8);
 
+-- name: GetSecret :one
+select key_version, wrapped_dek, nonce, ciphertext
+from secrets
+where workspace_id = $1 and id = $2;
+
 -- name: GetSendingDomainByName :one
 select workspace_id, id, domain, daily_limit, first_seen_at
 from sending_domains

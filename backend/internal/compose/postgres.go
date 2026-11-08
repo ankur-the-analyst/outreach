@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"outreach/internal/ai"
 	"outreach/internal/db"
 	"outreach/internal/evidence"
 	"outreach/internal/mime"
@@ -69,6 +70,10 @@ type Retriever interface {
 	Retrieve(ctx context.Context, workspaceID uuid.UUID, profileID *uuid.UUID, query string) ([]evidence.Item, error)
 }
 
+type Binder interface {
+	Provider(ctx context.Context, workspaceID uuid.UUID, role ai.Role) (ai.Provider, error)
+}
+
 type ComposeInput struct {
 	MailboxID uuid.UUID
 	To        string
@@ -89,6 +94,7 @@ type Postgres struct {
 	write    Completer
 	cite     Citer
 	retrieve Retriever
+	bind     Binder
 }
 
 func NewPostgres(pool *db.Pool, hold Holder) *Postgres {
@@ -108,6 +114,25 @@ func (p *Postgres) WithCite(c Citer) *Postgres {
 func (p *Postgres) WithRetrieve(r Retriever) *Postgres {
 	p.retrieve = r
 	return p
+}
+
+func (p *Postgres) WithBinder(b Binder) *Postgres {
+	p.bind = b
+	return p
+}
+
+func (p *Postgres) writer(ctx context.Context, workspaceID uuid.UUID) (Completer, error) {
+	if p.bind == nil {
+		return p.write, nil
+	}
+	got, err := p.bind.Provider(ctx, workspaceID, ai.RoleCompose)
+	if errors.Is(err, ai.ErrNoBinding) || errors.Is(err, ai.ErrNoKey) || errors.Is(err, ai.ErrNotFound) {
+		return p.write, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return got, nil
 }
 
 func (p *Postgres) Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error) {
@@ -223,7 +248,11 @@ func (p *Postgres) Compose(ctx context.Context, workspaceID uuid.UUID, in Compos
 	if err != nil {
 		return ComposeResult{}, err
 	}
-	body, regen, fails, err := Generate(ctx, p.write, cited, in.Facts)
+	w, err := p.writer(ctx, workspaceID)
+	if err != nil {
+		return ComposeResult{}, err
+	}
+	body, regen, fails, err := Generate(ctx, w, cited, in.Facts)
 	if err != nil {
 		return ComposeResult{}, err
 	}
@@ -351,7 +380,11 @@ func (p *Postgres) Regenerate(ctx context.Context, workspaceID, draftID uuid.UUI
 			return ComposeResult{}, err
 		}
 	}
-	body, regen, fails, err := Generate(ctx, p.write, cited, d.FactsUsed)
+	w, err := p.writer(ctx, workspaceID)
+	if err != nil {
+		return ComposeResult{}, err
+	}
+	body, regen, fails, err := Generate(ctx, w, cited, d.FactsUsed)
 	if err != nil {
 		return ComposeResult{}, err
 	}

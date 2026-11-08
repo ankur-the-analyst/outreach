@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 )
 
 var (
@@ -64,6 +65,7 @@ type Binding struct {
 	Model   string
 	APIKey  string
 	BaseURL string
+	HTTP    *http.Client
 }
 
 func Temperature(r Role) float64 {
@@ -81,11 +83,16 @@ func New(b Binding) (Provider, error) {
 		return &Fake{Model: b.Model}, nil
 	case KindAnthropic:
 		return Anthropic{Model: b.Model}, nil
-	case KindOpenAI, KindGoogle, KindCompat:
+	case KindOpenAI, KindCompat:
 		if b.APIKey == "" {
 			return nil, ErrNoKey
 		}
-		return nil, ErrNotConfigured
+		return &OpenAI{Model: b.Model, APIKey: b.APIKey, BaseURL: b.BaseURL}, nil
+	case KindGoogle:
+		if b.APIKey == "" {
+			return nil, ErrNoKey
+		}
+		return newGemini(b)
 	default:
 		return nil, ErrUnknownKind
 	}

@@ -108,8 +108,9 @@ func main() {
 	}
 	evStore := evidence.NewPostgres(pool, writer)
 	ev := evidence.New(evStore)
-	aiHTTP := ai.NewAPI(ai.NewPostgres(pool, keys))
-	cmp := compose.New(compose.NewPostgres(pool, led).WithWriter(writer).WithCite(evStore).WithRetrieve(evStore))
+	aiStore := ai.NewPostgres(pool, keys)
+	aiHTTP := ai.NewAPI(aiStore)
+	cmp := compose.New(compose.NewPostgres(pool, led).WithWriter(writer).WithBinder(aiStore).WithCite(evStore).WithRetrieve(evStore))
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
 	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc))
 	jd := jobsjd.New(jobsjd.NewPostgres(pool, storage.NewMemory(), writer))

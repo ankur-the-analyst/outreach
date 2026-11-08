@@ -231,6 +231,36 @@ func (q *Queries) GetMailboxWindow(ctx context.Context, arg GetMailboxWindowPara
 	return i, err
 }
 
+const getSecret = `-- name: GetSecret :one
+select key_version, wrapped_dek, nonce, ciphertext
+from secrets
+where workspace_id = $1 and id = $2
+`
+
+type GetSecretParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+type GetSecretRow struct {
+	KeyVersion int32
+	WrappedDek []byte
+	Nonce      []byte
+	Ciphertext []byte
+}
+
+func (q *Queries) GetSecret(ctx context.Context, arg GetSecretParams) (GetSecretRow, error) {
+	row := q.db.QueryRow(ctx, getSecret, arg.WorkspaceID, arg.ID)
+	var i GetSecretRow
+	err := row.Scan(
+		&i.KeyVersion,
+		&i.WrappedDek,
+		&i.Nonce,
+		&i.Ciphertext,
+	)
+	return i, err
+}
+
 const getSendingDomain = `-- name: GetSendingDomain :one
 select workspace_id, id, domain, daily_limit, first_seen_at
 from sending_domains
