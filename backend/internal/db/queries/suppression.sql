@@ -15,6 +15,12 @@ select workspace_id, kind, value_hash, value_citext, reason, created_at
 from suppression
 where workspace_id = $1 and kind = $2 and value_hash = $3;
 
+-- name: ListSuppression :many
+select workspace_id, kind, value_hash, value_citext, reason, created_at
+from suppression
+where workspace_id = $1
+order by created_at desc;
+
 -- name: ClearSuppressionPlaintext :exec
 update suppression
 set value_citext = null

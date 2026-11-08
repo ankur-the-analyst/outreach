@@ -12,6 +12,7 @@ import (
 type Store interface {
 	Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error)
 	Add(ctx context.Context, workspaceID uuid.UUID, kind, value, reason string) (Entry, error)
+	List(ctx context.Context, workspaceID uuid.UUID) ([]Entry, error)
 }
 
 type API struct {
@@ -53,6 +54,27 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, ent)
+}
+
+func (a *API) List(w http.ResponseWriter, r *http.Request) {
+	s, ok := auth.SessionFrom(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "unauthenticated", "sign in required")
+		return
+	}
+	if _, err := a.store.Membership(r.Context(), s.WorkspaceID, s.UserID); err != nil {
+		writeError(w, http.StatusForbidden, "forbidden", "not a member")
+		return
+	}
+	rows, err := a.store.List(r.Context(), s.WorkspaceID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal", "internal error")
+		return
+	}
+	if rows == nil {
+		rows = []Entry{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"entries": rows})
 }
 
 func (a *API) OneClick(w http.ResponseWriter, r *http.Request) {

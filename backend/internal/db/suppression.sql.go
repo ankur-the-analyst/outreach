@@ -91,6 +91,40 @@ func (q *Queries) InsertSuppression(ctx context.Context, arg InsertSuppressionPa
 	return err
 }
 
+const listSuppression = `-- name: ListSuppression :many
+select workspace_id, kind, value_hash, value_citext, reason, created_at
+from suppression
+where workspace_id = $1
+order by created_at desc
+`
+
+func (q *Queries) ListSuppression(ctx context.Context, workspaceID uuid.UUID) ([]Suppression, error) {
+	rows, err := q.db.Query(ctx, listSuppression, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Suppression
+	for rows.Next() {
+		var i Suppression
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.Kind,
+			&i.ValueHash,
+			&i.ValueCitext,
+			&i.Reason,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const suppressionExists = `-- name: SuppressionExists :one
 select exists(
   select 1 from suppression

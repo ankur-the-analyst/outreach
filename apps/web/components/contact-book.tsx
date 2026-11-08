@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Pill } from "@/components/page-header";
-import type { Contact } from "@/lib/api";
+import type { Contact, NeverEmail } from "@/lib/api";
 import { contactName, fieldSelect, fieldTextarea } from "@/lib/labels";
 
 function neverEmailError(message: string): string {
@@ -35,7 +35,13 @@ type PreviewRow = {
   generic_mailbox: boolean;
 };
 
-export function ContactBook({ contacts }: { contacts: Contact[] }) {
+export function ContactBook({
+  contacts,
+  blocked = [],
+}: {
+  contacts: Contact[];
+  blocked?: NeverEmail[];
+}) {
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
       <div className="lg:col-span-7">
@@ -81,6 +87,7 @@ export function ContactBook({ contacts }: { contacts: Contact[] }) {
             ))}
           </ul>
         )}
+        <NeverEmailList blocked={blocked} />
       </div>
       <div className="flex flex-col gap-4 lg:col-span-5">
         <CreateForm />
@@ -209,7 +216,38 @@ function CreateForm() {
   );
 }
 
+function NeverEmailList({ blocked }: { blocked: NeverEmail[] }) {
+  return (
+    <div className="mt-8">
+      <h2 className="mb-3 font-headline-md text-foreground">Never email</h2>
+      {blocked.length === 0 ? (
+        <p className="font-body-md text-muted-foreground">
+          No blocked addresses yet.
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {blocked.map((row) => (
+            <li
+              key={`${row.kind}:${row.value ?? ""}:${row.created_at ?? row.reason}`}
+              className="rounded-md border border-border bg-card p-4"
+            >
+              <p className="font-label-md text-foreground">
+                {row.value || "Removed contact"}
+              </p>
+              <p className="mt-1 font-body-sm text-muted-foreground">
+                {row.kind === "domain" ? "Whole domain" : "This address"}
+                {row.reason ? ` · ${row.reason}` : ""}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function NeverEmailForm() {
+  const router = useRouter();
   const [kind, setKind] = useState("email");
   const [value, setValue] = useState("");
   const [reason, setReason] = useState("");
@@ -240,6 +278,7 @@ function NeverEmailForm() {
     setDone(`Won't send to ${data.value || value}`);
     setValue("");
     setReason("");
+    router.refresh();
   }
 
   return (

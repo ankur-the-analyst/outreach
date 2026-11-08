@@ -151,6 +151,7 @@ func main() {
 	mux.Handle("POST /api/v1/ledger/{id}/send", a.Require(http.HandlerFunc(snd.Send)))
 	mux.Handle("POST /api/v1/ledger/{id}/reconcile", a.Require(http.HandlerFunc(snd.Reconcile)))
 	mux.Handle("POST /api/v1/suppression", a.Require(http.HandlerFunc(supp.Create)))
+	mux.Handle("GET /api/v1/suppression", a.Require(http.HandlerFunc(supp.List)))
 	mux.Handle("GET /api/v1/drafts", a.Require(http.HandlerFunc(cmp.List)))
 	mux.Handle("POST /api/v1/drafts", a.Require(http.HandlerFunc(cmp.Create)))
 	mux.Handle("PATCH /api/v1/drafts/{id}", a.Require(http.HandlerFunc(cmp.Patch)))

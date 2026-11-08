@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -22,9 +23,10 @@ func NewPostgres(pool *db.Pool, hmac Hasher) *Postgres {
 }
 
 type Entry struct {
-	Kind   string `json:"kind"`
-	Value  string `json:"value"`
-	Reason string `json:"reason"`
+	Kind      string    `json:"kind"`
+	Value     string    `json:"value,omitempty"`
+	Reason    string    `json:"reason"`
+	CreatedAt time.Time `json:"created_at,omitempty"`
 }
 
 func (p *Postgres) Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error) {
@@ -62,6 +64,29 @@ func (p *Postgres) Add(ctx context.Context, workspaceID uuid.UUID, kind, value, 
 		return Entry{}, err
 	}
 	return Entry{Kind: kind, Value: norm, Reason: reason}, nil
+}
+
+func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID) ([]Entry, error) {
+	var out []Entry
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		rows, err := q.ListSuppression(ctx, workspaceID)
+		if err != nil {
+			return err
+		}
+		out = make([]Entry, 0, len(rows))
+		for _, row := range rows {
+			ent := Entry{Kind: row.Kind, Reason: row.Reason}
+			if row.ValueCitext.Valid {
+				ent.Value = row.ValueCitext.String
+			}
+			if row.CreatedAt.Valid {
+				ent.CreatedAt = row.CreatedAt.Time.UTC()
+			}
+			out = append(out, ent)
+		}
+		return nil
+	})
+	return out, err
 }
 
 func (p *Postgres) Blocked(ctx context.Context, workspaceID uuid.UUID, emails []string) error {

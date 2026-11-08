@@ -155,6 +155,17 @@ export function getContacts() {
   return apiGet<{ contacts: Contact[] }>("/api/v1/contacts");
 }
 
+export type NeverEmail = {
+  kind: string;
+  value?: string;
+  reason: string;
+  created_at?: string;
+};
+
+export function getNeverEmail() {
+  return apiGet<{ entries: NeverEmail[] }>("/api/v1/suppression");
+}
+
 export type Campaign = {
   id: string;
   name: string;
