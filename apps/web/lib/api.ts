@@ -93,6 +93,16 @@ export function getMailboxes() {
   return apiGet<{ mailboxes: Mailbox[] }>("/api/v1/mailboxes");
 }
 
+export type MailboxPool = {
+  id: string;
+  name: string;
+  mailboxes: { id: string; email: string }[];
+};
+
+export function getMailboxPools() {
+  return apiGet<{ pools: MailboxPool[] }>("/api/v1/mailbox-pools");
+}
+
 export type SendingDomain = {
   id: string;
   domain: string;

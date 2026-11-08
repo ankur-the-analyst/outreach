@@ -23,6 +23,8 @@ type Store interface {
 	CreateSA(ctx context.Context, workspaceID uuid.UUID, in SAInput) (ServiceAccount, error)
 	ListSA(ctx context.Context, workspaceID uuid.UUID) ([]ServiceAccount, error)
 	SMTPEndpoint(ctx context.Context, workspaceID, id uuid.UUID) (host string, port int, err error)
+	ListPools(ctx context.Context, workspaceID uuid.UUID) ([]Pool, error)
+	CreatePool(ctx context.Context, workspaceID uuid.UUID, name string, mailboxIDs []uuid.UUID) (Pool, error)
 }
 
 type SMTPTester interface {
@@ -171,6 +173,64 @@ func (a *API) ListSA(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"service_accounts": items})
+}
+
+func (a *API) ListPools(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.session(w, r)
+	if !ok {
+		return
+	}
+	if _, err := a.store.Membership(r.Context(), s.WorkspaceID, s.UserID); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	items, err := a.store.ListPools(r.Context(), s.WorkspaceID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	if items == nil {
+		items = []Pool{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"pools": items})
+}
+
+func (a *API) CreatePool(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.session(w, r)
+	if !ok {
+		return
+	}
+	if err := a.requireEdit(r.Context(), s); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	var in struct {
+		Name       string   `json:"name"`
+		MailboxIDs []string `json:"mailbox_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
+		return
+	}
+	if strings.TrimSpace(in.Name) == "" {
+		writeError(w, http.StatusBadRequest, "invalid_input", "name required")
+		return
+	}
+	ids := make([]uuid.UUID, 0, len(in.MailboxIDs))
+	for _, raw := range in.MailboxIDs {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "invalid mailbox id")
+			return
+		}
+		ids = append(ids, id)
+	}
+	pool, err := a.store.CreatePool(r.Context(), s.WorkspaceID, in.Name, ids)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, pool)
 }
 
 func (a *API) Pause(w http.ResponseWriter, r *http.Request) {

@@ -413,6 +413,75 @@ func (p *Postgres) SMTPEndpoint(ctx context.Context, workspaceID, id uuid.UUID) 
 	return host, port, nil
 }
 
+func (p *Postgres) ListPools(ctx context.Context, workspaceID uuid.UUID) ([]Pool, error) {
+	var out []Pool
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		rows, err := q.ListMailboxPools(ctx, workspaceID)
+		if err != nil {
+			return err
+		}
+		members, err := q.ListMailboxPoolMembers(ctx, workspaceID)
+		if err != nil {
+			return err
+		}
+		out = assemblePools(rows, members)
+		return nil
+	})
+	return out, err
+}
+
+func (p *Postgres) CreatePool(ctx context.Context, workspaceID uuid.UUID, name string, mailboxIDs []uuid.UUID) (Pool, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Pool{}, fmt.Errorf("mailbox: name required")
+	}
+	id, err := uuid.NewV7()
+	if err != nil {
+		return Pool{}, err
+	}
+	var out Pool
+	err = p.pool.InTx(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.InsertMailboxPool(ctx, db.InsertMailboxPoolParams{
+			WorkspaceID: workspaceID, ID: id, Name: name,
+		})
+		if err != nil {
+			return err
+		}
+		out = Pool{ID: row.ID, Name: row.Name, Mailboxes: []PoolMailbox{}}
+		for _, mailboxID := range mailboxIDs {
+			if mailboxID == uuid.Nil {
+				continue
+			}
+			if err := q.InsertMailboxPoolMember(ctx, db.InsertMailboxPoolMemberParams{
+				WorkspaceID: workspaceID, PoolID: id, MailboxID: mailboxID,
+			}); err != nil {
+				if isFK(err) {
+					return ErrNotFound
+				}
+				if isUnique(err) {
+					continue
+				}
+				return err
+			}
+		}
+		members, err := q.ListMailboxPoolMembers(ctx, workspaceID)
+		if err != nil {
+			return err
+		}
+		assembled := assemblePools([]db.MailboxPool{row}, members)
+		if len(assembled) == 1 {
+			out = assembled[0]
+		}
+		return nil
+	})
+	return out, err
+}
+
+func isFK(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23503"
+}
+
 func text(s string) pgtype.Text {
 	if s == "" {
 		return pgtype.Text{}

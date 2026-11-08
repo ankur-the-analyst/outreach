@@ -270,6 +270,18 @@ type Mailbox struct {
 	CreatedAt           pgtype.Timestamptz
 }
 
+type MailboxPool struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Name        string
+}
+
+type MailboxPoolMember struct {
+	WorkspaceID uuid.UUID
+	PoolID      uuid.UUID
+	MailboxID   uuid.UUID
+}
+
 type Membership struct {
 	WorkspaceID uuid.UUID
 	UserID      uuid.UUID

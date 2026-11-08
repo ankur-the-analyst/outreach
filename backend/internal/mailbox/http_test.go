@@ -48,6 +48,13 @@ func (f *fakeStore) ListSA(context.Context, uuid.UUID) ([]ServiceAccount, error)
 func (f *fakeStore) SMTPEndpoint(context.Context, uuid.UUID, uuid.UUID) (string, int, error) {
 	return "127.0.0.1", 1025, f.err
 }
+func (f *fakeStore) ListPools(context.Context, uuid.UUID) ([]Pool, error) { return nil, f.err }
+func (f *fakeStore) CreatePool(_ context.Context, _ uuid.UUID, name string, ids []uuid.UUID) (Pool, error) {
+	if f.err != nil {
+		return Pool{}, f.err
+	}
+	return Pool{Name: name, Mailboxes: make([]PoolMailbox, len(ids))}, nil
+}
 
 type fakeTester struct{ err error }
 
@@ -188,6 +195,21 @@ func TestListDomainsHTTP(t *testing.T) {
 	}
 	if !bytes.Contains(rec.Body.Bytes(), []byte(`"acme.com"`)) {
 		t.Fatalf("body %s", rec.Body.Bytes())
+	}
+}
+
+func TestCreatePoolRequiresName(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner"}, fakeTester{})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/mailbox-pools", bytes.NewBufferString(`{"name":"  "}`))
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.CreatePool(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("got %d %s", rec.Code, rec.Body.Bytes())
 	}
 }
 

@@ -102,6 +102,12 @@ func (p *Postgres) Delete(ctx context.Context, workspaceID uuid.UUID) error {
 		if err := q.DeleteSenderIdentityForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: sender identity: %w", err)
 		}
+		if err := q.DeleteMailboxPoolMembersForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: mailbox group members: %w", err)
+		}
+		if err := q.DeleteMailboxPoolsForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: mailbox groups: %w", err)
+		}
 		if err := q.DeleteMailboxesForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: mailboxes: %w", err)
 		}
