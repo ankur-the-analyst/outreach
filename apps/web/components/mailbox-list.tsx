@@ -1,10 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/page-header";
 import type { Mailbox } from "@/lib/api";
 import { authKindLabel, mailboxStatus, mailboxUsageLabel } from "@/lib/labels";
+
+function mailboxError(message: string): string {
+  switch (message) {
+    case "smtp host not set":
+      return "This mailbox has no SMTP server to test";
+    default:
+      return message;
+  }
+}
 
 export function MailboxList({
   mailboxes,
@@ -36,25 +46,28 @@ function MailboxRow({
   mailbox: Mailbox;
   used: number;
 }) {
+  const router = useRouter();
   const [msg, setMsg] = useState("");
   const [pending, setPending] = useState(false);
 
-  async function onTest() {
+  async function post(path: string, opts?: { okMsg?: string; refresh?: boolean }) {
     setMsg("");
     setPending(true);
-    const res = await fetch(`/api/v1/mailboxes/${mailbox.id}/test`, {
-      method: "POST",
-      credentials: "include",
-    });
+    const res = await fetch(path, { method: "POST", credentials: "include" });
     setPending(false);
-    if (res.ok) {
-      setMsg("Server answered");
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as
+        | { error?: { message?: string } }
+        | null;
+      setMsg(mailboxError(data?.error?.message ?? "Request failed"));
       return;
     }
-    const data = (await res.json().catch(() => null)) as
-      | { error?: { message?: string } }
-      | null;
-    setMsg(data?.error?.message ?? "Test failed");
+    if (opts?.okMsg) {
+      setMsg(opts.okMsg);
+    }
+    if (opts?.refresh) {
+      router.refresh();
+    }
   }
 
   return (
@@ -86,12 +99,55 @@ function MailboxRow({
         {msg ? (
           <p className="font-body-md text-muted-foreground">{msg}</p>
         ) : null}
+        {mailbox.status === "paused" ? (
+          <Button
+            type="button"
+            className="rounded-md"
+            pending={pending}
+            onClick={() =>
+              post(`/api/v1/mailboxes/${mailbox.id}/reconnect`, {
+                refresh: true,
+              })
+            }
+          >
+            Resume
+          </Button>
+        ) : mailbox.status === "disconnected" ? (
+          <Button
+            type="button"
+            className="rounded-md"
+            pending={pending}
+            onClick={() =>
+              post(`/api/v1/mailboxes/${mailbox.id}/reconnect`, {
+                refresh: true,
+              })
+            }
+          >
+            Reconnect
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-md"
+            pending={pending}
+            onClick={() =>
+              post(`/api/v1/mailboxes/${mailbox.id}/pause`, { refresh: true })
+            }
+          >
+            Pause
+          </Button>
+        )}
         <Button
           type="button"
           variant="outline"
           className="rounded-md"
           pending={pending}
-          onClick={onTest}
+          onClick={() =>
+            post(`/api/v1/mailboxes/${mailbox.id}/test`, {
+              okMsg: "Server answered",
+            })
+          }
         >
           Test
         </Button>
