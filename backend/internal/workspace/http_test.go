@@ -47,6 +47,12 @@ func (f *fakeStore) UserByEmail(context.Context, string) (uuid.UUID, error) {
 	}
 	return f.userID, nil
 }
+func (f *fakeStore) CreateInvitedUser(_ context.Context, _ string, _ string) (uuid.UUID, bool, error) {
+	id := uuid.MustParse("01700000-0000-7000-8000-00000000000a")
+	f.userID = id
+	return id, true, nil
+}
+
 func (f *fakeStore) AddMember(_ context.Context, _ uuid.UUID, userID uuid.UUID, role string) error {
 	if f.addErr != nil {
 		return f.addErr
@@ -151,5 +157,26 @@ func TestInviteDefaultsToMember(t *testing.T) {
 	}
 	if got["role"] != RoleMember {
 		t.Fatalf("%v", got)
+	}
+}
+
+func TestInviteCreatesMissingUser(t *testing.T) {
+	t.Parallel()
+	store := &fakeStore{role: RoleOwner, userErr: ErrNotFound}
+	api := New(store)
+	s := auth.Session{UserID: uuid.MustParse("01700000-0000-7000-8000-000000000001"), WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002")}
+	req := sessionReq(http.MethodPost, "/api/v1/workspace/members", `{"email":"new@x.co"}`, s)
+	rec := httptest.NewRecorder()
+	api.Invite(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("got %d body %s", rec.Code, rec.Body.Bytes())
+	}
+	var got map[string]any
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	pass, _ := got["password"].(string)
+	if pass == "" || store.addedRole != RoleMember {
+		t.Fatalf("%v added=%s", got, store.addedRole)
 	}
 }

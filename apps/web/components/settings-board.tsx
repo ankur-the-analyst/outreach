@@ -122,10 +122,14 @@ function MembersList({
   const [email, setEmail] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [once, setOnce] = useState<{ email: string; password: string } | null>(
+    null,
+  );
 
   async function onInvite(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setOnce(null);
     setPending(true);
     const res = await fetch("/api/v1/workspace/members", {
       method: "POST",
@@ -140,6 +144,10 @@ function MembersList({
         | null;
       setError(data?.error?.message ?? "Could not add person");
       return;
+    }
+    const data = (await res.json()) as { email?: string; password?: string };
+    if (data.password) {
+      setOnce({ email: data.email ?? email, password: data.password });
     }
     setEmail("");
     router.refresh();
@@ -176,7 +184,7 @@ function MembersList({
           className="flex flex-col gap-3 sm:flex-row sm:items-end"
         >
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <Label htmlFor="invite-email">Add someone who already has an account</Label>
+            <Label htmlFor="invite-email">Add a person</Label>
             <Input
               id="invite-email"
               type="email"
@@ -189,6 +197,12 @@ function MembersList({
             Add
           </Button>
         </form>
+      ) : null}
+      {once ? (
+        <p className="font-body-md text-foreground">
+          Share this sign-in password with {once.email} once:{" "}
+          <span className="font-label-md">{once.password}</span>
+        </p>
       ) : null}
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
     </div>

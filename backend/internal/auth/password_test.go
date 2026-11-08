@@ -2,6 +2,18 @@ package auth
 
 import "testing"
 
+func TestRandomPassword(t *testing.T) {
+	t.Parallel()
+	a, err := RandomPassword()
+	if err != nil || len(a) < minPassword {
+		t.Fatalf("%q %v", a, err)
+	}
+	b, err := RandomPassword()
+	if err != nil || a == b {
+		t.Fatalf("got same password")
+	}
+}
+
 func TestHashPasswordRoundTrip(t *testing.T) {
 	t.Parallel()
 	h, err := HashPassword("correct-horse")

@@ -19,6 +19,7 @@ type Store interface {
 	Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error)
 	ListMembers(ctx context.Context, workspaceID uuid.UUID) ([]Member, error)
 	UserByEmail(ctx context.Context, email string) (uuid.UUID, error)
+	CreateInvitedUser(ctx context.Context, email, passwordHash string) (uuid.UUID, bool, error)
 	AddMember(ctx context.Context, workspaceID, userID uuid.UUID, role string) error
 }
 
@@ -170,7 +171,28 @@ func (a *API) Invite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID, err := a.store.UserByEmail(r.Context(), email)
-	if err != nil {
+	password := ""
+	if errors.Is(err, ErrNotFound) {
+		plain, err := auth.RandomPassword()
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal", "could not add person")
+			return
+		}
+		hash, err := auth.HashPassword(plain)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "internal", "could not add person")
+			return
+		}
+		created := false
+		userID, created, err = a.store.CreateInvitedUser(r.Context(), email, hash)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		if created {
+			password = plain
+		}
+	} else if err != nil {
 		writeStoreError(w, err)
 		return
 	}
@@ -178,11 +200,15 @@ func (a *API) Invite(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{
+	out := map[string]any{
 		"user_id": userID,
 		"email":   email,
 		"role":    role,
-	})
+	}
+	if password != "" {
+		out["password"] = password
+	}
+	writeJSON(w, http.StatusCreated, out)
 }
 
 func (a *API) requireOwner(ctx context.Context, s auth.Session) error {

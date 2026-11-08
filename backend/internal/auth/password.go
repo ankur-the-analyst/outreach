@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -17,6 +18,14 @@ const (
 	argonKeyLen  = 32
 	argonSaltLen = 16
 )
+
+func RandomPassword() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("auth: password: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
 
 func HashPassword(password string) (string, error) {
 	salt := make([]byte, argonSaltLen)

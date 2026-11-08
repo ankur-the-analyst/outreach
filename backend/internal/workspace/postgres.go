@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/db"
 )
 
@@ -193,6 +194,27 @@ func (p *Postgres) UserByEmail(ctx context.Context, email string) (uuid.UUID, er
 		return uuid.Nil, err
 	}
 	return u.ID, nil
+}
+
+func (p *Postgres) CreateInvitedUser(ctx context.Context, email, passwordHash string) (uuid.UUID, bool, error) {
+	id, err := uuid.NewV7()
+	if err != nil {
+		return uuid.Nil, false, err
+	}
+	err = p.pool.Queries().InsertUser(ctx, db.InsertUserParams{
+		ID:           id,
+		Email:        email,
+		PasswordHash: pgtype.Text{String: passwordHash, Valid: passwordHash != ""},
+	})
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			existing, err := p.UserByEmail(ctx, email)
+			return existing, false, err
+		}
+		return uuid.Nil, false, err
+	}
+	return id, true, nil
 }
 
 func (p *Postgres) AddMember(ctx context.Context, workspaceID, userID uuid.UUID, role string) error {
