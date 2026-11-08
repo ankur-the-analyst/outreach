@@ -5,12 +5,20 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Pill } from "@/components/page-header";
 import type { Mailbox } from "@/lib/api";
-import { authKindLabel, mailboxStatus, mailboxUsageLabel } from "@/lib/labels";
+import {
+  authKindLabel,
+  fieldSelect,
+  mailboxStatus,
+  mailboxUsageLabel,
+  replyModeLabel,
+} from "@/lib/labels";
 
 function mailboxError(message: string): string {
   switch (message) {
     case "smtp host not set":
       return "This mailbox has no SMTP server to test";
+    case "reply_mode must be draft or off":
+      return "Pick draft replies or don't draft";
     default:
       return message;
   }
@@ -49,6 +57,9 @@ function MailboxRow({
   const router = useRouter();
   const [msg, setMsg] = useState("");
   const [pending, setPending] = useState(false);
+  const [replyMode, setReplyModeState] = useState(
+    mailbox.reply_mode === "off" ? "off" : "draft",
+  );
 
   async function post(path: string, opts?: { okMsg?: string; refresh?: boolean }) {
     setMsg("");
@@ -68,6 +79,29 @@ function MailboxRow({
     if (opts?.refresh) {
       router.refresh();
     }
+  }
+
+  async function setReplyMode(mode: string) {
+    const prev = replyMode;
+    setReplyModeState(mode);
+    setMsg("");
+    setPending(true);
+    const res = await fetch(`/api/v1/mailboxes/${mailbox.id}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reply_mode: mode }),
+    });
+    setPending(false);
+    if (!res.ok) {
+      setReplyModeState(prev);
+      const data = (await res.json().catch(() => null)) as
+        | { error?: { message?: string } }
+        | null;
+      setMsg(mailboxError(data?.error?.message ?? "Could not update replies"));
+      return;
+    }
+    router.refresh();
   }
 
   return (
@@ -95,10 +129,20 @@ function MailboxRow({
           {` · ${mailboxUsageLabel(used, mailbox.effective_daily_limit)}`}
         </p>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         {msg ? (
           <p className="font-body-md text-muted-foreground">{msg}</p>
         ) : null}
+        <select
+          aria-label="When they reply"
+          disabled={pending}
+          value={replyMode}
+          onChange={(e) => setReplyMode(e.target.value)}
+          className={`${fieldSelect} w-auto min-w-[12rem]`}
+        >
+          <option value="draft">{replyModeLabel("draft")}</option>
+          <option value="off">{replyModeLabel("off")}</option>
+        </select>
         {mailbox.status === "paused" ? (
           <Button
             type="button"

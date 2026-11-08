@@ -572,7 +572,7 @@ select
   workspace_id, id, email, display_name, auth_kind, provider,
   smtp_host, smtp_port, smtp_tls, imap_host, imap_port, username,
   sending_domain_id, timezone, warmup_profile_id, warmup_sending_day,
-  effective_daily_limit, status, created_at
+  effective_daily_limit, status, reply_mode, created_at
 from mailboxes
 where workspace_id = $1
 order by email
@@ -597,6 +597,7 @@ type ListMailboxesRow struct {
 	WarmupSendingDay    int32
 	EffectiveDailyLimit int32
 	Status              string
+	ReplyMode           string
 	CreatedAt           pgtype.Timestamptz
 }
 
@@ -628,6 +629,7 @@ func (q *Queries) ListMailboxes(ctx context.Context, workspaceID uuid.UUID) ([]L
 			&i.WarmupSendingDay,
 			&i.EffectiveDailyLimit,
 			&i.Status,
+			&i.ReplyMode,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

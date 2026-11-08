@@ -70,6 +70,7 @@ export type Mailbox = {
   smtp_host: string;
   smtp_port: number;
   effective_daily_limit: number;
+  reply_mode?: string;
 };
 
 export function getMailboxes() {

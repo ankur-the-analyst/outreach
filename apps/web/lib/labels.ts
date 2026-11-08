@@ -40,6 +40,13 @@ export const trackerStageLabel: Record<string, string> = {
   unsubscribed: "Unsubscribed",
 };
 
+export function replyModeLabel(mode: string): string {
+  if (mode === "off") {
+    return "Don't draft replies";
+  }
+  return "Draft replies for review";
+}
+
 export function mailboxUsageLabel(used: number, cap: number): string {
   return `${used} of ${cap} · last 24h`;
 }

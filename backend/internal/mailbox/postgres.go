@@ -33,6 +33,7 @@ type Mailbox struct {
 	SendingDomainID     uuid.UUID `json:"sending_domain_id"`
 	WarmupProfileID     uuid.UUID `json:"warmup_profile_id"`
 	EffectiveDailyLimit int32     `json:"effective_daily_limit"`
+	ReplyMode           string    `json:"reply_mode"`
 }
 
 type ConnectInput struct {
@@ -356,6 +357,7 @@ func mailboxFromList(row db.ListMailboxesRow) Mailbox {
 		Timezone: row.Timezone, SMTPHost: row.SmtpHost.String, SMTPPort: row.SmtpPort.Int32,
 		SendingDomainID: row.SendingDomainID,
 		WarmupProfileID: row.WarmupProfileID, EffectiveDailyLimit: row.EffectiveDailyLimit,
+		ReplyMode: row.ReplyMode,
 	}
 }
 
