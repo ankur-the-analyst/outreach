@@ -4,7 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { EmptyState, PageBody, PageHeader } from "@/components/page-header";
 import type { Mailbox, Thread } from "@/lib/api";
+import { fieldSelect } from "@/lib/labels";
 
 export function Inbox({
   mailboxes,
@@ -64,119 +66,162 @@ export function Inbox({
     }
   }
 
-  if (mailboxes.length === 0) {
-    return (
-      <p className="font-body-md text-muted-foreground">
-        Connect a mailbox first.
-      </p>
-    );
-  }
-
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="font-label-md text-muted-foreground" htmlFor="inbox-mailbox">
-          Mailbox
-        </label>
-        <select
-          id="inbox-mailbox"
-          className="h-8 rounded-md border border-input bg-card px-2.5 font-[family-name:var(--font-body)] text-sm text-foreground"
-          value={mailboxID}
-          onChange={(e) => {
-            window.location.assign(href(e.target.value, ""));
-          }}
-        >
-          {mailboxes.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.email}
-            </option>
-          ))}
-        </select>
-        <Button
-          type="button"
-          variant="outline"
-          className="rounded-md"
-          pending={pending}
-          disabled={!mailboxID}
-          onClick={onSync}
-        >
-          Sync
-        </Button>
-        {msg ? <p className="font-body-md text-muted-foreground">{msg}</p> : null}
-      </div>
-      <div className="grid min-h-[24rem] grid-cols-1 gap-4 md:grid-cols-[minmax(16rem,20rem)_1fr]">
-        <ul className="flex flex-col gap-1 rounded-md border border-border bg-card p-2">
-          {threads.length === 0 ? (
-            <li className="p-3 font-body-md text-muted-foreground">
-              No conversations. Sync to pull mail.
-            </li>
-          ) : (
-            threads.map((t) => {
-              const active = t.id === threadID;
-              return (
-                <li key={t.id}>
-                  <Link
-                    href={href(mailboxID, t.id)}
-                    className={
-                      active
-                        ? "block w-full rounded-md bg-accent px-3 py-2 text-left"
-                        : "block w-full rounded-md px-3 py-2 text-left hover:bg-muted"
-                    }
-                    onClick={() => {
-                      void onOpen(t);
-                    }}
-                  >
-                    <p
-                      className={
-                        t.unread
-                          ? "font-label-md text-foreground"
-                          : "font-body-md text-foreground"
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader
+        title="Inbox"
+        actions={
+          mailboxes.length > 0 ? (
+            <>
+              <label className="sr-only" htmlFor="inbox-mailbox">
+                Mailbox
+              </label>
+              <select
+                id="inbox-mailbox"
+                className={`${fieldSelect} w-auto min-w-[12rem]`}
+                value={mailboxID}
+                onChange={(e) => {
+                  router.push(href(e.target.value, ""));
+                }}
+              >
+                {mailboxes.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.email}
+                  </option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-md"
+                pending={pending}
+                disabled={!mailboxID}
+                onClick={onSync}
+              >
+                Sync
+              </Button>
+            </>
+          ) : undefined
+        }
+      />
+      <PageBody>
+        {mailboxes.length === 0 ? (
+          <EmptyState
+            title="Connect a mailbox first"
+            description="Inbox shows conversations from a connected mailbox."
+            action={
+              <Link
+                href="/mailboxes"
+                className="inline-flex h-8 items-center rounded-md bg-primary px-2.5 font-label-md text-sm text-primary-foreground hover:bg-primary/80"
+              >
+                Mailboxes
+              </Link>
+            }
+          />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {msg ? (
+              <p role="alert" className="font-body-md text-destructive">
+                {msg}
+              </p>
+            ) : null}
+            <div className="grid min-h-[24rem] grid-cols-1 gap-4 md:grid-cols-[minmax(16rem,20rem)_1fr]">
+              <ul className="flex flex-col gap-1 rounded-md border border-border bg-card p-2">
+                {threads.length === 0 ? (
+                  <li>
+                    <EmptyState
+                      compact
+                      title="No conversations"
+                      description="Sync this mailbox to pull mail."
+                      action={
+                        <Button
+                          type="button"
+                          className="rounded-md"
+                          pending={pending}
+                          disabled={!mailboxID}
+                          onClick={onSync}
+                        >
+                          Sync
+                        </Button>
                       }
-                    >
-                      {t.subject || "(no subject)"}
-                    </p>
-                    <p className="mt-0.5 font-body-md text-muted-foreground">
-                      {t.unread ? "Unread" : "Read"}
-                    </p>
-                  </Link>
-                </li>
-              );
-            })
-          )}
-        </ul>
-        <div className="rounded-md border border-border bg-card p-4">
-          {!selected ? (
-            <p className="font-body-md text-muted-foreground">
-              Open a thread to read it.
-            </p>
-          ) : (
-            <div className="flex flex-col gap-4">
-              <h2 className="font-headline-md text-foreground">
-                {selected.subject || "(no subject)"}
-              </h2>
-              {(selected.messages ?? []).map((m) => (
-                <article
-                  key={m.id}
-                  className="border-t border-border pt-3 first:border-t-0 first:pt-0"
-                >
-                  <p className="font-label-md text-foreground">
-                    {m.direction === "in" ? "From" : "To"} {m.from || m.to.join(", ")}
-                  </p>
-                  {m.classification?.class ? (
-                    <p className="mt-1 font-body-md text-muted-foreground">
-                      {m.classification.class}
-                      {m.classification.reply_draft ? " · reply draft" : ""}
-                    </p>
-                  ) : null}
-                  <p className="mt-2 whitespace-pre-wrap font-body-md text-foreground">
-                    {m.body_text}
-                  </p>
-                </article>
-              ))}
+                    />
+                  </li>
+                ) : (
+                  threads.map((t) => {
+                    const active = t.id === threadID;
+                    return (
+                      <li key={t.id}>
+                        <Link
+                          href={href(mailboxID, t.id)}
+                          aria-current={active ? "page" : undefined}
+                          className={
+                            active
+                              ? "block w-full rounded-md bg-accent px-3 py-2 text-left"
+                              : "block w-full rounded-md px-3 py-2 text-left hover:bg-muted"
+                          }
+                          onClick={() => {
+                            void onOpen(t);
+                          }}
+                        >
+                          <p
+                            className={
+                              t.unread
+                                ? "font-label-md text-foreground"
+                                : "font-body-md text-foreground"
+                            }
+                          >
+                            {t.subject || "(no subject)"}
+                          </p>
+                          <p className="mt-0.5 font-body-sm text-muted-foreground">
+                            {t.unread ? "Unread" : "Read"}
+                          </p>
+                        </Link>
+                      </li>
+                    );
+                  })
+                )}
+              </ul>
+              <div className="rounded-md border border-border bg-card p-4">
+                {!selected ? (
+                  <EmptyState
+                    compact
+                    title="No thread open"
+                    description="Pick a conversation on the left."
+                  />
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    <h2 className="font-headline-md text-foreground">
+                      {selected.subject || "(no subject)"}
+                    </h2>
+                    {(selected.messages ?? []).map((m) => (
+                      <article
+                        key={m.id}
+                        className="border-t border-border pt-3 first:border-t-0 first:pt-0"
+                      >
+                        <p className="font-label-md text-foreground">
+                          {m.direction === "in" ? "From" : "To"}{" "}
+                          {m.from || m.to.join(", ")}
+                        </p>
+                        {m.classification?.class ? (
+                          <p className="mt-1 font-body-md text-muted-foreground">
+                            {m.classification.class}
+                            {m.classification.reply_draft
+                              ? " · reply draft"
+                              : ""}
+                          </p>
+                        ) : null}
+                        <p className="mt-2 whitespace-pre-wrap font-body-md text-foreground">
+                          {m.body_text}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        )}
+      </PageBody>
     </div>
   );
 }

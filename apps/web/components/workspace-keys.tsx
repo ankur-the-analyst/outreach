@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { EmptyState, Panel } from "@/components/page-header";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import type { WorkspaceKey } from "@/lib/api";
 import { fieldTextarea } from "@/lib/labels";
 
@@ -24,22 +31,36 @@ function workspaceKeyError(message: string): string {
 }
 
 export function WorkspaceKeys({ keys }: { keys: WorkspaceKey[] }) {
+  const [open, setOpen] = useState(false);
+  const add = (
+    <Button
+      type="button"
+      variant="outline"
+      className="rounded-md"
+      onClick={() => setOpen(true)}
+    >
+      Add key
+    </Button>
+  );
+
   return (
-    <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
-      <div className="lg:col-span-7">
-        <h2 className="mb-3 font-headline-md text-foreground">
-          Google Workspace keys
-        </h2>
+    <>
+      <Panel
+        title="Google Workspace keys"
+        actions={keys.length > 0 ? add : undefined}
+      >
         {keys.length === 0 ? (
-          <p className="font-body-md text-muted-foreground">
-            No Workspace keys yet.
-          </p>
+          <EmptyState
+            title="No Workspace keys yet"
+            description="One JSON key per sending domain. Not for personal Gmail."
+            action={add}
+          />
         ) : (
           <ul className="flex flex-col gap-2">
             {keys.map((k) => (
               <li
                 key={k.id}
-                className="rounded-md border border-border bg-card p-4"
+                className="rounded-md border border-border bg-muted/50 px-3 py-2"
               >
                 <p className="font-label-md text-foreground">{k.domain}</p>
                 <p className="mt-1 break-all font-body-sm text-muted-foreground">
@@ -49,15 +70,22 @@ export function WorkspaceKeys({ keys }: { keys: WorkspaceKey[] }) {
             ))}
           </ul>
         )}
-      </div>
-      <div className="lg:col-span-5">
-        <AddWorkspaceKey />
-      </div>
-    </div>
+      </Panel>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Add a Workspace key</SheetTitle>
+          </SheetHeader>
+          <div className="px-4 pb-4">
+            <AddWorkspaceKey onDone={() => setOpen(false)} />
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
 
-function AddWorkspaceKey() {
+function AddWorkspaceKey({ onDone }: { onDone: () => void }) {
   const router = useRouter();
   const [domain, setDomain] = useState("");
   const [jsonKey, setJsonKey] = useState("");
@@ -91,15 +119,15 @@ function AddWorkspaceKey() {
     }
     setDomain("");
     setJsonKey("");
+    onDone();
     router.refresh();
   }
 
   return (
     <form
       onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
-      className="flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-5"
+      className="flex flex-col gap-4"
     >
-      <h2 className="font-headline-md text-foreground">Add a Workspace key</h2>
       <p className="font-body-md text-muted-foreground">
         One JSON key per sending domain. Not for @gmail.com.
       </p>
@@ -124,7 +152,11 @@ function AddWorkspaceKey() {
           className={fieldTextarea}
         />
       </div>
-      {error ? <p className="font-body-md text-destructive">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="font-body-md text-destructive">
+          {error}
+        </p>
+      ) : null}
       <Button type="submit" className="rounded-md" pending={pending}>
         Save key
       </Button>

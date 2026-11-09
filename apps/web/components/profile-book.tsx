@@ -5,15 +5,47 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { EmptyState, PageBody, PageHeader } from "@/components/page-header";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import type { Profile } from "@/lib/api";
 import { fieldTextarea } from "@/lib/labels";
 
 export function ProfileBook({ profiles }: { profiles: Profile[] }) {
+  const [createOpen, setCreateOpen] = useState(false);
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-      <div className="lg:col-span-7">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader
+        title="Profiles"
+        actions={
+          <Button
+            type="button"
+            className="rounded-md"
+            onClick={() => setCreateOpen(true)}
+          >
+            Add a profile
+          </Button>
+        }
+      />
+      <PageBody>
         {profiles.length === 0 ? (
-          <p className="font-body-md text-muted-foreground">No profiles yet.</p>
+          <EmptyState
+            title="No profiles yet"
+            description="A profile is who you are writing as, plus resume text for job fit."
+            action={
+              <Button
+                type="button"
+                className="rounded-md"
+                onClick={() => setCreateOpen(true)}
+              >
+                Add a profile
+              </Button>
+            }
+          />
         ) : (
           <ul className="flex flex-col gap-3">
             {profiles.map((p) => (
@@ -32,15 +64,22 @@ export function ProfileBook({ profiles }: { profiles: Profile[] }) {
             ))}
           </ul>
         )}
-      </div>
-      <div className="lg:col-span-5">
-        <CreateProfile />
-      </div>
+      </PageBody>
+      <Sheet open={createOpen} onOpenChange={setCreateOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Add a profile</SheetTitle>
+          </SheetHeader>
+          <div className="px-4 pb-4">
+            <CreateProfile onDone={() => setCreateOpen(false)} />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
 
-function CreateProfile() {
+function CreateProfile({ onDone }: { onDone?: () => void }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [about, setAbout] = useState("");
@@ -67,15 +106,15 @@ function CreateProfile() {
     }
     setName("");
     setAbout("");
+    onDone?.();
     router.refresh();
   }
 
   return (
     <form
       onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
-      className="flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-6"
+      className="flex flex-col gap-4"
     >
-      <h2 className="font-headline-md text-foreground">Add a profile</h2>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="profile-name">Name</Label>
         <Input

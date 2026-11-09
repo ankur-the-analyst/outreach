@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { Inbox } from "@/components/inbox";
-import { PageBody, PageHeader, PageLoading } from "@/components/page-header";
+import { PageLoading } from "@/components/page-header";
 import { getMailboxes, getThreads } from "@/lib/api";
 
 export const instant = false;
@@ -18,15 +18,12 @@ async function InboxBody({
   const data = mailboxID ? await getThreads(mailboxID) : null;
   return (
     <main className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="Inbox" />
-      <PageBody>
-        <Inbox
-          mailboxes={mailboxes}
-          mailboxID={mailboxID}
-          threads={data?.threads ?? []}
-          threadID={sp.thread ?? ""}
-        />
-      </PageBody>
+      <Inbox
+        mailboxes={mailboxes}
+        mailboxID={mailboxID}
+        threads={data?.threads ?? []}
+        threadID={sp.thread ?? ""}
+      />
     </main>
   );
 }

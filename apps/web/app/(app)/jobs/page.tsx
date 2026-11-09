@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { PageBody, PageHeader, PageLoading } from "@/components/page-header";
+import { PageLoading } from "@/components/page-header";
 import { JobBoard } from "@/components/job-board";
 import { getFits, getJobs, getProfiles } from "@/lib/api";
 
@@ -13,15 +13,12 @@ async function JobsBody() {
   ]);
   return (
     <main className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="Jobs" />
-      <PageBody>
-        <JobBoard
-          jobs={jobs?.jobs ?? []}
-          nextCursor={jobs?.next_cursor}
-          profiles={profiles?.profiles ?? []}
-          fits={fits?.fits ?? []}
-        />
-      </PageBody>
+      <JobBoard
+        jobs={jobs?.jobs ?? []}
+        nextCursor={jobs?.next_cursor}
+        profiles={profiles?.profiles ?? []}
+        fits={fits?.fits ?? []}
+      />
     </main>
   );
 }

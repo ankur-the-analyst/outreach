@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Pill } from "@/components/page-header";
+import { EmptyState, PageBody, PageHeader, Pill } from "@/components/page-header";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import type { EvidenceItem, Profile } from "@/lib/api";
 import { fieldSelect, fieldTextarea } from "@/lib/labels";
 
@@ -24,6 +30,7 @@ export function EvidenceLibrary({
   const [profileID, setProfileID] = useState("");
   const [usable, setUsable] = useState<EvidenceItem[] | null>(null);
   const [pending, setPending] = useState(false);
+  const [proposeOpen, setProposeOpen] = useState(false);
 
   useEffect(() => {
     setRows(items);
@@ -72,8 +79,20 @@ export function EvidenceLibrary({
   const shown = usable ?? rows;
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-      <div className="lg:col-span-7">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader
+        title="Evidence"
+        actions={
+          <Button
+            type="button"
+            className="rounded-md"
+            onClick={() => setProposeOpen(true)}
+          >
+            Propose a claim
+          </Button>
+        }
+      />
+      <PageBody>
         {profiles.length > 0 ? (
           <div className="mb-4 flex max-w-xs flex-col gap-1.5">
             <Label htmlFor="evidence-usable">Claims for this profile</Label>
@@ -95,7 +114,19 @@ export function EvidenceLibrary({
         {pending ? (
           <p className="font-body-md text-muted-foreground">Loading…</p>
         ) : shown.length === 0 ? (
-          <p className="font-body-md text-muted-foreground">No evidence yet.</p>
+          <EmptyState
+            title="No claims yet"
+            description="Propose something you can stand behind in outreach."
+            action={
+              <Button
+                type="button"
+                className="rounded-md"
+                onClick={() => setProposeOpen(true)}
+              >
+                Propose a claim
+              </Button>
+            }
+          />
         ) : (
           <ul className="flex flex-col gap-3">
             {shown.map((item) => (
@@ -114,10 +145,20 @@ export function EvidenceLibrary({
             Show more
           </Button>
         ) : null}
-      </div>
-      <div className="lg:col-span-5">
-        <ProposeForm profiles={profiles} />
-      </div>
+      </PageBody>
+      <Sheet open={proposeOpen} onOpenChange={setProposeOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Propose a claim</SheetTitle>
+          </SheetHeader>
+          <div className="px-4 pb-4">
+            <ProposeForm
+              profiles={profiles}
+              onDone={() => setProposeOpen(false)}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -194,7 +235,13 @@ function EvidenceRow({
   );
 }
 
-function ProposeForm({ profiles }: { profiles: Profile[] }) {
+function ProposeForm({
+  profiles,
+  onDone,
+}: {
+  profiles: Profile[];
+  onDone?: () => void;
+}) {
   const router = useRouter();
   const [text, setText] = useState("");
   const [sourceRef, setSourceRef] = useState("");
@@ -227,15 +274,15 @@ function ProposeForm({ profiles }: { profiles: Profile[] }) {
     setText("");
     setSourceRef("");
     setProfileID("");
+    onDone?.();
     router.refresh();
   }
 
   return (
     <form
       onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
-      className="flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-6"
+      className="flex flex-col gap-4"
     >
-      <h2 className="font-headline-md text-foreground">Propose a claim</h2>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="evidence-text">Text</Label>
         <textarea

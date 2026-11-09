@@ -13,23 +13,42 @@ import {
   Users,
 } from "lucide-react";
 
-export const navItems: {
+export type NavItem = {
   href: string;
   label: string;
   icon: LucideIcon;
-}[] = [
-  { href: "/", label: "Overview", icon: LayoutDashboard },
-  { href: "/inbox", label: "Inbox", icon: Inbox },
-  { href: "/tracker", label: "Tracker", icon: LineChart },
-  { href: "/contacts", label: "Contacts", icon: Users },
-  { href: "/campaigns", label: "Campaigns", icon: Megaphone },
-  { href: "/review", label: "Review", icon: ShieldCheck },
-  { href: "/evidence", label: "Evidence", icon: FileCheck },
-  { href: "/jobs", label: "Jobs", icon: Briefcase },
-  { href: "/mailboxes", label: "Mailboxes", icon: Mail },
-  { href: "/profiles", label: "Profiles", icon: CircleUser },
-  { href: "/settings", label: "Settings", icon: Settings },
+};
+
+export const navGroups: { label: string; items: NavItem[] }[] = [
+  {
+    label: "Today",
+    items: [
+      { href: "/", label: "Overview", icon: LayoutDashboard },
+      { href: "/inbox", label: "Inbox", icon: Inbox },
+      { href: "/tracker", label: "Tracker", icon: LineChart },
+      { href: "/review", label: "Review", icon: ShieldCheck },
+    ],
+  },
+  {
+    label: "Outreach",
+    items: [
+      { href: "/contacts", label: "Contacts", icon: Users },
+      { href: "/campaigns", label: "Campaigns", icon: Megaphone },
+      { href: "/jobs", label: "Jobs", icon: Briefcase },
+      { href: "/evidence", label: "Evidence", icon: FileCheck },
+      { href: "/profiles", label: "Profiles", icon: CircleUser },
+    ],
+  },
+  {
+    label: "Workspace",
+    items: [
+      { href: "/mailboxes", label: "Mailboxes", icon: Mail },
+      { href: "/settings", label: "Settings", icon: Settings },
+    ],
+  },
 ];
+
+export const navItems: NavItem[] = navGroups.flatMap((group) => group.items);
 
 export function navLabel(href: string) {
   return navItems.find((item) => item.href === href)?.label ?? "Overview";

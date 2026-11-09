@@ -3,9 +3,16 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PageBody, PageHeader, Pill } from "@/components/page-header";
+import { EmptyState, PageBody, PageHeader, Panel, Pill } from "@/components/page-header";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { AISettingsForm } from "@/components/ai-settings";
 import { SenderIdentityForm } from "@/components/sender-identity-form";
 import type { Member, ModelSettings, SenderIdentity, Workspace } from "@/lib/api";
@@ -57,6 +64,7 @@ function PauseSends({ paused, canEdit }: { paused: boolean; canEdit: boolean }) 
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [pauseOpen, setPauseOpen] = useState(false);
 
   async function setPaused(next: boolean) {
     setError("");
@@ -79,26 +87,33 @@ function PauseSends({ paused, canEdit }: { paused: boolean; canEdit: boolean }) 
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-md border border-border bg-card p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h2 className="font-headline-sm text-foreground">Sending</h2>
-          <p className="mt-1 font-body-sm text-muted-foreground">
-            Pause stops new sends. Mail already going out may still finish.
-          </p>
-        </div>
+    <Panel
+      title="Sending"
+      description="Pause stops new sends. Mail already going out may still finish."
+      actions={
         <Pill tone={paused ? "danger" : "success"}>
           {paused ? "Paused" : "Sending"}
         </Pill>
-      </div>
-      {error ? <p className="font-body-md text-destructive">{error}</p> : null}
+      }
+    >
+      {error ? (
+        <p role="alert" className="font-body-md text-destructive">
+          {error}
+        </p>
+      ) : null}
       {canEdit ? (
         <Button
           type="button"
           variant={paused ? "default" : "outline"}
           className="w-fit rounded-md"
           pending={pending}
-          onClick={() => setPaused(!paused)}
+          onClick={() => {
+            if (paused) {
+              void setPaused(false);
+              return;
+            }
+            setPauseOpen(true);
+          }}
         >
           {paused ? "Resume sending" : "Pause all sending"}
         </Button>
@@ -107,7 +122,20 @@ function PauseSends({ paused, canEdit }: { paused: boolean; canEdit: boolean }) 
           Only an owner can pause or resume.
         </p>
       )}
-    </div>
+      <ConfirmDialog
+        open={pauseOpen}
+        onOpenChange={setPauseOpen}
+        title="Pause all sending?"
+        description="Nothing new goes out. Mail already sending may still finish."
+        confirmLabel="Pause all sending"
+        confirmTone="danger"
+        loading={pending}
+        onConfirm={async () => {
+          await setPaused(true);
+          setPauseOpen(false);
+        }}
+      />
+    </Panel>
   );
 }
 
@@ -122,6 +150,7 @@ function MembersList({
   const [email, setEmail] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [once, setOnce] = useState<{ email: string; password: string } | null>(
     null,
   );
@@ -150,20 +179,37 @@ function MembersList({
       setOnce({ email: data.email ?? email, password: data.password });
     }
     setEmail("");
+    setInviteOpen(false);
     router.refresh();
   }
 
+  const invite = canInvite ? (
+    <Button
+      type="button"
+      variant="outline"
+      className="rounded-md"
+      onClick={() => setInviteOpen(true)}
+    >
+      Add a person
+    </Button>
+  ) : undefined;
+
   return (
-    <div className="flex flex-col gap-4 rounded-md border border-border bg-card p-4">
-      <h2 className="font-headline-sm text-foreground">People</h2>
+    <>
+    <Panel title="People" actions={members.length > 0 ? invite : undefined}>
       {members.length === 0 ? (
-        <p className="font-body-md text-muted-foreground">No people yet.</p>
+        <EmptyState
+          compact
+          title="No people yet"
+          description="Add someone so they can sign in to this workspace."
+          action={invite}
+        />
       ) : (
         <ul className="flex flex-col gap-2">
           {members.map((m) => (
             <li
               key={m.user_id}
-              className="flex flex-wrap items-center justify-between gap-2"
+              className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/50 px-3 py-2"
             >
               <div>
                 <p className="font-label-md text-foreground">
@@ -178,33 +224,49 @@ function MembersList({
           ))}
         </ul>
       )}
-      {canInvite ? (
-        <form
-          onSubmit={pending ? (e) => e.preventDefault() : onInvite}
-          className="flex flex-col gap-3 sm:flex-row sm:items-end"
-        >
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <Label htmlFor="invite-email">Add a person</Label>
-            <Input
-              id="invite-email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <Button type="submit" className="rounded-md" pending={pending}>
-            Add
-          </Button>
-        </form>
-      ) : null}
       {once ? (
-        <p className="font-body-md text-foreground">
+        <p role="status" className="font-body-md text-foreground">
           Share this sign-in password with {once.email} once:{" "}
           <span className="font-label-md">{once.password}</span>
         </p>
       ) : null}
-      {error ? <p className="font-body-md text-destructive">{error}</p> : null}
-    </div>
+      {error ? (
+        <p role="alert" className="font-body-md text-destructive">
+          {error}
+        </p>
+      ) : null}
+    </Panel>
+    <Sheet open={inviteOpen} onOpenChange={setInviteOpen}>
+      <SheetContent>
+        <SheetHeader>
+          <SheetTitle>Add a person</SheetTitle>
+        </SheetHeader>
+        <form
+          onSubmit={pending ? (e) => e.preventDefault() : onInvite}
+          className="flex flex-col gap-4 px-4 pb-4"
+        >
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="invite-email">Email</Label>
+            <Input
+              id="invite-email"
+              type="email"
+              required
+              autoComplete="off"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          {error ? (
+            <p role="alert" className="font-body-md text-destructive">
+              {error}
+            </p>
+          ) : null}
+          <Button type="submit" className="rounded-md" pending={pending}>
+            Add
+          </Button>
+        </form>
+      </SheetContent>
+    </Sheet>
+    </>
   );
 }

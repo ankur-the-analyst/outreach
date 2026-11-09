@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Panel } from "@/components/page-header";
 import type { ModelSettings } from "@/lib/api";
 import { fieldSelect } from "@/lib/labels";
 
@@ -51,16 +52,14 @@ export function AISettingsForm({
   }
 
   return (
+    <Panel
+      title="Models"
+      description="Keys stay in this workspace. The model cannot send email."
+    >
     <form
       onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
-      className="flex flex-col gap-4 rounded-md border border-border bg-muted p-4"
+      className="flex flex-col gap-4"
     >
-      <div>
-        <h2 className="font-headline-sm text-foreground">Models</h2>
-        <p className="mt-1 font-body-sm text-muted-foreground">
-          Keys stay in this workspace. The model cannot send email.
-        </p>
-      </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="ai-kind">Provider</Label>
         <select
@@ -120,10 +119,15 @@ export function AISettingsForm({
           onChange={(e) => setEmbedModel(e.target.value)}
         />
       </div>
-      {msg ? <p className="font-body-md text-muted-foreground">{msg}</p> : null}
+      {msg ? (
+        <p role="status" className="font-body-md text-muted-foreground">
+          {msg}
+        </p>
+      ) : null}
       <Button type="submit" className="rounded-md" pending={pending}>
         Save
       </Button>
     </form>
+    </Panel>
   );
 }

@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Pill } from "@/components/page-header";
+import { EmptyState, PageBody, PageHeader, Pill } from "@/components/page-header";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import type { Fit, Job, Profile } from "@/lib/api";
 import { fieldSelect, fieldTextarea, jobAnalysisLabel } from "@/lib/labels";
 
@@ -23,6 +29,7 @@ export function JobBoard({
   const [rows, setRows] = useState(jobs);
   const [cursor, setCursor] = useState(nextCursor);
   const [morePending, setMorePending] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     setRows(jobs);
@@ -51,10 +58,34 @@ export function JobBoard({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-      <div className="lg:col-span-7">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader
+        title="Jobs"
+        actions={
+          <Button
+            type="button"
+            className="rounded-md"
+            onClick={() => setCreateOpen(true)}
+          >
+            Add a job
+          </Button>
+        }
+      />
+      <PageBody>
         {rows.length === 0 ? (
-          <p className="font-body-md text-muted-foreground">No jobs yet.</p>
+          <EmptyState
+            title="No jobs yet"
+            description="Paste a job description to check fit and put people on that search."
+            action={
+              <Button
+                type="button"
+                className="rounded-md"
+                onClick={() => setCreateOpen(true)}
+              >
+                Add a job
+              </Button>
+            }
+          />
         ) : (
           <ul className="flex flex-col gap-3">
             {rows.map((job) => (
@@ -111,15 +142,22 @@ export function JobBoard({
             Show more
           </Button>
         ) : null}
-      </div>
-      <div className="lg:col-span-5">
-        <CreateJob />
-      </div>
+      </PageBody>
+      <Sheet open={createOpen} onOpenChange={setCreateOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Add a job</SheetTitle>
+          </SheetHeader>
+          <div className="px-4 pb-4">
+            <CreateJob onDone={() => setCreateOpen(false)} />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
 
-function CreateJob() {
+function CreateJob({ onDone }: { onDone?: () => void }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [sourceURL, setSourceURL] = useState("");
@@ -152,15 +190,15 @@ function CreateJob() {
     setTitle("");
     setSourceURL("");
     setText("");
+    onDone?.();
     router.refresh();
   }
 
   return (
     <form
       onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
-      className="flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-6"
+      className="flex flex-col gap-4"
     >
-      <h2 className="font-headline-md text-foreground">Add a job</h2>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="job-title">Title</Label>
         <Input

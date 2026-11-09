@@ -5,8 +5,39 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
-export function ConnectMailboxForm() {
+export function ConnectMailboxControl() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        type="button"
+        className="rounded-md"
+        onClick={() => setOpen(true)}
+      >
+        Connect mailbox
+      </Button>
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Connect mailbox</SheetTitle>
+          </SheetHeader>
+          <div className="px-4 pb-4">
+            <ConnectMailboxForm onDone={() => setOpen(false)} />
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+}
+
+export function ConnectMailboxForm({ onDone }: { onDone?: () => void }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -44,15 +75,15 @@ export function ConnectMailboxForm() {
     }
     setEmail("");
     setDisplayName("");
+    onDone?.();
     router.refresh();
   }
 
   return (
     <form
       onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
-      className="mt-6 flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-5"
+      className="flex flex-col gap-4"
     >
-      <h2 className="font-headline-md text-foreground">Connect mailbox</h2>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="mailbox-email">Email</Label>
         <Input

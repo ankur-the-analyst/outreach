@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { ConnectMailboxForm } from "@/components/connect-mailbox-form";
+import { ConnectMailboxControl } from "@/components/connect-mailbox-form";
 import { MailboxGroups } from "@/components/mailbox-groups";
 import { MailboxList } from "@/components/mailbox-list";
 import { MailboxHealth } from "@/components/mailbox-health";
@@ -32,18 +32,22 @@ async function MailboxesBody() {
     ]);
   return (
     <main className="flex min-h-0 flex-1 flex-col">
-      <PageHeader title="Mailboxes" />
+      <PageHeader
+        title="Mailboxes"
+        actions={<ConnectMailboxControl />}
+      />
       <PageBody>
-        <MailboxList
-          mailboxes={mailboxes}
-          usageByMailbox={usageByMailbox}
-          domains={domains?.domains ?? []}
-        />
-        <MailboxGroups mailboxes={mailboxes} pools={pools?.pools ?? []} />
-        <MailboxHealth samples={health?.samples ?? []} />
-        <MailboxRamps profiles={ramps?.profiles ?? []} />
-        <WorkspaceKeys keys={keys?.service_accounts ?? []} />
-        <ConnectMailboxForm />
+        <div className="flex flex-col gap-6">
+          <MailboxList
+            mailboxes={mailboxes}
+            usageByMailbox={usageByMailbox}
+            domains={domains?.domains ?? []}
+          />
+          <MailboxGroups mailboxes={mailboxes} pools={pools?.pools ?? []} />
+          <MailboxHealth samples={health?.samples ?? []} />
+          <MailboxRamps profiles={ramps?.profiles ?? []} />
+          <WorkspaceKeys keys={keys?.service_accounts ?? []} />
+        </div>
       </PageBody>
     </main>
   );

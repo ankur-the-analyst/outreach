@@ -1,13 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Pill } from "@/components/page-header";
+import { EmptyState, PageBody, PageHeader, Pill } from "@/components/page-header";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import type { Contact, NeverEmail } from "@/lib/api";
-import { contactName, fieldSelect, fieldTextarea } from "@/lib/labels";
+import { contactName, fieldSelect } from "@/lib/labels";
 
 function neverEmailError(message: string): string {
   if (message.includes("reason required")) {
@@ -47,6 +54,7 @@ export function ContactBook({
   const [rows, setRows] = useState(contacts);
   const [cursor, setCursor] = useState(nextCursor);
   const [morePending, setMorePending] = useState(false);
+  const [sheet, setSheet] = useState<"add" | "never" | "csv" | null>(null);
 
   useEffect(() => {
     setRows(contacts);
@@ -75,10 +83,62 @@ export function ContactBook({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-      <div className="lg:col-span-7">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <PageHeader
+        title="Contacts"
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-md"
+              onClick={() => setSheet("never")}
+            >
+              Never email
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-md"
+              onClick={() => setSheet("csv")}
+            >
+              Import CSV
+            </Button>
+            <Button
+              type="button"
+              className="rounded-md"
+              onClick={() => setSheet("add")}
+            >
+              Add contact
+            </Button>
+          </>
+        }
+      />
+      <PageBody>
         {rows.length === 0 ? (
-          <p className="font-body-md text-muted-foreground">No contacts yet.</p>
+          <EmptyState
+            title="No contacts yet"
+            description="Add one person, or import a CSV with email, first_name, and company."
+            action={
+              <>
+                <Button
+                  type="button"
+                  className="rounded-md"
+                  onClick={() => setSheet("add")}
+                >
+                  Add contact
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-md"
+                  onClick={() => setSheet("csv")}
+                >
+                  Import CSV
+                </Button>
+              </>
+            }
+          />
         ) : (
           <ul className="flex flex-col gap-2">
             {rows.map((c) => (
@@ -131,12 +191,32 @@ export function ContactBook({
           </Button>
         ) : null}
         <NeverEmailList blocked={blocked} />
-      </div>
-      <div className="flex flex-col gap-4 lg:col-span-5">
-        <CreateForm />
-        <NeverEmailForm />
-        <CSVPreview />
-      </div>
+      </PageBody>
+      <Sheet
+        open={sheet !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSheet(null);
+          }
+        }}
+      >
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>
+              {sheet === "never"
+                ? "Never email"
+                : sheet === "csv"
+                  ? "Import CSV"
+                  : "Add a contact"}
+            </SheetTitle>
+          </SheetHeader>
+          <div className="px-4 pb-4">
+            {sheet === "add" ? <CreateForm /> : null}
+            {sheet === "never" ? <NeverEmailForm /> : null}
+            {sheet === "csv" ? <CSVPreview /> : null}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -144,6 +224,7 @@ export function ContactBook({
 function RemoveButton({ id }: { id: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  const [open, setOpen] = useState(false);
 
   async function onRemove() {
     setPending(true);
@@ -155,20 +236,33 @@ function RemoveButton({ id }: { id: string }) {
     if (!res.ok) {
       return;
     }
+    setOpen(false);
     router.refresh();
   }
 
   return (
-    <Button
-      type="button"
-      variant="outline"
-      size="xs"
-      className="rounded-md"
-      pending={pending}
-      onClick={onRemove}
-    >
-      Remove
-    </Button>
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="xs"
+        className="rounded-md"
+        pending={pending}
+        onClick={() => setOpen(true)}
+      >
+        Remove
+      </Button>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Remove this person?"
+        description="Deletes their messages and drafts. They stay on the never-email list."
+        confirmLabel="Remove"
+        confirmTone="danger"
+        loading={pending}
+        onConfirm={onRemove}
+      />
+    </>
   );
 }
 
@@ -213,9 +307,8 @@ function CreateForm() {
   return (
     <form
       onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
-      className="flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-6"
+      className="flex flex-col gap-4"
     >
-      <h2 className="font-headline-md text-foreground">Add a contact</h2>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="contact-email">Email</Label>
         <Input
@@ -327,9 +420,8 @@ function NeverEmailForm() {
   return (
     <form
       onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
-      className="flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-6"
+      className="flex flex-col gap-4"
     >
-      <h2 className="font-headline-md text-foreground">Never email</h2>
       <p className="font-body-md text-muted-foreground">
         Blocks new sends to this address or whole domain.
       </p>
@@ -375,19 +467,47 @@ function NeverEmailForm() {
   );
 }
 
+function isCSVFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return name.endsWith(".csv") || file.type === "text/csv" || file.type === "text/plain";
+}
+
 function CSVPreview() {
   const router = useRouter();
-  const [csv, setCsv] = useState("email,first_name,company\n");
-  const [source, setSource] = useState("csv");
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [csv, setCsv] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [source, setSource] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const [rows, setRows] = useState<PreviewRow[]>([]);
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
   const [pending, setPending] = useState(false);
 
+  async function takeFile(file: File | undefined) {
+    if (!file) {
+      return;
+    }
+    if (!isCSVFile(file)) {
+      setError("Choose a .csv file");
+      return;
+    }
+    const text = await file.text();
+    setCsv(text);
+    setFileName(file.name);
+    setRows([]);
+    setError("");
+    setDone("");
+  }
+
   async function onPreview(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setDone("");
+    if (!csv.trim()) {
+      setError("Choose a CSV file first");
+      return;
+    }
     setPending(true);
     const res = await fetch("/api/v1/contacts/preview", {
       method: "POST",
@@ -430,6 +550,11 @@ function CSVPreview() {
     }
     const data = (await res.json()) as { created?: number; skipped?: number };
     setRows([]);
+    setCsv("");
+    setFileName("");
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
     setDone(`Added ${data.created ?? 0}, skipped ${data.skipped ?? 0}`);
     router.refresh();
   }
@@ -437,30 +562,63 @@ function CSVPreview() {
   return (
     <form
       onSubmit={pending ? (e) => e.preventDefault() : onPreview}
-      className="flex max-w-lg flex-col gap-4 rounded-md border border-border bg-card p-6"
+      className="flex flex-col gap-4"
     >
-      <h2 className="font-headline-md text-foreground">CSV preview</h2>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="contact-csv">CSV</Label>
-        <textarea
+        <Label htmlFor="contact-csv">CSV file</Label>
+        <input
+          ref={inputRef}
           id="contact-csv"
-          required
-          rows={5}
-          value={csv}
-          onChange={(e) => setCsv(e.target.value)}
-          className={fieldTextarea}
+          type="file"
+          accept=".csv,text/csv"
+          className="sr-only"
+          onChange={(e) => void takeFile(e.target.files?.[0])}
         />
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            void takeFile(e.dataTransfer.files[0]);
+          }}
+          className={`flex flex-col gap-3 rounded-md border border-dashed p-4 ${
+            dragOver ? "border-primary bg-accent" : "border-border bg-muted"
+          }`}
+        >
+          <p className="font-body-md text-muted-foreground">
+            {fileName
+              ? fileName
+              : "Drop a CSV here, or choose a file. Needs email, first_name, company columns."}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-fit rounded-md"
+            onClick={() => inputRef.current?.click()}
+          >
+            Choose file
+          </Button>
+        </div>
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="csv-source">How you found them</Label>
         <Input
           id="csv-source"
           required
+          placeholder="Apollo list, conference, referral…"
           value={source}
           onChange={(e) => setSource(e.target.value)}
         />
       </div>
-      {error ? <p className="font-body-md text-destructive">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="font-body-md text-destructive">
+          {error}
+        </p>
+      ) : null}
       {done ? <p className="font-body-md text-muted-foreground">{done}</p> : null}
       <div className="flex flex-wrap gap-3">
         <Button type="submit" className="rounded-md" pending={pending}>

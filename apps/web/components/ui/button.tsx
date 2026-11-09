@@ -47,7 +47,7 @@ function Button({
   className,
   variant = "default",
   size = "default",
-  pending = false,
+  pending,
   disabled,
   onClick,
   onPointerDown,
@@ -55,6 +55,7 @@ function Button({
   ...props
 }: ButtonPrimitive.Props &
   VariantProps<typeof buttonVariants> & { pending?: boolean }) {
+  const tracksPending = pending !== undefined
   const busy = Boolean(pending)
   const iconOnly = typeof size === "string" && size.startsWith("icon")
   const locked = useRef(false)
@@ -74,11 +75,13 @@ function Button({
         busy || !onClick
           ? undefined
           : (event) => {
-              if (locked.current) {
-                event.preventDefault()
-                return
+              if (tracksPending) {
+                if (locked.current) {
+                  event.preventDefault()
+                  return
+                }
+                locked.current = true
               }
-              locked.current = true
               onClick(event)
             }
       }

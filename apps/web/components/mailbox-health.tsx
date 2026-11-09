@@ -1,3 +1,4 @@
+import { Panel } from "@/components/page-header";
 import { healthMetricLabel } from "@/lib/labels";
 import type { HealthSample } from "@/lib/api";
 
@@ -29,8 +30,7 @@ function formatValue(sample: HealthSample): string {
 export function MailboxHealth({ samples }: { samples: HealthSample[] }) {
   const latest = latestByMetric(samples);
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border bg-card p-4">
-      <h2 className="font-headline-sm text-foreground">Mailbox health</h2>
+    <Panel title="Mailbox health">
       {latest.length === 0 ? (
         <p className="font-body-md text-muted-foreground">No readings yet.</p>
       ) : (
@@ -43,13 +43,13 @@ export function MailboxHealth({ samples }: { samples: HealthSample[] }) {
               <p className="font-label-md text-foreground">
                 {healthMetricLabel(s.metric)}
               </p>
-              <p className="font-body-sm text-muted-foreground">
+              <p className="font-body-sm tabular-nums text-muted-foreground">
                 {formatValue(s)}
               </p>
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </Panel>
   );
 }

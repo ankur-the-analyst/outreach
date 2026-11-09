@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Panel } from "@/components/page-header";
 import type { SenderIdentity } from "@/lib/api";
 
 export function SenderIdentityForm({
@@ -43,17 +44,14 @@ export function SenderIdentityForm({
   }
 
   return (
+    <Panel
+      title="Sender identity"
+      description="Needed before cold or freelance campaigns (unsubscribe footer)."
+    >
     <form
       onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
-      className="flex flex-col gap-4 rounded-md border border-border bg-muted p-4"
+      className="flex flex-col gap-4"
     >
-      <div>
-        <h2 className="font-headline-sm text-foreground">Sender identity</h2>
-        <p className="mt-1 font-body-sm text-muted-foreground">
-          Needed before you start cold or freelance campaigns (unsubscribe
-          footer).
-        </p>
-      </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="id-name">Legal name</Label>
         <Input
@@ -82,10 +80,15 @@ export function SenderIdentityForm({
           onChange={(e) => setPostal(e.target.value)}
         />
       </div>
-      {msg ? <p className="font-body-md text-muted-foreground">{msg}</p> : null}
+      {msg ? (
+        <p role="status" className="font-body-md text-muted-foreground">
+          {msg}
+        </p>
+      ) : null}
       <Button type="submit" className="rounded-md" pending={pending}>
         Save identity
       </Button>
     </form>
+    </Panel>
   );
 }

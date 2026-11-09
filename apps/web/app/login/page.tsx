@@ -15,7 +15,7 @@ export default function LoginPage() {
   }, [router]);
 
   return (
-    <main className="flex min-h-full flex-col items-center justify-center p-[var(--margin-desktop)]">
+    <main className="flex min-h-svh flex-col items-center justify-center p-[var(--margin-desktop)]">
       <div className="w-full max-w-sm rounded-md border border-border bg-card p-6">
         <h1 className="font-headline-lg text-foreground">Outreach</h1>
         <p className="mt-1 mb-6 font-body-md text-muted-foreground">

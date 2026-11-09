@@ -9,7 +9,7 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border px-[var(--margin-desktop)]">
+    <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border px-[var(--margin-desktop)] py-2.5">
       <h1 className="font-headline-md text-foreground">{title}</h1>
       {actions ? (
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -17,6 +17,69 @@ export function PageHeader({
         </div>
       ) : null}
     </header>
+  );
+}
+
+export function Panel({
+  title,
+  description,
+  actions,
+  children,
+}: {
+  title: string;
+  description?: string;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="flex flex-col gap-3 rounded-md border border-border bg-card p-4">
+      <div className="flex min-h-8 flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h2 className="font-headline-sm text-foreground">{title}</h2>
+          {description ? (
+            <p className="mt-1 font-body-sm text-muted-foreground">
+              {description}
+            </p>
+          ) : null}
+        </div>
+        {actions ? (
+          <div className="flex flex-wrap items-center gap-2">{actions}</div>
+        ) : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+export function EmptyState({
+  title,
+  description,
+  action,
+  compact,
+}: {
+  title: string;
+  description?: string;
+  action?: ReactNode;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={
+        compact
+          ? "flex flex-col items-start gap-2 rounded-md border border-dashed border-border bg-muted/40 px-4 py-6"
+          : "flex flex-col items-start gap-3 rounded-md border border-dashed border-border bg-card px-5 py-10"
+      }
+    >
+      <div className="flex flex-col gap-1">
+        <p className="font-headline-sm text-foreground">{title}</p>
+        {description ? (
+          <p className="max-w-prose font-body-md text-muted-foreground">
+            {description}
+          </p>
+        ) : null}
+      </div>
+      {action ? <div className="flex flex-wrap gap-2">{action}</div> : null}
+    </div>
   );
 }
 

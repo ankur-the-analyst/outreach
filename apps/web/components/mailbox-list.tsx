@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Pill } from "@/components/page-header";
+import { EmptyState, Pill } from "@/components/page-header";
 import type { Mailbox, SendingDomain } from "@/lib/api";
 import {
   authKindLabel,
@@ -37,7 +37,12 @@ export function MailboxList({
   domains?: SendingDomain[];
 }) {
   if (mailboxes.length === 0) {
-    return <p className="font-body-md text-muted-foreground">No mailboxes yet.</p>;
+    return (
+      <EmptyState
+        title="No mailboxes yet"
+        description="Connect a mailbox from the header to send. Groups and ramps wait until then."
+      />
+    );
   }
   return (
     <div className="flex flex-col gap-6">

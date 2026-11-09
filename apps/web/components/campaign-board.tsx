@@ -2,12 +2,25 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, UserPlus, X } from "lucide-react";
+import Link from "next/link";
+import { Plus, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PageBody, PageHeader, Pill } from "@/components/page-header";
-import { SenderIdentityForm } from "@/components/sender-identity-form";
+import { EmptyState, PageBody, PageHeader, Pill } from "@/components/page-header";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import type {
   Campaign,
   CampaignPerson,
@@ -157,17 +170,42 @@ export function CampaignBoard({
         }
       />
       <PageBody>
+      <p className="mb-4 font-body-md text-muted-foreground">
+        Cold and freelance campaigns need your name and postal address in{" "}
+        <Link href="/settings" className="font-label-md text-secondary">
+          Settings
+        </Link>
+        .
+      </p>
       {mailboxes.length === 0 ? (
-        <p className="mb-6 font-body-md text-muted-foreground">
-          Connect a mailbox before creating a campaign.
-        </p>
-      ) : null}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <div className="flex flex-col gap-3 lg:col-span-8">
+        <EmptyState
+          title="Connect a mailbox first"
+          description="Campaigns send from a mailbox. Add one, then come back here."
+          action={
+            <Link
+              href="/mailboxes"
+              className="inline-flex h-8 items-center rounded-md bg-primary px-2.5 font-label-md text-sm text-primary-foreground hover:bg-primary/80"
+            >
+              Mailboxes
+            </Link>
+          }
+        />
+      ) : (
+      <div className="flex flex-col gap-3">
           {rows.length === 0 ? (
-            <p className="font-body-md text-muted-foreground">
-              No campaigns yet.
-            </p>
+            <EmptyState
+              title="No campaigns yet"
+              description="A campaign is who you write and the sequence they go through."
+              action={
+                <Button
+                  type="button"
+                  className="rounded-md"
+                  onClick={() => setCreateOpen(true)}
+                >
+                  Create campaign
+                </Button>
+              }
+            />
           ) : (
             rows.map((c) => (
               <CampaignCard
@@ -194,34 +232,48 @@ export function CampaignBoard({
               Show more
             </Button>
           ) : null}
-        </div>
-        <div className="lg:col-span-4">
-          <SenderIdentityForm />
-        </div>
       </div>
+      )}
       </PageBody>
-      {createOpen ? (
-        <Drawer title="New campaign" onClose={() => setCreateOpen(false)}>
-          <CreateCampaign
-            mailboxes={mailboxes}
-            pools={pools}
-            profiles={profiles}
-            onDone={() => setCreateOpen(false)}
-          />
-        </Drawer>
-      ) : null}
-      {addFor ? (
-        <Dialog title="Add person to campaign" onClose={() => setAddFor(null)}>
-          <AddPerson
-            campaigns={rows}
-            contacts={contacts}
-            jobs={jobs}
-            profiles={profiles}
-            initialID={addFor}
-            onDone={() => setAddFor(null)}
-          />
-        </Dialog>
-      ) : null}
+      <Sheet open={createOpen} onOpenChange={setCreateOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>New campaign</SheetTitle>
+          </SheetHeader>
+          <div className="px-4 pb-4">
+            <CreateCampaign
+              mailboxes={mailboxes}
+              pools={pools}
+              profiles={profiles}
+              onDone={() => setCreateOpen(false)}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+      <Dialog
+        open={Boolean(addFor)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAddFor(null);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add person to campaign</DialogTitle>
+          </DialogHeader>
+          {addFor ? (
+            <AddPerson
+              campaigns={rows}
+              contacts={contacts}
+              jobs={jobs}
+              profiles={profiles}
+              initialID={addFor}
+              onDone={() => setAddFor(null)}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -248,6 +300,7 @@ function CampaignCard({
   const router = useRouter();
   const [msg, setMsg] = useState("");
   const [pending, setPending] = useState(false);
+  const [stopOpen, setStopOpen] = useState(false);
   const emails = campaign.steps.filter((s) => s.kind === "email").length;
   const box = mailboxes.find((m) => m.id === campaign.senders[0]?.mailbox_id);
   const group = pools.find((p) => p.id === campaign.pool_id);
@@ -380,7 +433,7 @@ function CampaignCard({
             variant="outline"
             className="rounded-md"
             pending={pending}
-            onClick={() => post(`/api/v1/campaigns/${campaign.id}/stop`)}
+            onClick={() => setStopOpen(true)}
           >
             Stop
           </Button>
@@ -395,6 +448,19 @@ function CampaignCard({
         </Button>
         {msg ? <p className="font-body-md text-muted-foreground">{msg}</p> : null}
       </div>
+      <ConfirmDialog
+        open={stopOpen}
+        onOpenChange={setStopOpen}
+        title="Stop this campaign?"
+        description="No more drafts or sends for people in this campaign."
+        confirmLabel="Stop campaign"
+        confirmTone="danger"
+        loading={pending}
+        onConfirm={async () => {
+          await post(`/api/v1/campaigns/${campaign.id}/stop`);
+          setStopOpen(false);
+        }}
+      />
     </article>
   );
 }
@@ -721,62 +787,5 @@ function AddPerson({
         </Button>
       </div>
     </form>
-  );
-}
-
-function Drawer({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 bg-foreground/40" onClick={onClose}>
-      <div
-        className="absolute inset-y-0 right-0 flex w-full max-w-xl flex-col border-l border-border bg-card shadow-[var(--shadow-modal)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="font-headline-sm text-foreground">{title}</h2>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose}>
-            <X className="size-4" />
-          </Button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-6">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-function Dialog({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-lg rounded-md border border-border bg-card p-6 shadow-[var(--shadow-modal)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-headline-sm text-foreground">{title}</h2>
-          <Button type="button" variant="ghost" size="icon" onClick={onClose}>
-            <X className="size-4" />
-          </Button>
-        </div>
-        {children}
-      </div>
-    </div>
   );
 }

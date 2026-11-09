@@ -2,11 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { SquarePen, X } from "lucide-react";
+import Link from "next/link";
+import { SquarePen } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { OneOffDraftForm } from "@/components/one-off-draft-form";
-import { PageBody, PageHeader, Pill } from "@/components/page-header";
+import { EmptyState, PageBody, PageHeader, Pill } from "@/components/page-header";
 
 import type { Draft, Mailbox, Profile } from "@/lib/api";
 import {
@@ -110,9 +117,35 @@ export function ReviewQueue({
 
   const list =
     shown.length === 0 ? (
-      <p className="font-body-md text-muted-foreground">
-        {rows.length === 0 ? "No drafts in review." : "Nothing in this filter."}
-      </p>
+      <EmptyState
+        title={rows.length === 0 ? "No drafts in review" : "Nothing in this filter"}
+        description={
+          rows.length === 0
+            ? mailboxes.length === 0
+              ? "Connect a mailbox, then compose or run a campaign."
+              : "Approve, undo, and one-off sends show up here."
+            : "Try another filter, or compose a one-off."
+        }
+        action={
+          rows.length === 0 && mailboxes.length === 0 ? (
+            <Link
+              href="/mailboxes"
+              className="inline-flex h-8 items-center rounded-md bg-primary px-2.5 font-label-md text-sm text-primary-foreground hover:bg-primary/80"
+            >
+              Mailboxes
+            </Link>
+          ) : filters ? (
+            <Button
+              type="button"
+              className="rounded-md"
+              onClick={() => setCompose(true)}
+              disabled={mailboxes.length === 0}
+            >
+              Compose one-off
+            </Button>
+          ) : undefined
+        }
+      />
     ) : (
       <ul className="flex flex-col gap-3">
         {shown.map((d) => (
@@ -137,7 +170,7 @@ export function ReviewQueue({
             onClick={() => setCompose(true)}
             disabled={mailboxes.length === 0}
           >
-            <SquarePen className="size-4" strokeWidth={1.5} />
+            <SquarePen className="size-4" strokeWidth={1.5} aria-hidden="true" />
             Compose one-off
           </Button>
         }
@@ -157,6 +190,7 @@ export function ReviewQueue({
             key={id}
             type="button"
             onClick={() => setFilter(id)}
+            aria-pressed={filter === id}
             className={
               filter === id
                 ? "inline-flex items-center gap-1.5 rounded-full border border-primary bg-accent px-3 py-1.5 font-label-md text-primary"
@@ -181,38 +215,18 @@ export function ReviewQueue({
         </Button>
       ) : null}
       </PageBody>
-      {compose ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4"
-          onClick={() => setCompose(false)}
-        >
-          <div
-            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-md border border-border bg-card shadow-[var(--shadow-modal)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-border px-6 py-4">
-              <h2 className="font-headline-md text-foreground">
-                Compose one-off
-              </h2>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => setCompose(false)}
-              >
-                <X className="size-4" />
-              </Button>
-            </div>
-            <div className="p-6">
-              <OneOffDraftForm
-                mailboxes={mailboxes}
-                profiles={profiles}
-                onSaved={() => setCompose(false)}
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <Dialog open={compose} onOpenChange={setCompose}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Compose one-off</DialogTitle>
+          </DialogHeader>
+          <OneOffDraftForm
+            mailboxes={mailboxes}
+            profiles={profiles}
+            onSaved={() => setCompose(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
