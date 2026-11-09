@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,7 @@ function statusTone(
 
 export function CampaignBoard({
   campaigns,
+  nextCursor,
   contacts,
   mailboxes,
   pools = [],
@@ -71,6 +72,7 @@ export function CampaignBoard({
   peopleByCampaign,
 }: {
   campaigns: Campaign[];
+  nextCursor?: string;
   contacts: Contact[];
   mailboxes: Mailbox[];
   pools?: MailboxPool[];
@@ -78,8 +80,53 @@ export function CampaignBoard({
   profiles: Profile[];
   peopleByCampaign: Record<string, CampaignPerson[]>;
 }) {
+  const [rows, setRows] = useState(campaigns);
+  const [cursor, setCursor] = useState(nextCursor);
+  const [people, setPeople] = useState(peopleByCampaign);
+  const [morePending, setMorePending] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [addFor, setAddFor] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRows(campaigns);
+    setCursor(nextCursor);
+    setPeople(peopleByCampaign);
+  }, [campaigns, nextCursor, peopleByCampaign]);
+
+  async function loadMore() {
+    if (!cursor) {
+      return;
+    }
+    setMorePending(true);
+    const res = await fetch(
+      `/api/v1/campaigns?cursor=${encodeURIComponent(cursor)}`,
+      { credentials: "include" },
+    );
+    if (!res.ok) {
+      setMorePending(false);
+      return;
+    }
+    const data = (await res.json()) as {
+      campaigns?: Campaign[];
+      next_cursor?: string;
+    };
+    const extra = data.campaigns ?? [];
+    const peopleEntries = await Promise.all(
+      extra.map(async (c) => {
+        const r = await fetch(`/api/v1/campaigns/${c.id}/enrolments`, {
+          credentials: "include",
+        });
+        const body = (await r.json().catch(() => null)) as {
+          enrolments?: CampaignPerson[];
+        } | null;
+        return [c.id, body?.enrolments ?? []] as const;
+      }),
+    );
+    setRows((cur) => [...cur, ...extra]);
+    setPeople((cur) => ({ ...cur, ...Object.fromEntries(peopleEntries) }));
+    setCursor(data.next_cursor);
+    setMorePending(false);
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -91,8 +138,8 @@ export function CampaignBoard({
               type="button"
               variant="outline"
               className="rounded-md"
-              disabled={campaigns.length === 0 || contacts.length === 0}
-              onClick={() => setAddFor(campaigns[0]?.id ?? null)}
+              disabled={rows.length === 0 || contacts.length === 0}
+              onClick={() => setAddFor(rows[0]?.id ?? null)}
             >
               <UserPlus className="size-4" strokeWidth={1.5} />
               Add person
@@ -117,12 +164,12 @@ export function CampaignBoard({
       ) : null}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <div className="flex flex-col gap-3 lg:col-span-8">
-          {campaigns.length === 0 ? (
+          {rows.length === 0 ? (
             <p className="font-body-md text-muted-foreground">
               No campaigns yet.
             </p>
           ) : (
-            campaigns.map((c) => (
+            rows.map((c) => (
               <CampaignCard
                 key={c.id}
                 campaign={c}
@@ -131,11 +178,22 @@ export function CampaignBoard({
                 contacts={contacts}
                 jobs={jobs}
                 profiles={profiles}
-                people={peopleByCampaign[c.id] ?? []}
+                people={people[c.id] ?? []}
                 onAdd={() => setAddFor(c.id)}
               />
             ))
           )}
+          {cursor ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-1 w-fit rounded-md"
+              pending={morePending}
+              onClick={loadMore}
+            >
+              Show more
+            </Button>
+          ) : null}
         </div>
         <div className="lg:col-span-4">
           <SenderIdentityForm />
@@ -155,7 +213,7 @@ export function CampaignBoard({
       {addFor ? (
         <Dialog title="Add person to campaign" onClose={() => setAddFor(null)}>
           <AddPerson
-            campaigns={campaigns}
+            campaigns={rows}
             contacts={contacts}
             jobs={jobs}
             profiles={profiles}

@@ -32,7 +32,9 @@ func (f *fakeStore) Create(_ context.Context, _ uuid.UUID, in CreateInput) (Camp
 	f.in = in
 	return f.c, nil
 }
-func (f *fakeStore) List(context.Context, uuid.UUID) ([]Campaign, error) { return nil, nil }
+func (f *fakeStore) List(context.Context, uuid.UUID, *uuid.UUID, int) (Page, error) {
+	return Page{}, nil
+}
 func (f *fakeStore) Get(context.Context, uuid.UUID, uuid.UUID) (Campaign, error) {
 	return f.c, nil
 }
@@ -65,6 +67,21 @@ func (f *fakeStore) SetStage(_ context.Context, _ uuid.UUID, id uuid.UUID, stage
 		return Application{}, ErrStage
 	}
 	return Application{ID: id, Stage: stage}, nil
+}
+
+func TestListCampaignsRejectsBadCursor(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner"})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/campaigns?cursor=nope", nil)
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.List(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
 }
 
 func TestCreateCampaignAcceptsProfileID(t *testing.T) {

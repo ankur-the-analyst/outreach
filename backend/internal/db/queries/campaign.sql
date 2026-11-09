@@ -28,7 +28,9 @@ select
   list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at, pool_id
 from campaigns
 where workspace_id = $1
-order by created_at desc;
+  and (sqlc.narg('after')::uuid is null or id < sqlc.narg('after'))
+order by id desc
+limit sqlc.arg('n');
 
 -- name: GetCampaign :one
 select

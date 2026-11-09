@@ -32,6 +32,7 @@ async function CampaignsBody() {
     <main className="flex min-h-0 flex-1 flex-col">
       <CampaignBoard
         campaigns={list}
+        nextCursor={campaigns?.next_cursor}
         contacts={contacts?.contacts ?? []}
         mailboxes={mailboxes?.mailboxes ?? []}
         pools={pools?.pools ?? []}

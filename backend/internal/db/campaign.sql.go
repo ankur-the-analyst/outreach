@@ -607,8 +607,16 @@ select
   list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at, pool_id
 from campaigns
 where workspace_id = $1
-order by created_at desc
+  and ($2::uuid is null or id < $2)
+order by id desc
+limit $3
 `
+
+type ListCampaignsParams struct {
+	WorkspaceID uuid.UUID
+	After       *uuid.UUID
+	N           int32
+}
 
 type ListCampaignsRow struct {
 	WorkspaceID       uuid.UUID
@@ -626,8 +634,8 @@ type ListCampaignsRow struct {
 	PoolID            *uuid.UUID
 }
 
-func (q *Queries) ListCampaigns(ctx context.Context, workspaceID uuid.UUID) ([]ListCampaignsRow, error) {
-	rows, err := q.db.Query(ctx, listCampaigns, workspaceID)
+func (q *Queries) ListCampaigns(ctx context.Context, arg ListCampaignsParams) ([]ListCampaignsRow, error) {
+	rows, err := q.db.Query(ctx, listCampaigns, arg.WorkspaceID, arg.After, arg.N)
 	if err != nil {
 		return nil, err
 	}

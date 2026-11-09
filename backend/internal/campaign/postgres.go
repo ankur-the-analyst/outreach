@@ -301,24 +301,30 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 	return out, err
 }
 
-func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID) ([]Campaign, error) {
-	var out []Campaign
+func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID, after *uuid.UUID, limit int) (Page, error) {
+	limit = clampLimit(limit)
+	var rows []Campaign
 	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
-		rows, err := q.ListCampaigns(ctx, workspaceID)
+		got, err := q.ListCampaigns(ctx, db.ListCampaignsParams{
+			WorkspaceID: workspaceID, After: after, N: int32(limit + 1),
+		})
 		if err != nil {
 			return err
 		}
-		out = make([]Campaign, 0, len(rows))
-		for _, row := range rows {
+		rows = make([]Campaign, 0, len(got))
+		for _, row := range got {
 			c, err := loadCampaign(ctx, q, workspaceID, row.ID, p.packs)
 			if err != nil {
 				return err
 			}
-			out = append(out, c)
+			rows = append(rows, c)
 		}
 		return nil
 	})
-	return out, err
+	if err != nil {
+		return Page{}, err
+	}
+	return clipPage(rows, limit), nil
 }
 
 func (p *Postgres) Get(ctx context.Context, workspaceID, id uuid.UUID) (Campaign, error) {

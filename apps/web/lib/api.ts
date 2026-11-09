@@ -250,7 +250,9 @@ export type Campaign = {
 };
 
 export function getCampaigns() {
-  return apiGet<{ campaigns: Campaign[] }>("/api/v1/campaigns");
+  return apiGet<{ campaigns: Campaign[]; next_cursor?: string }>(
+    "/api/v1/campaigns",
+  );
 }
 
 export type CampaignPerson = {
