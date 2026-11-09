@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -27,6 +28,16 @@ func (f *fakeStore) ListDomains(context.Context, uuid.UUID) ([]SendingDomain, er
 func (f *fakeStore) ListWarmups(context.Context, uuid.UUID) ([]Warmup, error) {
 	n := int32(2)
 	return []Warmup{{Name: "Standard", Kind: "standard", FirstDay: &n}}, f.err
+}
+func (f *fakeStore) CreateWarmup(_ context.Context, _ uuid.UUID, in CreateWarmupInput) (Warmup, error) {
+	if strings.TrimSpace(in.Name) == "" {
+		return Warmup{}, ErrWarmupName
+	}
+	if f.err != nil {
+		return Warmup{}, f.err
+	}
+	n := int32(in.Start)
+	return Warmup{Name: in.Name, Kind: "custom", FirstDay: &n}, nil
 }
 func (f *fakeStore) Connect(_ context.Context, _ uuid.UUID, in ConnectInput) (Mailbox, error) {
 	f.connect = in
@@ -213,6 +224,36 @@ func TestListWarmupsHTTP(t *testing.T) {
 	rec := httptest.NewRecorder()
 	api.ListWarmups(rec, req)
 	if rec.Code != http.StatusOK || !bytes.Contains(rec.Body.Bytes(), []byte(`"first_day":2`)) {
+		t.Fatalf("got %d %s", rec.Code, rec.Body.Bytes())
+	}
+}
+
+func TestCreateWarmupHTTP(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner"}, fakeTester{})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/warmup-profiles", bytes.NewBufferString(`{"name":"Slow","start":3}`))
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.CreateWarmup(rec, req)
+	if rec.Code != http.StatusCreated || !bytes.Contains(rec.Body.Bytes(), []byte(`"custom"`)) {
+		t.Fatalf("got %d %s", rec.Code, rec.Body.Bytes())
+	}
+}
+
+func TestCreateWarmupRequiresName(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner"}, fakeTester{})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/warmup-profiles", bytes.NewBufferString(`{"name":" ","start":2}`))
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.CreateWarmup(rec, req)
+	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("got %d %s", rec.Code, rec.Body.Bytes())
 	}
 }

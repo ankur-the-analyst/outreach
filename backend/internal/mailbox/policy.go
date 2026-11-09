@@ -13,6 +13,9 @@ var (
 	ErrEmailTaken          = errors.New("mailbox already connected")
 	ErrNoSMTP              = errors.New("smtp host not set")
 	ErrReplyMode           = errors.New("reply_mode must be draft or off")
+	ErrWarmupName          = errors.New("name required")
+	ErrWarmupStart         = errors.New("start must be at least 1")
+	ErrCustomExists        = errors.New("a custom ramp already exists")
 )
 
 func EmailDomain(email string) string {

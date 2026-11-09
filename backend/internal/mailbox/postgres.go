@@ -2,6 +2,7 @@ package mailbox
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -104,6 +105,54 @@ func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID) ([]Mailbox, 
 		for _, row := range rows {
 			out = append(out, mailboxFromList(row))
 		}
+		return nil
+	})
+	return out, err
+}
+
+type CreateWarmupInput struct {
+	Name  string
+	Start int
+}
+
+func (p *Postgres) CreateWarmup(ctx context.Context, workspaceID uuid.UUID, in CreateWarmupInput) (Warmup, error) {
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		return Warmup{}, ErrWarmupName
+	}
+	spec, err := pacing.CustomSpec(in.Start)
+	if err != nil {
+		if errors.Is(err, pacing.ErrCustomStart) {
+			return Warmup{}, ErrWarmupStart
+		}
+		return Warmup{}, err
+	}
+	raw, err := json.Marshal(spec)
+	if err != nil {
+		return Warmup{}, err
+	}
+	id, err := uuid.NewV7()
+	if err != nil {
+		return Warmup{}, err
+	}
+	var out Warmup
+	err = p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		if err := q.InsertWarmupProfile(ctx, db.InsertWarmupProfileParams{
+			WorkspaceID: workspaceID,
+			ID:          id,
+			Name:        name,
+			Kind:        pacing.KindCustom,
+			Spec:        raw,
+			Version:     1,
+		}); err != nil {
+			if isUnique(err) {
+				return ErrCustomExists
+			}
+			return err
+		}
+		out = warmupFrom(db.WarmupProfile{
+			ID: id, Name: name, Kind: pacing.KindCustom, Spec: raw,
+		})
 		return nil
 	})
 	return out, err

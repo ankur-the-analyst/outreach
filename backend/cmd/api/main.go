@@ -141,6 +141,7 @@ func main() {
 	mux.Handle("POST /api/v1/workspace/members", a.Require(http.HandlerFunc(ws.Invite)))
 	mux.Handle("GET /api/v1/health-samples", a.Require(http.HandlerFunc(hs.List)))
 	mux.Handle("GET /api/v1/warmup-profiles", a.Require(http.HandlerFunc(mb.ListWarmups)))
+	mux.Handle("POST /api/v1/warmup-profiles", a.Require(http.HandlerFunc(mb.CreateWarmup)))
 	mux.Handle("GET /api/v1/mailbox-pools", a.Require(http.HandlerFunc(mb.ListPools)))
 	mux.Handle("POST /api/v1/mailbox-pools", a.Require(http.HandlerFunc(mb.CreatePool)))
 	mux.Handle("GET /api/v1/mailboxes", a.Require(http.HandlerFunc(mb.List)))

@@ -191,6 +191,7 @@ function MailboxRow({
           <option value="conservative">{warmupKindLabel("conservative")}</option>
           <option value="fast">{warmupKindLabel("fast")}</option>
           <option value="off">{warmupKindLabel("off")}</option>
+          <option value="custom">{warmupKindLabel("custom")}</option>
         </select>
         <select
           aria-label="When they reply"

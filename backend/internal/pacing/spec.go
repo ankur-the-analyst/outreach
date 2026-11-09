@@ -2,14 +2,18 @@ package pacing
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 )
+
+var ErrCustomStart = errors.New("start must be at least 1")
 
 const (
 	KindStandard     = "standard"
 	KindConservative = "conservative"
 	KindFast         = "fast"
 	KindOff          = "off"
+	KindCustom       = "custom"
 
 	StatusHealthy        = "healthy"
 	StatusWarming        = "warming"
@@ -49,4 +53,19 @@ func ParseSpec(raw []byte) (Spec, error) {
 		return Spec{}, fmt.Errorf("pacing spec: %w", err)
 	}
 	return s, nil
+}
+
+func CustomSpec(start int) (Spec, error) {
+	if start < 1 {
+		return Spec{}, ErrCustomStart
+	}
+	return Spec{
+		Start:        start,
+		Ramp:         []int{start},
+		MaxGrowth:    0.2,
+		IdleCounts:   false,
+		BounceGate:   0.03,
+		DeferralGate: 0.15,
+		MinSample:    20,
+	}, nil
 }

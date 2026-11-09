@@ -16,6 +16,7 @@ type Store interface {
 	List(ctx context.Context, workspaceID uuid.UUID) ([]Mailbox, error)
 	ListDomains(ctx context.Context, workspaceID uuid.UUID) ([]SendingDomain, error)
 	ListWarmups(ctx context.Context, workspaceID uuid.UUID) ([]Warmup, error)
+	CreateWarmup(ctx context.Context, workspaceID uuid.UUID, in CreateWarmupInput) (Warmup, error)
 	Connect(ctx context.Context, workspaceID uuid.UUID, in ConnectInput) (Mailbox, error)
 	Pause(ctx context.Context, workspaceID, id uuid.UUID) error
 	Reconnect(ctx context.Context, workspaceID, id uuid.UUID) error
@@ -93,6 +94,33 @@ func (a *API) ListWarmups(w http.ResponseWriter, r *http.Request) {
 		items = []Warmup{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"profiles": items})
+}
+
+func (a *API) CreateWarmup(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.session(w, r)
+	if !ok {
+		return
+	}
+	if err := a.requireEdit(r.Context(), s); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	var in struct {
+		Name  string `json:"name"`
+		Start int    `json:"start"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
+		return
+	}
+	item, err := a.store.CreateWarmup(r.Context(), s.WorkspaceID, CreateWarmupInput{
+		Name: in.Name, Start: in.Start,
+	})
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, item)
 }
 
 func (a *API) Create(w http.ResponseWriter, r *http.Request) {
@@ -387,6 +415,10 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, "no_smtp", err.Error())
 	case errors.Is(err, ErrReplyMode):
 		writeError(w, http.StatusBadRequest, "reply_mode", err.Error())
+	case errors.Is(err, ErrWarmupName), errors.Is(err, ErrWarmupStart):
+		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
+	case errors.Is(err, ErrCustomExists):
+		writeError(w, http.StatusConflict, "custom_exists", err.Error())
 	case errors.Is(err, ErrForbidden):
 		writeError(w, http.StatusForbidden, "forbidden", "owner or member role required")
 	case errors.Is(err, ErrNotFound):
