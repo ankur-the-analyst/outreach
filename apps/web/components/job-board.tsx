@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,21 +11,53 @@ import { fieldSelect, fieldTextarea, jobAnalysisLabel } from "@/lib/labels";
 
 export function JobBoard({
   jobs,
+  nextCursor,
   profiles,
   fits = [],
 }: {
   jobs: Job[];
+  nextCursor?: string;
   profiles: Profile[];
   fits?: Fit[];
 }) {
+  const [rows, setRows] = useState(jobs);
+  const [cursor, setCursor] = useState(nextCursor);
+  const [morePending, setMorePending] = useState(false);
+
+  useEffect(() => {
+    setRows(jobs);
+    setCursor(nextCursor);
+  }, [jobs, nextCursor]);
+
+  async function loadMore() {
+    if (!cursor) {
+      return;
+    }
+    setMorePending(true);
+    const res = await fetch(
+      `/api/v1/jobs?cursor=${encodeURIComponent(cursor)}`,
+      { credentials: "include" },
+    );
+    setMorePending(false);
+    if (!res.ok) {
+      return;
+    }
+    const data = (await res.json()) as {
+      jobs?: Job[];
+      next_cursor?: string;
+    };
+    setRows((cur) => [...cur, ...(data.jobs ?? [])]);
+    setCursor(data.next_cursor);
+  }
+
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
       <div className="lg:col-span-7">
-        {jobs.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="font-body-md text-muted-foreground">No jobs yet.</p>
         ) : (
           <ul className="flex flex-col gap-3">
-            {jobs.map((job) => (
+            {rows.map((job) => (
               <li
                 key={job.id}
                 className="rounded-md border border-border bg-card p-4"
@@ -68,6 +100,17 @@ export function JobBoard({
             ))}
           </ul>
         )}
+        {cursor ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 w-fit rounded-md"
+            pending={morePending}
+            onClick={loadMore}
+          >
+            Show more
+          </Button>
+        ) : null}
       </div>
       <div className="lg:col-span-5">
         <CreateJob />

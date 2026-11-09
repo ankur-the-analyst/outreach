@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -18,7 +18,7 @@ type Store interface {
 	ListProfiles(ctx context.Context, workspaceID uuid.UUID) ([]Profile, error)
 	UploadResume(ctx context.Context, workspaceID, profileID uuid.UUID, fileName, mime, text string) (Resume, error)
 	CreateJob(ctx context.Context, workspaceID uuid.UUID, title, sourceURL, raw string) (Job, error)
-	ListJobs(ctx context.Context, workspaceID uuid.UUID) ([]Job, error)
+	ListJobs(ctx context.Context, workspaceID uuid.UUID, after *uuid.UUID, limit int) (JobPage, error)
 	Fit(ctx context.Context, workspaceID, jobID, profileID uuid.UUID) (Fit, error)
 	ListFits(ctx context.Context, workspaceID uuid.UUID) ([]Fit, error)
 }
@@ -122,15 +122,25 @@ func (a *API) ListJobs(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rows, err := a.store.ListJobs(r.Context(), s.WorkspaceID)
+	var after *uuid.UUID
+	if raw := strings.TrimSpace(r.URL.Query().Get("cursor")); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "invalid cursor")
+			return
+		}
+		after = &id
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	page, err := a.store.ListJobs(r.Context(), s.WorkspaceID, after, limit)
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	if rows == nil {
-		rows = []Job{}
+	if page.Jobs == nil {
+		page.Jobs = []Job{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"jobs": rows})
+	writeJSON(w, http.StatusOK, page)
 }
 
 func (a *API) Fit(w http.ResponseWriter, r *http.Request) {

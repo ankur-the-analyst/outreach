@@ -229,20 +229,26 @@ func (p *Postgres) CreateJob(ctx context.Context, workspaceID uuid.UUID, title, 
 	return p.analyze(ctx, workspaceID, out)
 }
 
-func (p *Postgres) ListJobs(ctx context.Context, workspaceID uuid.UUID) ([]Job, error) {
-	var out []Job
+func (p *Postgres) ListJobs(ctx context.Context, workspaceID uuid.UUID, after *uuid.UUID, limit int) (JobPage, error) {
+	limit = clampLimit(limit)
+	var rows []Job
 	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
-		rows, err := q.ListJobs(ctx, workspaceID)
+		got, err := q.ListJobs(ctx, db.ListJobsParams{
+			WorkspaceID: workspaceID, After: after, N: int32(limit + 1),
+		})
 		if err != nil {
 			return err
 		}
-		out = make([]Job, 0, len(rows))
-		for _, row := range rows {
-			out = append(out, jobFrom(row))
+		rows = make([]Job, 0, len(got))
+		for _, row := range got {
+			rows = append(rows, jobFrom(row))
 		}
 		return nil
 	})
-	return out, err
+	if err != nil {
+		return JobPage{}, err
+	}
+	return clipJobs(rows, limit), nil
 }
 
 func (p *Postgres) Fit(ctx context.Context, workspaceID, jobID, profileID uuid.UUID) (Fit, error) {

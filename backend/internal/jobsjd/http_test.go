@@ -31,7 +31,9 @@ func (f *fakeStore) UploadResume(context.Context, uuid.UUID, uuid.UUID, string, 
 func (f *fakeStore) CreateJob(context.Context, uuid.UUID, string, string, string) (Job, error) {
 	return Job{}, nil
 }
-func (f *fakeStore) ListJobs(context.Context, uuid.UUID) ([]Job, error) { return nil, nil }
+func (f *fakeStore) ListJobs(context.Context, uuid.UUID, *uuid.UUID, int) (JobPage, error) {
+	return JobPage{}, nil
+}
 func (f *fakeStore) Fit(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (Fit, error) {
 	return Fit{}, nil
 }
@@ -40,6 +42,21 @@ func (f *fakeStore) ListFits(context.Context, uuid.UUID) ([]Fit, error) {
 }
 
 func ptr32(n int32) *int32 { return &n }
+
+func TestListJobsRejectsBadCursor(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner"})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/jobs?cursor=nope", nil)
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.ListJobs(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+}
 
 func TestCreateProfileHTTP(t *testing.T) {
 	t.Parallel()

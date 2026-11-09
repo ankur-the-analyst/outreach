@@ -17,6 +17,7 @@ async function JobsBody() {
       <PageBody>
         <JobBoard
           jobs={jobs?.jobs ?? []}
+          nextCursor={jobs?.next_cursor}
           profiles={profiles?.profiles ?? []}
           fits={fits?.fits ?? []}
         />

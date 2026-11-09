@@ -284,11 +284,19 @@ const listJobs = `-- name: ListJobs :many
 select workspace_id, id, source_url, raw_text, title, analysis, analysis_status, created_at
 from jobs
 where workspace_id = $1
-order by created_at desc
+  and ($2::uuid is null or id < $2)
+order by id desc
+limit $3
 `
 
-func (q *Queries) ListJobs(ctx context.Context, workspaceID uuid.UUID) ([]Job, error) {
-	rows, err := q.db.Query(ctx, listJobs, workspaceID)
+type ListJobsParams struct {
+	WorkspaceID uuid.UUID
+	After       *uuid.UUID
+	N           int32
+}
+
+func (q *Queries) ListJobs(ctx context.Context, arg ListJobsParams) ([]Job, error) {
+	rows, err := q.db.Query(ctx, listJobs, arg.WorkspaceID, arg.After, arg.N)
 	if err != nil {
 		return nil, err
 	}

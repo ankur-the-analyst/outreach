@@ -292,7 +292,7 @@ export type Job = {
 };
 
 export function getJobs() {
-  return apiGet<{ jobs: Job[] }>("/api/v1/jobs");
+  return apiGet<{ jobs: Job[]; next_cursor?: string }>("/api/v1/jobs");
 }
 
 export type Fit = {
