@@ -6,6 +6,7 @@ import {
   getCampaigns,
   getContacts,
   getJobs,
+  getMailboxPools,
   getMailboxes,
   getProfiles,
 } from "@/lib/api";
@@ -13,13 +14,15 @@ import {
 export const instant = false;
 
 async function CampaignsBody() {
-  const [campaigns, contacts, mailboxes, jobs, profiles] = await Promise.all([
-    getCampaigns(),
-    getContacts(),
-    getMailboxes(),
-    getJobs(),
-    getProfiles(),
-  ]);
+  const [campaigns, contacts, mailboxes, pools, jobs, profiles] =
+    await Promise.all([
+      getCampaigns(),
+      getContacts(),
+      getMailboxes(),
+      getMailboxPools(),
+      getJobs(),
+      getProfiles(),
+    ]);
   const list = campaigns?.campaigns ?? [];
   const peopleEntries = await Promise.all(
     list.map(async (c) => [c.id, await getCampaignPeople(c.id)] as const),
@@ -31,6 +34,7 @@ async function CampaignsBody() {
         campaigns={list}
         contacts={contacts?.contacts ?? []}
         mailboxes={mailboxes?.mailboxes ?? []}
+        pools={pools?.pools ?? []}
         jobs={jobs?.jobs ?? []}
         profiles={profiles?.profiles ?? []}
         peopleByCampaign={peopleByCampaign}

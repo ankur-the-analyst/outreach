@@ -14,6 +14,7 @@ import type {
   Contact,
   Job,
   Mailbox,
+  MailboxPool,
   Profile,
 } from "@/lib/api";
 import {
@@ -38,6 +39,8 @@ function operatorError(message: string): string {
       return "Already in this campaign";
     case "sender identity required":
       return "Add your name and postal address first";
+    case "mailbox required":
+      return "Pick a mailbox or a group";
     default:
       return message;
   }
@@ -62,6 +65,7 @@ export function CampaignBoard({
   campaigns,
   contacts,
   mailboxes,
+  pools = [],
   jobs,
   profiles,
   peopleByCampaign,
@@ -69,6 +73,7 @@ export function CampaignBoard({
   campaigns: Campaign[];
   contacts: Contact[];
   mailboxes: Mailbox[];
+  pools?: MailboxPool[];
   jobs: Job[];
   profiles: Profile[];
   peopleByCampaign: Record<string, CampaignPerson[]>;
@@ -122,6 +127,7 @@ export function CampaignBoard({
                 key={c.id}
                 campaign={c}
                 mailboxes={mailboxes}
+                pools={pools}
                 contacts={contacts}
                 jobs={jobs}
                 profiles={profiles}
@@ -140,6 +146,7 @@ export function CampaignBoard({
         <Drawer title="New campaign" onClose={() => setCreateOpen(false)}>
           <CreateCampaign
             mailboxes={mailboxes}
+            pools={pools}
             profiles={profiles}
             onDone={() => setCreateOpen(false)}
           />
@@ -164,6 +171,7 @@ export function CampaignBoard({
 function CampaignCard({
   campaign,
   mailboxes,
+  pools = [],
   contacts,
   jobs,
   profiles,
@@ -172,6 +180,7 @@ function CampaignCard({
 }: {
   campaign: Campaign;
   mailboxes: Mailbox[];
+  pools?: MailboxPool[];
   contacts: Contact[];
   jobs: Job[];
   profiles: Profile[];
@@ -183,6 +192,7 @@ function CampaignCard({
   const [pending, setPending] = useState(false);
   const emails = campaign.steps.filter((s) => s.kind === "email").length;
   const box = mailboxes.find((m) => m.id === campaign.senders[0]?.mailbox_id);
+  const group = pools.find((p) => p.id === campaign.pool_id);
   const profile = profiles.find((p) => p.id === campaign.profile_id);
 
   async function post(path: string) {
@@ -218,7 +228,7 @@ function CampaignCard({
             {people.length} {people.length === 1 ? "person" : "people"}
             {" · "}
             {emails} {emails === 1 ? "email" : "emails"}
-            {box ? ` · ${box.email}` : ""}
+            {group ? ` · ${group.name}` : box ? ` · ${box.email}` : ""}
             {profile ? ` · ${profile.name}` : ""}
           </p>
         </div>
@@ -333,10 +343,12 @@ function CampaignCard({
 
 function CreateCampaign({
   mailboxes,
+  pools = [],
   profiles,
   onDone,
 }: {
   mailboxes: Mailbox[];
+  pools?: MailboxPool[];
   profiles: Profile[];
   onDone: () => void;
 }) {
@@ -344,6 +356,7 @@ function CreateCampaign({
   const [name, setName] = useState("");
   const [intent, setIntent] = useState("job");
   const [mailboxID, setMailboxID] = useState(mailboxes[0]?.id ?? "");
+  const [poolID, setPoolID] = useState("");
   const [profileID, setProfileID] = useState("");
   const [perDay, setPerDay] = useState("5");
   const [strategy, setStrategy] = useState("round_robin");
@@ -361,7 +374,8 @@ function CreateCampaign({
       body: JSON.stringify({
         name,
         intent,
-        mailbox_ids: mailboxID ? [mailboxID] : [],
+        mailbox_ids: poolID ? [] : mailboxID ? [mailboxID] : [],
+        pool_id: poolID || undefined,
         new_contacts_per_day: Number(perDay),
         sender_strategy: strategy,
         profile_id: profileID || undefined,
@@ -413,7 +427,8 @@ function CreateCampaign({
           <Label htmlFor="camp-mailbox">Mailbox</Label>
           <select
             id="camp-mailbox"
-            required
+            required={!poolID}
+            disabled={Boolean(poolID)}
             value={mailboxID}
             onChange={(e) => setMailboxID(e.target.value)}
             className={fieldSelect}
@@ -425,6 +440,24 @@ function CreateCampaign({
             ))}
           </select>
         </div>
+        {pools.length > 0 ? (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="camp-group">Mailbox group</Label>
+            <select
+              id="camp-group"
+              value={poolID}
+              onChange={(e) => setPoolID(e.target.value)}
+              className={fieldSelect}
+            >
+              <option value="">One mailbox</option>
+              {pools.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         {profiles.length > 0 ? (
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="camp-profile">Profile</Label>

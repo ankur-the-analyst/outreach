@@ -100,6 +100,7 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		Intent            string   `json:"intent"`
 		SenderStrategy    string   `json:"sender_strategy"`
 		MailboxIDs        []string `json:"mailbox_ids"`
+		PoolID            string   `json:"pool_id"`
 		NewContactsPerDay int32    `json:"new_contacts_per_day"`
 		AIInstructions    string   `json:"ai_instructions"`
 		ProfileID         string   `json:"profile_id"`
@@ -117,6 +118,15 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		}
 		ids = append(ids, id)
 	}
+	var poolID *uuid.UUID
+	if in.PoolID != "" {
+		p, err := uuid.Parse(in.PoolID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "invalid group id")
+			return
+		}
+		poolID = &p
+	}
 	var profileID *uuid.UUID
 	if in.ProfileID != "" {
 		p, err := uuid.Parse(in.ProfileID)
@@ -128,7 +138,7 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	c, err := a.store.Create(r.Context(), s.WorkspaceID, CreateInput{
 		Name: in.Name, Intent: in.Intent, SenderStrategy: in.SenderStrategy,
-		MailboxIDs: ids, NewContactsPerDay: in.NewContactsPerDay, AIInstructions: in.AIInstructions,
+		MailboxIDs: ids, PoolID: poolID, NewContactsPerDay: in.NewContactsPerDay, AIInstructions: in.AIInstructions,
 		ProfileID: profileID,
 	})
 	if err != nil {

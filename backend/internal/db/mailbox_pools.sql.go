@@ -119,6 +119,46 @@ func (q *Queries) ListMailboxPoolMembers(ctx context.Context, workspaceID uuid.U
 	return items, nil
 }
 
+const listMailboxPoolMembersForPool = `-- name: ListMailboxPoolMembersForPool :many
+select m.pool_id, m.mailbox_id, mb.email
+from mailbox_pool_members m
+join mailboxes mb
+  on mb.workspace_id = m.workspace_id and mb.id = m.mailbox_id
+where m.workspace_id = $1 and m.pool_id = $2
+order by mb.email
+`
+
+type ListMailboxPoolMembersForPoolParams struct {
+	WorkspaceID uuid.UUID
+	PoolID      uuid.UUID
+}
+
+type ListMailboxPoolMembersForPoolRow struct {
+	PoolID    uuid.UUID
+	MailboxID uuid.UUID
+	Email     string
+}
+
+func (q *Queries) ListMailboxPoolMembersForPool(ctx context.Context, arg ListMailboxPoolMembersForPoolParams) ([]ListMailboxPoolMembersForPoolRow, error) {
+	rows, err := q.db.Query(ctx, listMailboxPoolMembersForPool, arg.WorkspaceID, arg.PoolID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMailboxPoolMembersForPoolRow
+	for rows.Next() {
+		var i ListMailboxPoolMembersForPoolRow
+		if err := rows.Scan(&i.PoolID, &i.MailboxID, &i.Email); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMailboxPools = `-- name: ListMailboxPools :many
 select workspace_id, id, name
 from mailbox_pools

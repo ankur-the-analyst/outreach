@@ -26,6 +26,14 @@ join mailboxes mb
 where m.workspace_id = $1
 order by mb.email;
 
+-- name: ListMailboxPoolMembersForPool :many
+select m.pool_id, m.mailbox_id, mb.email
+from mailbox_pool_members m
+join mailboxes mb
+  on mb.workspace_id = m.workspace_id and mb.id = m.mailbox_id
+where m.workspace_id = $1 and m.pool_id = $2
+order by mb.email;
+
 -- name: DeleteMailboxPoolMembersForWorkspace :exec
 delete from mailbox_pool_members
 where workspace_id = $1;

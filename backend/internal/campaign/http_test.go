@@ -88,6 +88,27 @@ func TestCreateCampaignAcceptsProfileID(t *testing.T) {
 	}
 }
 
+func TestCreateCampaignAcceptsPoolID(t *testing.T) {
+	t.Parallel()
+	store := &fakeStore{role: "owner"}
+	api := New(store)
+	pid := "01700000-0000-7000-8000-00000000000a"
+	body := `{"name":"AE","intent":"job","pool_id":"` + pid + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/campaigns", bytes.NewBufferString(body))
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Create(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	if store.in.PoolID == nil || store.in.PoolID.String() != pid {
+		t.Fatalf("pool %+v", store.in.PoolID)
+	}
+}
+
 func TestStartCommercialWithoutIdentity(t *testing.T) {
 	t.Parallel()
 	id := uuid.MustParse("01700000-0000-7000-8000-000000000003")

@@ -90,6 +90,7 @@ type Campaign struct {
 	AiInstructions      pgtype.Text
 	UndoHoldS           int32
 	CreatedAt           pgtype.Timestamptz
+	PoolID              *uuid.UUID
 }
 
 type CampaignSender struct {

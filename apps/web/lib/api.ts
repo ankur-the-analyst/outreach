@@ -243,6 +243,7 @@ export type Campaign = {
   sender_strategy: string;
   steps: { position: number; kind: string; wait_days?: number; content?: string }[];
   senders: { mailbox_id: string }[];
+  pool_id?: string;
   created_at: string;
 };
 

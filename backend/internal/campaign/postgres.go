@@ -63,6 +63,7 @@ type Campaign struct {
 	Commercial        bool       `json:"commercial"`
 	Steps             []Step     `json:"steps"`
 	Senders           []Sender   `json:"senders"`
+	PoolID            *uuid.UUID `json:"pool_id,omitempty"`
 	CreatedAt         time.Time  `json:"created_at"`
 }
 
@@ -83,6 +84,7 @@ type CreateInput struct {
 	Intent            string
 	SenderStrategy    string
 	MailboxIDs        []uuid.UUID
+	PoolID            *uuid.UUID
 	NewContactsPerDay int32
 	AIInstructions    string
 	ProfileID         *uuid.UUID
@@ -210,9 +212,6 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 	if !ok {
 		return Campaign{}, ErrPack
 	}
-	if len(in.MailboxIDs) == 0 {
-		return Campaign{}, ErrMailbox
-	}
 	strategy := in.SenderStrategy
 	if strategy == "" {
 		strategy = "round_robin"
@@ -227,6 +226,28 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 	}
 	var out Campaign
 	err = p.pool.InTx(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		ids := in.MailboxIDs
+		if in.PoolID != nil {
+			if _, err := q.GetMailboxPool(ctx, db.GetMailboxPoolParams{WorkspaceID: workspaceID, ID: *in.PoolID}); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return ErrNotFound
+				}
+				return err
+			}
+			members, err := q.ListMailboxPoolMembersForPool(ctx, db.ListMailboxPoolMembersForPoolParams{
+				WorkspaceID: workspaceID, PoolID: *in.PoolID,
+			})
+			if err != nil {
+				return err
+			}
+			ids = make([]uuid.UUID, 0, len(members))
+			for _, m := range members {
+				ids = append(ids, m.MailboxID)
+			}
+		}
+		if len(ids) == 0 {
+			return ErrMailbox
+		}
 		row, err := q.InsertCampaign(ctx, db.InsertCampaignParams{
 			WorkspaceID:       workspaceID,
 			ID:                id,
@@ -239,11 +260,15 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 			NewContactsPerDay: perDay,
 			AiInstructions:    text(in.AIInstructions),
 			UndoHoldS:         300,
+			PoolID:            in.PoolID,
 		})
 		if err != nil {
+			if isFK(err) {
+				return ErrNotFound
+			}
 			return err
 		}
-		for i, mb := range in.MailboxIDs {
+		for i, mb := range ids {
 			if err := q.InsertCampaignSender(ctx, db.InsertCampaignSenderParams{
 				WorkspaceID: workspaceID, CampaignID: id, MailboxID: mb, Position: int32(i), Weight: 1,
 			}); err != nil {
@@ -471,7 +496,7 @@ func loadCampaign(ctx context.Context, q *db.Queries, workspaceID, id uuid.UUID,
 	c := Campaign{
 		ID: row.ID, Name: row.Name, ProfileID: row.ProfileID, Intent: row.Intent, SenderStrategy: row.SenderStrategy,
 		Status: row.Status, ListUnsubscribe: row.ListUnsubscribe, NewContactsPerDay: row.NewContactsPerDay,
-		AIInstructions: row.AiInstructions.String, UndoHoldS: row.UndoHoldS, CreatedAt: row.CreatedAt.Time,
+		AIInstructions: row.AiInstructions.String, UndoHoldS: row.UndoHoldS, PoolID: row.PoolID, CreatedAt: row.CreatedAt.Time,
 		Steps: make([]Step, 0, len(steps)), Senders: make([]Sender, 0, len(senders)),
 	}
 	if pack, ok := packs[row.Intent]; ok {
@@ -540,6 +565,11 @@ func text(s string) pgtype.Text {
 		return pgtype.Text{}
 	}
 	return pgtype.Text{String: s, Valid: true}
+}
+
+func isFK(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23503"
 }
 
 func isUnique(err error) bool {
