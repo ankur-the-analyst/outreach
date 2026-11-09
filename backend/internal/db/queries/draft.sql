@@ -57,7 +57,9 @@ left join send_ledger l
  and l.state in ('held', 'reserved', 'sending', 'sent', 'unknown')
 where d.workspace_id = $1
   and d.status in ('pending', 'approved')
-order by d.created_at desc;
+  and (sqlc.narg('after')::uuid is null or d.id < sqlc.narg('after'))
+order by d.id desc
+limit sqlc.arg('n');
 
 -- name: GetLedgerByDraft :one
 select

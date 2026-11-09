@@ -291,8 +291,16 @@ left join send_ledger l
  and l.state in ('held', 'reserved', 'sending', 'sent', 'unknown')
 where d.workspace_id = $1
   and d.status in ('pending', 'approved')
-order by d.created_at desc
+  and ($2::uuid is null or d.id < $2)
+order by d.id desc
+limit $3
 `
+
+type ListReviewDraftsParams struct {
+	WorkspaceID uuid.UUID
+	After       *uuid.UUID
+	N           int32
+}
 
 type ListReviewDraftsRow struct {
 	WorkspaceID  uuid.UUID
@@ -313,8 +321,8 @@ type ListReviewDraftsRow struct {
 	ReleaseAt    pgtype.Timestamptz
 }
 
-func (q *Queries) ListReviewDrafts(ctx context.Context, workspaceID uuid.UUID) ([]ListReviewDraftsRow, error) {
-	rows, err := q.db.Query(ctx, listReviewDrafts, workspaceID)
+func (q *Queries) ListReviewDrafts(ctx context.Context, arg ListReviewDraftsParams) ([]ListReviewDraftsRow, error) {
+	rows, err := q.db.Query(ctx, listReviewDrafts, arg.WorkspaceID, arg.After, arg.N)
 	if err != nil {
 		return nil, err
 	}

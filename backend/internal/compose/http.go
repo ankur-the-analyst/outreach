@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -18,7 +19,7 @@ type Store interface {
 	Create(ctx context.Context, workspaceID uuid.UUID, in CreateInput) (Draft, error)
 	Compose(ctx context.Context, workspaceID uuid.UUID, in ComposeInput) (ComposeResult, error)
 	Patch(ctx context.Context, workspaceID, draftID uuid.UUID, in PatchInput) (Draft, error)
-	List(ctx context.Context, workspaceID uuid.UUID) ([]Draft, error)
+	List(ctx context.Context, workspaceID uuid.UUID, after *uuid.UUID, limit int) (Page, error)
 	Approve(ctx context.Context, workspaceID, userID, draftID uuid.UUID) (Draft, error)
 	Reject(ctx context.Context, workspaceID, draftID uuid.UUID) (Draft, error)
 	Regenerate(ctx context.Context, workspaceID, draftID uuid.UUID) (ComposeResult, error)
@@ -154,15 +155,25 @@ func (a *API) List(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
-	rows, err := a.store.List(r.Context(), s.WorkspaceID)
+	var after *uuid.UUID
+	if raw := strings.TrimSpace(r.URL.Query().Get("cursor")); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "invalid cursor")
+			return
+		}
+		after = &id
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	page, err := a.store.List(r.Context(), s.WorkspaceID, after, limit)
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	if rows == nil {
-		rows = []Draft{}
+	if page.Drafts == nil {
+		page.Drafts = []Draft{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"drafts": rows})
+	writeJSON(w, http.StatusOK, page)
 }
 
 func (a *API) Approve(w http.ResponseWriter, r *http.Request) {

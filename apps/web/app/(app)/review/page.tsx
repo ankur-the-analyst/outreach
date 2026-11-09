@@ -15,6 +15,7 @@ async function ReviewBody() {
     <main className="flex min-h-0 flex-1 flex-col">
       <ReviewQueue
         drafts={drafts?.drafts ?? []}
+        nextCursor={drafts?.next_cursor}
         mailboxes={mailboxes?.mailboxes ?? []}
         profiles={profiles?.profiles ?? []}
         filters

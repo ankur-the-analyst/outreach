@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SquarePen, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,40 +27,70 @@ function reviewActionError(message: string): string {
 
 export function ReviewQueue({
   drafts,
+  nextCursor,
   mailboxes = [],
   profiles = [],
   filters = false,
 }: {
   drafts: Draft[];
+  nextCursor?: string;
   mailboxes?: Mailbox[];
   profiles?: Profile[];
   filters?: boolean;
 }) {
   const [filter, setFilter] = useState<ReviewFilter>("pending");
   const [compose, setCompose] = useState(false);
+  const [rows, setRows] = useState(drafts);
+  const [cursor, setCursor] = useState(nextCursor);
+  const [morePending, setMorePending] = useState(false);
+  useEffect(() => {
+    setRows(drafts);
+    setCursor(nextCursor);
+  }, [drafts, nextCursor]);
   const byMailbox = useMemo(
     () => new Map(mailboxes.map((m) => [m.id, m])),
     [mailboxes],
   );
   const counts = useMemo(() => {
     const c = { pending: 0, tomorrow: 0, undo: 0, checking: 0, sent: 0 };
-    for (const d of drafts) {
+    for (const d of rows) {
       const b = reviewBucket(d, byMailbox.get(d.mailbox_id));
       if (b !== "other") {
         c[b] += 1;
       }
     }
     return c;
-  }, [drafts, byMailbox]);
+  }, [rows, byMailbox]);
 
   const shown = filters
-    ? drafts.filter((d) => reviewBucket(d, byMailbox.get(d.mailbox_id)) === filter)
-    : drafts;
+    ? rows.filter((d) => reviewBucket(d, byMailbox.get(d.mailbox_id)) === filter)
+    : rows;
+
+  async function loadMore() {
+    if (!cursor) {
+      return;
+    }
+    setMorePending(true);
+    const res = await fetch(
+      `/api/v1/drafts?cursor=${encodeURIComponent(cursor)}`,
+      { credentials: "include" },
+    );
+    setMorePending(false);
+    if (!res.ok) {
+      return;
+    }
+    const data = (await res.json()) as {
+      drafts?: Draft[];
+      next_cursor?: string;
+    };
+    setRows((cur) => [...cur, ...(data.drafts ?? [])]);
+    setCursor(data.next_cursor);
+  }
 
   const list =
     shown.length === 0 ? (
       <p className="font-body-md text-muted-foreground">
-        {drafts.length === 0 ? "No drafts in review." : "Nothing in this filter."}
+        {rows.length === 0 ? "No drafts in review." : "Nothing in this filter."}
       </p>
     ) : (
       <ul className="flex flex-col gap-3">
@@ -118,6 +148,17 @@ export function ReviewQueue({
         ))}
       </div>
       {list}
+      {cursor ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-3 w-fit rounded-md"
+          pending={morePending}
+          onClick={loadMore}
+        >
+          Show more
+        </Button>
+      ) : null}
       </PageBody>
       {compose ? (
         <div

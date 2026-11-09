@@ -302,26 +302,32 @@ func (p *Postgres) Patch(ctx context.Context, workspaceID, draftID uuid.UUID, in
 	return out, err
 }
 
-func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID) ([]Draft, error) {
-	var out []Draft
+func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID, after *uuid.UUID, limit int) (Page, error) {
+	limit = clampLimit(limit)
+	var rows []Draft
 	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
-		rows, err := q.ListReviewDrafts(ctx, workspaceID)
+		got, err := q.ListReviewDrafts(ctx, db.ListReviewDraftsParams{
+			WorkspaceID: workspaceID, After: after, N: int32(limit + 1),
+		})
 		if err != nil {
 			return err
 		}
-		out = make([]Draft, 0, len(rows))
-		for _, row := range rows {
+		rows = make([]Draft, 0, len(got))
+		for _, row := range got {
 			d := draftFrom(row.ID, row.MailboxID, row.ToAddr, row.RfcMessageID, row.Kind, row.Subject, row.BodyHtml, row.BodyText, row.Status, row.LedgerID, row.LedgerState.String, row.ReleaseAt)
 			if len(row.FactsUsed) > 0 {
 				if err := json.Unmarshal(row.FactsUsed, &d.FactsUsed); err != nil {
 					return err
 				}
 			}
-			out = append(out, d)
+			rows = append(rows, d)
 		}
 		return nil
 	})
-	return out, err
+	if err != nil {
+		return Page{}, err
+	}
+	return clipPage(rows, limit), nil
 }
 
 func (p *Postgres) Approve(ctx context.Context, workspaceID, userID, draftID uuid.UUID) (Draft, error) {

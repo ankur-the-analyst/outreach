@@ -190,11 +190,11 @@ func TestRejectAndRegeneratePending(t *testing.T) {
 	if dropped.Status != "rejected" {
 		t.Fatalf("%s", dropped.Status)
 	}
-	listed, err := store.List(ctx, wsID)
+	listed, err := store.List(ctx, wsID, nil, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(listed) != 0 {
+	if len(listed.Drafts) != 0 {
 		t.Fatalf("rejected still listed: %+v", listed)
 	}
 	_, err = store.Reject(ctx, wsID, d.ID)

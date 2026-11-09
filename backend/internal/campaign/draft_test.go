@@ -116,7 +116,7 @@ func TestDraftDueStepWritesReviewDraftOnce(t *testing.T) {
 			return err
 		}
 		status = row.Status
-		drafts, err := q.ListReviewDrafts(ctx, wsID)
+		drafts, err := q.ListReviewDrafts(ctx, db.ListReviewDraftsParams{WorkspaceID: wsID, N: 100})
 		if err != nil {
 			return err
 		}

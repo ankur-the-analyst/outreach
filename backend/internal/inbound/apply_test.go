@@ -249,7 +249,7 @@ func listDrafts(ctx context.Context, pool *db.Pool, wsID uuid.UUID) ([]db.ListRe
 	var rows []db.ListReviewDraftsRow
 	err := pool.WithGUC(ctx, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, q *db.Queries) error {
 		var err error
-		rows, err = q.ListReviewDrafts(ctx, wsID)
+		rows, err = q.ListReviewDrafts(ctx, db.ListReviewDraftsParams{WorkspaceID: wsID, N: 100})
 		return err
 	})
 	return rows, err

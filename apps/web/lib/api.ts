@@ -181,7 +181,7 @@ export type Draft = {
 };
 
 export function getDrafts() {
-  return apiGet<{ drafts: Draft[] }>("/api/v1/drafts");
+  return apiGet<{ drafts: Draft[]; next_cursor?: string }>("/api/v1/drafts");
 }
 
 export type EvidenceItem = {

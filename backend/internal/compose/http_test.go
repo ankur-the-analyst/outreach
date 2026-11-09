@@ -31,8 +31,8 @@ func (f *fakeStore) Compose(_ context.Context, _ uuid.UUID, in ComposeInput) (Co
 	f.in = in
 	return ComposeResult{Draft: f.d, Failures: []Failure{}}, f.err
 }
-func (f *fakeStore) List(context.Context, uuid.UUID) ([]Draft, error) {
-	return []Draft{f.d}, f.err
+func (f *fakeStore) List(context.Context, uuid.UUID, *uuid.UUID, int) (Page, error) {
+	return Page{Drafts: []Draft{f.d}}, f.err
 }
 func (f *fakeStore) Approve(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (Draft, error) {
 	return f.d, f.err
@@ -45,6 +45,21 @@ func (f *fakeStore) Reject(context.Context, uuid.UUID, uuid.UUID) (Draft, error)
 }
 func (f *fakeStore) Regenerate(context.Context, uuid.UUID, uuid.UUID) (ComposeResult, error) {
 	return ComposeResult{Draft: f.d, Failures: []Failure{}}, f.err
+}
+
+func TestListDraftsRejectsBadCursor(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner"})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/drafts?cursor=nope", nil)
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.List(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
 }
 
 func TestCreateDraftHTTP(t *testing.T) {
