@@ -19,6 +19,7 @@ import (
 	"outreach/internal/contacts"
 	"outreach/internal/crypto"
 	"outreach/internal/db"
+	"outreach/internal/events"
 	"outreach/internal/evidence"
 	"outreach/internal/health"
 	"outreach/internal/inbound"
@@ -139,6 +140,8 @@ func main() {
 	mux.Handle("PUT /api/v1/workspace/kill-switch", a.Require(http.HandlerFunc(ws.PutKillSwitch)))
 	mux.Handle("GET /api/v1/workspace/members", a.Require(http.HandlerFunc(ws.ListMembers)))
 	mux.Handle("POST /api/v1/workspace/members", a.Require(http.HandlerFunc(ws.Invite)))
+	evs := events.New(events.NewPostgres(pool))
+	mux.Handle("GET /api/v1/events/stream", a.Require(http.HandlerFunc(evs.Stream)))
 	mux.Handle("GET /api/v1/health-samples", a.Require(http.HandlerFunc(hs.List)))
 	mux.Handle("GET /api/v1/warmup-profiles", a.Require(http.HandlerFunc(mb.ListWarmups)))
 	mux.Handle("POST /api/v1/warmup-profiles", a.Require(http.HandlerFunc(mb.CreateWarmup)))

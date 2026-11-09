@@ -13,6 +13,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countReviewDrafts = `-- name: CountReviewDrafts :one
+select count(*)::bigint as n
+from drafts
+where workspace_id = $1
+  and status in ('pending', 'approved')
+`
+
+func (q *Queries) CountReviewDrafts(ctx context.Context, workspaceID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countReviewDrafts, workspaceID)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
+}
+
 const deleteDraftsForContact = `-- name: DeleteDraftsForContact :exec
 delete from drafts
 where drafts.workspace_id = $1

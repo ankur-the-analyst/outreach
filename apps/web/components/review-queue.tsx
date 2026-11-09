@@ -38,6 +38,7 @@ export function ReviewQueue({
   profiles?: Profile[];
   filters?: boolean;
 }) {
+  const router = useRouter();
   const [filter, setFilter] = useState<ReviewFilter>("pending");
   const [compose, setCompose] = useState(false);
   const [rows, setRows] = useState(drafts);
@@ -86,6 +87,26 @@ export function ReviewQueue({
     setRows((cur) => [...cur, ...(data.drafts ?? [])]);
     setCursor(data.next_cursor);
   }
+
+  useEffect(() => {
+    if (!filters) {
+      return;
+    }
+    const es = new EventSource("/api/v1/events/stream", { withCredentials: true });
+    let last = -1;
+    es.addEventListener("review", (ev) => {
+      const n = Number((JSON.parse(ev.data) as { n?: number }).n);
+      if (last < 0) {
+        last = n;
+        return;
+      }
+      if (n !== last) {
+        last = n;
+        router.refresh();
+      }
+    });
+    return () => es.close();
+  }, [filters, router]);
 
   const list =
     shown.length === 0 ? (

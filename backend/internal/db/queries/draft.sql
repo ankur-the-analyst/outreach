@@ -61,6 +61,12 @@ where d.workspace_id = $1
 order by d.id desc
 limit sqlc.arg('n');
 
+-- name: CountReviewDrafts :one
+select count(*)::bigint as n
+from drafts
+where workspace_id = $1
+  and status in ('pending', 'approved');
+
 -- name: GetLedgerByDraft :one
 select
   workspace_id, id, mailbox_id, sending_domain_id, enrolment_id, draft_id,
