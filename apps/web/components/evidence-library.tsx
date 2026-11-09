@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,14 +11,24 @@ import { fieldSelect, fieldTextarea } from "@/lib/labels";
 
 export function EvidenceLibrary({
   items,
+  nextCursor,
   profiles = [],
 }: {
   items: EvidenceItem[];
+  nextCursor?: string;
   profiles?: Profile[];
 }) {
+  const [rows, setRows] = useState(items);
+  const [cursor, setCursor] = useState(nextCursor);
+  const [morePending, setMorePending] = useState(false);
   const [profileID, setProfileID] = useState("");
   const [usable, setUsable] = useState<EvidenceItem[] | null>(null);
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    setRows(items);
+    setCursor(nextCursor);
+  }, [items, nextCursor]);
 
   async function onFilter(next: string) {
     setProfileID(next);
@@ -38,7 +48,28 @@ export function EvidenceLibrary({
     setUsable(data?.evidence ?? []);
   }
 
-  const shown = usable ?? items;
+  async function loadMore() {
+    if (!cursor) {
+      return;
+    }
+    setMorePending(true);
+    const res = await fetch(
+      `/api/v1/evidence?cursor=${encodeURIComponent(cursor)}`,
+      { credentials: "include" },
+    );
+    setMorePending(false);
+    if (!res.ok) {
+      return;
+    }
+    const data = (await res.json()) as {
+      evidence?: EvidenceItem[];
+      next_cursor?: string;
+    };
+    setRows((cur) => [...cur, ...(data.evidence ?? [])]);
+    setCursor(data.next_cursor);
+  }
+
+  const shown = usable ?? rows;
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
@@ -72,6 +103,17 @@ export function EvidenceLibrary({
             ))}
           </ul>
         )}
+        {!usable && cursor ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 w-fit rounded-md"
+            pending={morePending}
+            onClick={loadMore}
+          >
+            Show more
+          </Button>
+        ) : null}
       </div>
       <div className="lg:col-span-5">
         <ProposeForm profiles={profiles} />

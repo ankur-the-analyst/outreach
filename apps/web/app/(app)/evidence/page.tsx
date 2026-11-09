@@ -13,6 +13,7 @@ async function EvidenceBody() {
       <PageBody>
         <EvidenceLibrary
           items={data?.evidence ?? []}
+          nextCursor={data?.next_cursor}
           profiles={profiles?.profiles ?? []}
         />
       </PageBody>

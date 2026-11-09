@@ -15,7 +15,9 @@ where workspace_id = $1 and id = $2;
 select workspace_id, id, profile_id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
 from evidence_items
 where workspace_id = $1
-order by created_at desc;
+  and (sqlc.narg('after')::uuid is null or id < sqlc.narg('after'))
+order by id desc
+limit sqlc.arg('n');
 
 -- name: GetEvidenceByIDs :many
 select workspace_id, id, profile_id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at

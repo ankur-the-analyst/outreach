@@ -316,8 +316,16 @@ const listEvidence = `-- name: ListEvidence :many
 select workspace_id, id, profile_id, text, source_ref, tags, do_not_use, confirmed_at, embedding_model, created_at
 from evidence_items
 where workspace_id = $1
-order by created_at desc
+  and ($2::uuid is null or id < $2)
+order by id desc
+limit $3
 `
+
+type ListEvidenceParams struct {
+	WorkspaceID uuid.UUID
+	After       *uuid.UUID
+	N           int32
+}
 
 type ListEvidenceRow struct {
 	WorkspaceID    uuid.UUID
@@ -332,8 +340,8 @@ type ListEvidenceRow struct {
 	CreatedAt      pgtype.Timestamptz
 }
 
-func (q *Queries) ListEvidence(ctx context.Context, workspaceID uuid.UUID) ([]ListEvidenceRow, error) {
-	rows, err := q.db.Query(ctx, listEvidence, workspaceID)
+func (q *Queries) ListEvidence(ctx context.Context, arg ListEvidenceParams) ([]ListEvidenceRow, error) {
+	rows, err := q.db.Query(ctx, listEvidence, arg.WorkspaceID, arg.After, arg.N)
 	if err != nil {
 		return nil, err
 	}

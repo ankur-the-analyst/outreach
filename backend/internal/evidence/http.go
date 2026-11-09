@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"outreach/internal/auth"
@@ -13,7 +15,7 @@ import (
 type Store interface {
 	Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error)
 	Propose(ctx context.Context, workspaceID uuid.UUID, in ProposeInput) (Item, error)
-	List(ctx context.Context, workspaceID uuid.UUID) ([]Item, error)
+	List(ctx context.Context, workspaceID uuid.UUID, after *uuid.UUID, limit int) (Page, error)
 	Retrieve(ctx context.Context, workspaceID uuid.UUID, profileID *uuid.UUID, query string) ([]Item, error)
 	Confirm(ctx context.Context, workspaceID, id uuid.UUID) (Item, error)
 }
@@ -35,15 +37,25 @@ func (a *API) List(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
-	rows, err := a.store.List(r.Context(), s.WorkspaceID)
+	var after *uuid.UUID
+	if raw := strings.TrimSpace(r.URL.Query().Get("cursor")); raw != "" {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "invalid cursor")
+			return
+		}
+		after = &id
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	page, err := a.store.List(r.Context(), s.WorkspaceID, after, limit)
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	if rows == nil {
-		rows = []Item{}
+	if page.Evidence == nil {
+		page.Evidence = []Item{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"evidence": rows})
+	writeJSON(w, http.StatusOK, page)
 }
 
 func (a *API) Usable(w http.ResponseWriter, r *http.Request) {

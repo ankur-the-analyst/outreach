@@ -25,8 +25,8 @@ func (f *fakeStore) Propose(_ context.Context, _ uuid.UUID, in ProposeInput) (It
 	f.item.Text = in.Text
 	return f.item, f.err
 }
-func (f *fakeStore) List(context.Context, uuid.UUID) ([]Item, error) {
-	return []Item{f.item}, f.err
+func (f *fakeStore) List(context.Context, uuid.UUID, *uuid.UUID, int) (Page, error) {
+	return Page{Evidence: []Item{f.item}}, f.err
 }
 func (f *fakeStore) Retrieve(_ context.Context, _ uuid.UUID, profileID *uuid.UUID, _ string) ([]Item, error) {
 	if profileID != nil && f.item.ProfileID != nil && *profileID != *f.item.ProfileID {
@@ -36,6 +36,21 @@ func (f *fakeStore) Retrieve(_ context.Context, _ uuid.UUID, profileID *uuid.UUI
 }
 func (f *fakeStore) Confirm(context.Context, uuid.UUID, uuid.UUID) (Item, error) {
 	return f.item, f.err
+}
+
+func TestListRejectsBadCursor(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner"})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/evidence?cursor=nope", nil)
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.List(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
 }
 
 func TestProposeHTTP(t *testing.T) {

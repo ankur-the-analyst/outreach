@@ -110,20 +110,26 @@ func (p *Postgres) Propose(ctx context.Context, workspaceID uuid.UUID, in Propos
 	return out, err
 }
 
-func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID) ([]Item, error) {
-	var out []Item
+func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID, after *uuid.UUID, limit int) (Page, error) {
+	limit = clampLimit(limit)
+	var rows []Item
 	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
-		rows, err := q.ListEvidence(ctx, workspaceID)
+		got, err := q.ListEvidence(ctx, db.ListEvidenceParams{
+			WorkspaceID: workspaceID, After: after, N: int32(limit + 1),
+		})
 		if err != nil {
 			return err
 		}
-		out = make([]Item, 0, len(rows))
-		for _, row := range rows {
-			out = append(out, itemFrom(row.ID, row.ProfileID, row.Text, row.SourceRef, row.Tags, row.DoNotUse, row.ConfirmedAt, row.EmbeddingModel, row.CreatedAt))
+		rows = make([]Item, 0, len(got))
+		for _, row := range got {
+			rows = append(rows, itemFrom(row.ID, row.ProfileID, row.Text, row.SourceRef, row.Tags, row.DoNotUse, row.ConfirmedAt, row.EmbeddingModel, row.CreatedAt))
 		}
 		return nil
 	})
-	return out, err
+	if err != nil {
+		return Page{}, err
+	}
+	return clipPage(rows, limit), nil
 }
 
 func (p *Postgres) Confirm(ctx context.Context, workspaceID, id uuid.UUID) (Item, error) {

@@ -197,7 +197,9 @@ export type EvidenceItem = {
 };
 
 export function getEvidence() {
-  return apiGet<{ evidence: EvidenceItem[] }>("/api/v1/evidence");
+  return apiGet<{ evidence: EvidenceItem[]; next_cursor?: string }>(
+    "/api/v1/evidence",
+  );
 }
 
 export type Contact = {
