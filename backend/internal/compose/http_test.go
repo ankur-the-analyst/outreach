@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"outreach/internal/ai"
 	"outreach/internal/auth"
 )
 
@@ -132,6 +133,23 @@ func TestComposeHTTPProfileID(t *testing.T) {
 	}
 	if store.in.ProfileID == nil || *store.in.ProfileID != profile {
 		t.Fatalf("profile_id = %v", store.in.ProfileID)
+	}
+}
+
+func TestComposeHTTPNeedsSettings(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner", err: ai.ErrNoKey})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/drafts/compose", bytes.NewBufferString(
+		`{"mailbox_id":"01700000-0000-7000-8000-000000000004","to":"a@b.co","subject":"hi"}`,
+	))
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Compose(rec, req)
+	if rec.Code != http.StatusBadRequest || !bytes.Contains(rec.Body.Bytes(), []byte("ai_not_configured")) {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 }
 

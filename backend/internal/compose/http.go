@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"outreach/internal/ai"
 	"outreach/internal/auth"
 	"outreach/internal/evidence"
 	"outreach/internal/sender"
@@ -295,6 +296,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, "unconfirmed", err.Error())
 	case errors.Is(err, ErrNoClaims):
 		writeError(w, http.StatusBadRequest, "no_claims", "No confirmed claims for this profile")
+	case errors.Is(err, ai.ErrNoBinding), errors.Is(err, ai.ErrNoKey), errors.Is(err, ai.ErrNotFound):
+		writeError(w, http.StatusBadRequest, "ai_not_configured", "Set a model and API key in Settings")
 	default:
 		writeError(w, http.StatusInternalServerError, "internal", "internal error")
 	}

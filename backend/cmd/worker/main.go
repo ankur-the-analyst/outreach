@@ -88,7 +88,6 @@ func main() {
 	aiStore := ai.NewPostgres(pool, keys)
 	camp := campaign.NewPostgres(pool, packs).
 		WithRetrieve(evidence.NewPostgres(pool, writer)).
-		WithWriter(writer).
 		WithBinder(aiStore)
 
 	client, err := worker.NewWorkerClient(pool, func(w *river.Workers) {

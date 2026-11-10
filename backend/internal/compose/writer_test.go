@@ -18,16 +18,22 @@ func (s stubBind) Provider(context.Context, uuid.UUID, ai.Role) (ai.Provider, er
 	return s.p, s.err
 }
 
-func TestWriterFallsBackWithoutBinding(t *testing.T) {
+func TestWriterErrorsWithoutBinding(t *testing.T) {
 	t.Parallel()
 	fb := &ai.Fake{Text: "fallback"}
 	p := NewPostgres(nil, nil).WithWriter(fb).WithBinder(stubBind{err: ai.ErrNoBinding})
-	w, err := p.writer(context.Background(), uuid.Nil)
-	if err != nil {
-		t.Fatal(err)
+	_, err := p.writer(context.Background(), uuid.Nil)
+	if !errors.Is(err, ai.ErrNoBinding) {
+		t.Fatalf("%v", err)
 	}
-	if w != fb {
-		t.Fatalf("%T", w)
+}
+
+func TestWriterErrorsWithoutKey(t *testing.T) {
+	t.Parallel()
+	p := NewPostgres(nil, nil).WithWriter(&ai.Fake{Text: "fallback"}).WithBinder(stubBind{err: ai.ErrNoKey})
+	_, err := p.writer(context.Background(), uuid.Nil)
+	if !errors.Is(err, ai.ErrNoKey) {
+		t.Fatalf("%v", err)
 	}
 }
 
@@ -50,5 +56,15 @@ func TestWriterSurfacesGoogle(t *testing.T) {
 	_, err := p.writer(context.Background(), uuid.Nil)
 	if !errors.Is(err, ai.ErrNotConfigured) {
 		t.Fatalf("%v", err)
+	}
+}
+
+func TestWriterAllowsTestFakeWithoutBinder(t *testing.T) {
+	t.Parallel()
+	fb := &ai.Fake{Text: "test"}
+	p := NewPostgres(nil, nil).WithWriter(fb)
+	w, err := p.writer(context.Background(), uuid.Nil)
+	if err != nil || w != fb {
+		t.Fatalf("%v %T", err, w)
 	}
 }

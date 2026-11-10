@@ -126,9 +126,6 @@ func (p *Postgres) writer(ctx context.Context, workspaceID uuid.UUID) (Completer
 		return p.write, nil
 	}
 	got, err := p.bind.Provider(ctx, workspaceID, ai.RoleCompose)
-	if errors.Is(err, ai.ErrNoBinding) || errors.Is(err, ai.ErrNoKey) || errors.Is(err, ai.ErrNotFound) {
-		return p.write, nil
-	}
 	if err != nil {
 		return nil, err
 	}

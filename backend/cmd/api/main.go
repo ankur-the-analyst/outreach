@@ -138,7 +138,7 @@ func main() {
 	ev := evidence.New(evStore)
 	aiStore := ai.NewPostgres(pool, keys)
 	aiHTTP := ai.NewAPI(aiStore)
-	cmp := compose.New(compose.NewPostgres(pool, led).WithWriter(writer).WithBinder(aiStore).WithCite(evStore).WithRetrieve(evStore))
+	cmp := compose.New(compose.NewPostgres(pool, led).WithBinder(aiStore).WithCite(evStore).WithRetrieve(evStore))
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
 	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc).WithOpener(dialer))
 	jd := jobsjd.New(jobsjd.NewPostgres(pool, storage.NewMemory(), writer).WithBinder(aiStore))
@@ -148,7 +148,7 @@ func main() {
 		logger.Error("load packs", "err", err)
 		os.Exit(1)
 	}
-	camp := campaign.New(campaign.NewPostgres(pool, packs))
+	camp := campaign.New(campaign.NewPostgres(pool, packs).WithBinder(aiStore).WithRetrieve(evStore))
 
 	mux := http.NewServeMux()
 	hs := health.New(health.NewPostgres(pool))
