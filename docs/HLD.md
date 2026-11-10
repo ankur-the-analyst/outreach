@@ -1,6 +1,10 @@
 # Outreach: High-Level Design (HLD)
 
-Version 0.4 · 25 Oct 2026 · Builds on PRD v0.4 · Supersedes HLD v0.2 / v0.3 drafts
+Version 0.5 · 10 Nov 2026 · Builds on PRD v0.5 · Supersedes HLD v0.4
+
+**Frozen for M7–M8.** Scope: PRD v0.5. Behavior: this file. Tables: `docs/SCHEMA.md`. Tradeoffs: LLD v0.5 §14.
+
+v0.5 is the **operator loop** on top of the shipped spine (tenancy, Gmail user OAuth send/read, ledger, review, campaigns). It does not add a job crawler, ATS form-fill, or auto-apply.
 
 The **PRD release cut** is the authority for scope. This document is the technical design for **Now**, plus the interfaces Next/Later plug into. It does not require MCP, region-rules tables, extra DB roles, document KB, or reply auto-send in the first build.
 
@@ -19,7 +23,7 @@ Monorepo: Next.js + TypeScript web app; Go **api** (HTTP, auth, CRUD, public uns
                          |  workers claim jobs
                     cmd/worker (Go)
                          |
-            SMTP/IMAP   Gmail API (1 SA / Workspace domain)   LLM (BYOK)
+            SMTP/IMAP   Gmail user OAuth   Workspace SA (send stub)   LLM (BYOK)
 ```
 
 **Jobs, not an event bus.** A write that needs work inserts a River job in the same transaction. No `events_outbox` dispatcher in Now. If subscribers multiply, an outbox is Next; handlers should stay idempotent so that swap is easy.
@@ -38,7 +42,9 @@ Monorepo: Next.js + TypeScript web app; Go **api** (HTTP, auth, CRUD, public uns
 | Warmup | `warmup_profiles` data; `ramp(profile, day, health)`; idle days ignored |
 | Writing | Confirmed `evidence_items` + IDs; include-all if ≤ ~30; else exact pgvector under workspace filter |
 | Replies | Classify → policy code → `reply.draft` → review. No auto-send. `reply_mode` column exists, allowed value in Now is `draft` (and `off`) |
-| Transports | `Test`, `Send`, `AppendSent`, `FindSent`; OAuth stub returns not-configured |
+| Transports | `Operations` (send + fetch); Gmail user OAuth live; Workspace SA send still stub |
+| Fields | Catalog `field_defs`; values in JSON on the row. Contact + member in this cut. Not EAV. Not columns on global `users` |
+| CV | JSON spec without email; `cv_renders` per mailbox (and optional job); never rewrite uploaded PDF bytes |
 | AI | Propose-only tools; no send tool |
 | Secrets | Envelope encryption; server master key; UI discloses the host can decrypt |
 | Migrations | dbmate, SQL in git |
@@ -106,7 +112,9 @@ draft approved → held (release_at = now + undo) → reserved → sending → s
 
 ### 4.4 MIME
 
-Message-ID, threading headers, text then HTML, signature, resume attached for `job` else link unless chosen. `List-Unsubscribe` on commercial class. Sender identity footer on commercial class. Never `Precedence: bulk`. Optional `Feedback-ID` with a non-personal campaign id (no email in the header).
+Message-ID, threading headers, text then HTML, signature. `List-Unsubscribe` on commercial class. Sender identity footer on commercial class. Never `Precedence: bulk`. Optional `Feedback-ID` with a non-personal campaign id (no email in the header).
+
+**Attachments (v0.5):** outer `multipart/mixed`; inner `multipart/alternative` for text/HTML; then one file part. Built **after** the ledger has a mailbox (`reserved` / `sending`), never at first compose. The attached CV’s visible contact email is the sending mailbox’s `From`, not the profile’s personal address. Job pack default: attach. Other packs: no file unless the campaign opts in. Gmail raw payload must stay under provider size (fail closed in review, do not send a truncated PDF).
 
 ### 4.5 Warmup
 
@@ -126,7 +134,7 @@ type Transport interface {
 // Read/IDLE live in package sync, not on this interface.
 ```
 
-OAuth implementation is a stub that implements the interface and returns `ErrNotConfigured`.
+Gmail user OAuth implements send + inbox poll via `Operations`. Workspace domain service-account send remains unwired (`ErrNotConfigured` / not wired). Do not switch core on provider names; register `(authKind, provider)`.
 
 IMAP: UID + UIDVALIDITY; IDLE on INBOX; Sent catch-up; one supervisor per mailbox (advisory lock); max two connections per Gmail mailbox. Gmail API: `history.list` from stored id; 404 → bounded resync. Dedup `(mailbox_id, rfc_message_id)`.
 
@@ -184,8 +192,73 @@ Tens of workspaces on one Compose stack; ~50 mailboxes per workspace; tens to a 
 | Invented claims | Evidence IDs + deterministic match + review |
 | Injection | Data wrapping; no send tool; replies to review |
 | Host can decrypt friends | Disclosure in settings; custody Later |
-| App passwords restricted | OAuth stub; Workspace SA |
+| App passwords restricted | Gmail user OAuth; Workspace SA later |
+| Silent fake compose | No binding / no key → operator error, not `ai.Fake` copy |
+| Wrong CSV column | Mapping required when headers are not aliases; preview shows sample cells |
+| Template leftover `{{` | Reject unknown vars on save; gates on render |
+| Start with empty From | Campaign start requires ≥1 mailbox (senders or pool members) |
+| CV email ≠ From | Render PDF from structured CV after mailbox is known |
+| Tailor invents jobs | Only confirmed evidence + enrolment context; operator sees the PDF |
 
 ## 12. What the LLD must specify
 
-Now schema and jobs only, plus: `campaign_senders`, `warmup_profiles`, `sender_strategy` registry, `reply_mode` (`draft`/`off`), vector columns on `evidence_items`, `Embed` + `embed` role, `retrieve`, OAuth stub, kill switch, hold `release_at`, ledger states, selection protocol, `FORCE RLS` and connection GUC rules. No `kb_chunks`, no `region_rules`, no MCP, no three-role scheduler split.
+Now schema and jobs: see applied migrations. v0.5 additive DDL is **`docs/SCHEMA.md`**. Tradeoffs LLD §14. No `kb_chunks`, no `region_rules`, no MCP, no ATS crawl.
+
+## 13. Operator loop (v0.5)
+
+Shipped: auth, RLS, Gmail OAuth send/sync, ledger, review, contacts CSV (header aliases only), campaigns, fake/default compose writer, profile **paste** resume, MIME `multipart/alternative` with no file parts.
+
+Goal: one job-outreach send from the connected Gmail that is cited, approved, and (for job) carries a CV whose contact email is that Gmail.
+
+```
+CSV (mapped) → contacts
+profile + structured CV
+campaign (job) + From (mailbox or group)
+  ├ template render  OR  compose(BYOK) + gates
+  ├ review (body + which file)
+  └ reserve mailbox → render PDF(From) → MIME mixed → Send
+```
+
+### 13.1 Compose bind
+
+Workspace settings already store kind + sealed key. `cmd/api` and `cmd/worker` still construct `ai.Fake` as the default writer; `writer()` falls back to Fake on `ErrNoBinding` / `ErrNoKey`.
+
+**Rule:** if the workspace has no compose binding or no key, compose **fails** with an operator error (“set a model and key in Settings”). Fake is only for tests and an explicit `kind=fake` binding. Campaign AI steps enqueue compose; same rule. Do not send Fake copy in production.
+
+**Breaks:** operator thinks Gmail is the problem; drafts all identical. **Fix:** fail closed; log `google_oauth` already proves config at boot — compose should log `compose_provider` kind, never the key.
+
+### 13.2 Import mapping
+
+Preview returns header names + first row samples. Import body includes `columns` mapping CSV headers → field keys (builtins or `field_defs.key`). Email column required. Unmapped fields empty. Persist mapping in the browser for the session only (Now). Contact + member defs are required in this cut. See LLD §14 and SCHEMA.md.
+
+**Breaks:** `Work Email` never matches `email` → all rows blocked, or the first column is treated as email. **Fix:** if no email alias matches, do not guess; UI must map. Import still requires provenance.
+
+### 13.3 Templates
+
+`templates` workspace table: name, subject, body. Vars: `{{contact.first_name}}`, `{{company.name}}`, `{{job.title}}`, `{{profile.name}}`, `{{contact.first_name | there}}`. Unknown vars rejected **on save**. Campaign email step: `content=template` + `template_id`, or `content=ai`. Render at draft-create; leftover `{{` still hits existing gates.
+
+**Breaks:** template saved, contact missing first name → empty greeting; AI and template both ignored. **Fix:** fallbacks in the pipe syntax; empty required var is a gate failure on that draft, not a campaign-wide crash.
+
+### 13.4 From on start
+
+Start is illegal if `campaign_senders` is empty **and** the pool has no members. UI already creates a campaign with a mailbox or group; groups can exist with zero mailboxes.
+
+**Breaks:** “Job Application / No mailboxes” then Start queues work that never reserves. **Fix:** API 400 on start; operator copy: add a mailbox to this campaign or group.
+
+### 13.5 CV as structured data, PDF at send
+
+Do **not** byte-edit an uploaded PDF to change the email (layout breaks, text is not a field).
+
+Canonical CV is JSON (`cv_documents.spec`) **without email**. PDF is `cv_renders` for that mailbox (optional `job_id` when tailored). Upload is evidence input (`resumes`), not the attached bytes. `drafts.attachment_render_id` points at the render. At `sending`, `from_email` must equal the ledger mailbox. If draft mailbox ≠ reserved mailbox, re-render or fail. Review shows filename + From.
+
+**Breaks:** attach a PDF that still lists a personal Gmail; two NULLs sneak past a UNIQUE on `job_id`. **Fix:** render after mailbox is the one that will send; partial unique indexes (SCHEMA.md). Job campaign without a render does not call `Send`.
+
+### 13.6 Tailor per JD
+
+Same JSON, different **emphasis**: reorder/drop bullets that are in confirmed evidence; do not add employers, dates, or metrics. JD is enrolment context. Model proposes a CV JSON patch; gates: every number/name/date in the PDF text must appear in evidence or context (same idea as body gates). Operator reviews body **and** PDF. One regen.
+
+**Breaks:** model invents a title; PDF and body disagree. **Fix:** fail the draft; do not attach.
+
+## 14. Out of this cut
+
+JD URL fetch / catalogue API, Workspace SA send, erasure-vs-evidence polish, public OAuth verification, column-mapping saved on the workspace, HTML/DOCX templates from Word. Freehire is a possible **JD source later**, not a dependency.

@@ -1,6 +1,8 @@
 # Outreach: Product Requirements (PRD)
 
-Version 0.4 · 25 Oct 2026 · Owner: Anmol Madan · Pairs with HLD.md and LLD.md
+Version 0.5 · 10 Nov 2026 · Owner: Anmol Madan · Pairs with HLD.md v0.5, LLD.md v0.5, SCHEMA.md
+
+Frozen for **M7–M8** (operator loop). HLD is behavior; LLD is tradeoffs; SCHEMA.md is additive DDL.
 
 The **release cut** (section 0) is the authority for what we build first. Later sections describe the product; they do not expand Now.
 
@@ -10,20 +12,20 @@ First release: a send path, a read path, and a small writing path. It prevents f
 
 | Area | Now | Next | Later |
 |---|---|---|---|
-| Product | Campaigns of enrolments; intent packs as data; contact + context required; JD optional | Angles picker; tasks in sequences | Catalogue import; tailored PDFs |
+| Product | Campaigns of enrolments; intent packs as data; contact + context required; JD optional; CSV column map; saved templates | Angles picker; tasks in sequences | Catalogue import (e.g. jobs API), not a crawler in-tree |
 | Pacing | Rolling 24-hour `send_ledger`; mailbox and domain budgets | Domain stagger UI rules | — |
 | Send | State machine with `unknown`; Message-ID before transport; reconciler; 5-minute undo hold; kill switch; sticky mailbox on follow-up; sender strategies | — | — |
 | Health / warmup | Warmup profiles; health-gated ramp; idle days do not count | Complaint-like trend; domain score slowdown | Seed tests; Postmaster |
-| Transports | SMTP/IMAP; Workspace Gmail API (one SA per domain); `AppendSent` / `FindSent`; OAuth stub | — | OAuth implementation; Outlook |
+| Transports | SMTP/IMAP; **Gmail user OAuth** send + inbox poll; Workspace SA send still unwired; `AppendSent` / `FindSent` | — | Outlook; public OAuth verification / CASA |
 | Inbound | Cursor sync; rules; classify; policy in code; **reply drafts always to review** | Interview prep tasks | Calendar |
-| Writing | Evidence library (user-confirmed); compose cites evidence IDs; embed evidence (pgvector); include-all when the set is small; deterministic gates; review at autonomy level 1 | `quality.review` model pass; voice from edits; document KB | — |
+| Writing | Evidence library; compose cites evidence IDs; BYOK or fail (no silent fake); field catalog (contact + member required); job pack attaches structured-CV PDF with **mailbox From**; tailor per JD from confirmed evidence only | `quality.review`; voice from edits; document KB | — |
 | Scheduling | Recipient timezone windows | Tasks engine | — |
 | Compliance | Sender identity for commercial intents; RFC 8058 on commercial mail; provenance on contacts; erasure job | — | Region-rules engine; LIA records |
 | Tenancy | Workspace per user (or invited team); composite FKs; RLS; server master key + disclosure that the host can decrypt | — | Extra DB roles; passphrase custody |
 | Agents | — | — | MCP, tokens, webhooks |
 | Observability | Ledger usage; unknown count; sync lag; health samples | DNS monitor | Seed placement |
 
-**Not in Now:** reply auto-send, peer warmup pools, scraping, MCP, a job-board crawler, the CRM AI Workforce canvas, tools that send.
+**Not in Now:** reply auto-send, peer warmup pools, scraping, MCP, a job-board crawler, ATS form-fill, auto-apply, the CRM AI Workforce canvas, tools that send, rewriting uploaded PDFs in place.
 
 ## 1. What this is
 
@@ -75,11 +77,11 @@ A pack is data: writer rules, default sequence, attachment behaviour, compliance
 
 ### 5.1 Contacts and companies
 
-Typed, pasted, CSV (preview + mapping), emails found in a pasted JD. **Provenance required** (source, who, when). Dedup: one contact per email per workspace; one company per domain. Role class flagged (`hiring_manager`, `recruiter`, `generic_mailbox`, …). Generic `careers@` / `hr@` warned. Readiness: `ready` / `risky` / `blocked` (syntax, MX later as Next; suppression always). Company cooldown 30 days, override with reason. Timezone and region stored when known (drive send windows; region engine is Later).
+Typed, pasted, CSV (preview + **column map** to builtins or workspace field defs). **Provenance required**. Dedup: one contact per email per workspace; one company per domain. Contact custom fields and **member** fields (per workspace, not on the login row) are in Now; company/tenant attrs use the same catalog. Role class flagged. Generic `careers@` / `hr@` warned. Readiness: `ready` / `risky` / `blocked`. Company cooldown 30 days. Timezone/region when known.
 
 ### 5.2 Evidence and writing
 
-Resume (PDF/DOCX) and links → model **proposes** evidence items → operator confirms. Unconfirmed items cannot be cited. Compose returns body + claim→evidence IDs. Deterministic gates: leftover `{{`, banned phrases, length (~125 words first mail), link count, attachment rules. Numbers, names, dates in the body must appear in a cited evidence item or in enrolment context. One regeneration; then show failures.
+Resume (PDF/DOCX) and links → model **proposes** evidence items → operator confirms. Unconfirmed items cannot be cited. Compose is BYOK or an error (no silent stub copy). Returns body + claim→evidence IDs. Gates: leftover `{{`, banned phrases, length, links, attachment rules. Numbers/names/dates in the **body and attached CV text** must appear in cited evidence or enrolment context. Job campaigns attach a PDF rendered from a structured CV with the **sending mailbox** as the contact email; tailor per JD may reorder/drop, not invent. One regeneration; then show failures.
 
 If the workspace has ~30 or fewer confirmed items, **include them all** in the prompt (no retrieval miss). Otherwise retrieve by embedding similarity (pgvector) under `workspace_id`.
 
@@ -91,14 +93,13 @@ Follow-ups: new value, same thread, **same mailbox**. If that mailbox is down, w
 
 Enrolments: contact + context + intent; optional job and profile. Sequence: AI or template email, wait N days. Stop on reply, bounce, unsubscribe, OOO hold, manual stop. Cap new contacts per day. Sender strategy on the campaign (round robin, sequential, capacity first, weighted, domain spread, manual). Recipient local window when timezone is known; else mailbox window.
 
-Templates: `{{contact.first_name}}`, `{{company.name}}`, `{{job.title}}`, `{{profile.name}}`, fallbacks `{{contact.first_name | there}}`. Invalid variables rejected on save.
+Templates: `{{contact.first_name}}`, `{{contact.<field>}}`, `{{company.name}}`, `{{user.*}}` (membership in this workspace), `{{job.title}}`, `{{profile.name}}`, fallbacks `{{contact.first_name | there}}`. Invalid variables rejected on save.
 
 ### 5.4 Mailboxes and domains
 
-- Personal Gmail: app password, SMTP + IMAP (Google may restrict this; transport is swappable).
-- Workspace: **one service account per domain**, impersonate each user. Cannot impersonate `@gmail.com`.
+- Personal Gmail: **user OAuth** (send + readonly) or SMTP/IMAP app password.
+- Workspace: **one service account per domain** (send still unwired in this cut). Cannot impersonate `@gmail.com`.
 - Other SMTP/IMAP; `AppendSent` when the provider does not file Sent.
-- OAuth: empty slot in Now.
 
 Sending domain is an object: caps, age, mailboxes. Rolling 24-hour mailbox **and** domain budgets. Health samples from bounces, deferrals, auth failures. Warmup is a **profile** (standard / conservative / fast / off / custom). Idle days do not count. Never start at the provider ceiling (500 personal / 500 trial Workspace / 2,000 Workspace). Default first days: 2, 3, 5, … Kill switch pauses all sends in the workspace.
 
@@ -157,12 +158,7 @@ Every approved send enters the undo hold, then the ledger. Kill switch cancels q
 
 ## 9. Build order
 
-1. Foundations: monorepo, dbmate, auth, workspaces, secrets, mailboxes (SMTP/IMAP + test), domains.
-2. Safe send: ledger, lock order, strategies, warmup profiles, hold, kill switch, suppression, one-off send.
-3. Read: IMAP/Gmail sync, threading, bounces, inbox UI, reply from the product.
-4. Write: evidence, compose, deterministic gates, review, classify + policy.
-5. Campaigns: sequences, enrolments, recipient windows, tracker.
-6. Workspace Gmail API, sender identity gate, erasure, commercial unsubscribe headers.
+1–6 shipped (spine + Gmail user OAuth). Remaining Now: ACTION_PLAN **M7 then M8** (`docs/ACTION_PLAN.md`). First slice **M7.1**.
 
 ## 10. Non-goals
 

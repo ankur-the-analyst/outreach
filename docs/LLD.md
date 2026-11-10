@@ -1,8 +1,10 @@
 # Outreach: Low-Level Design (LLD)
 
-Version 0.4 · 25 Oct 2026 · Builds on PRD.md and HLD.md v0.4
+Version 0.5 · 10 Nov 2026 · Builds on PRD.md v0.5 and HLD.md v0.5
 
-Specifies **Now** plus extension columns/interfaces. Does not specify Next/Later tables.
+**Frozen for M7–M8.** Additive SQL: `docs/SCHEMA.md`. §14 is the closed tradeoff record (do not reopen without a version bump).
+
+Specifies **Now** plus the operator-loop tables (fields, templates, structured CV). Does not specify catalogue crawl or ATS apply.
 
 ## 1. Conventions
 
@@ -24,16 +26,18 @@ Specifies **Now** plus extension columns/interfaces. Does not specify Next/Later
 | `crypto` | envelope `Seal`/`Open`, HMAC tokens |
 | `auth` | sessions, argon2id, Google OIDC identity |
 | `workspace` | workspaces, members, kill switch, sender identity |
-| `mailbox` | CRUD, test, `Transport` |
+| `mailbox` | CRUD, test, `Operations` (send + fetch), `Registry` |
 | `mailbox/smtpimap` | SMTP + IMAP |
 | `mailbox/gmailapi` | JWT + `Subject`; one SA per domain |
-| `mailbox/oauth` | stub, `ErrNotConfigured` |
+| `mailbox/oauth` | Google start/callback, HMAC state |
+| `fields` | workspace field defs; resolve builtins + custom JSON |
 | `domain` | `sending_domains`, DNS check helper (manual/on-connect; no 6h monitor job) |
 | `pacing` | ledger, lock protocol, strategies, warmup `ramp` |
 | `mime` | build message |
 | `contacts` | contacts, companies, CSV, provenance |
 | `suppression` | checks + hashed erasure leftover |
 | `jobsjd` | profiles, resumes, optional JDs, analyze, fit |
+| `cv` | structured spec → PDF render (M8) |
 | `evidence` | items, propose, confirm, embed, `retrieve` |
 | `compose` | templates, drafts, gates, review |
 | `campaign` | campaigns, steps, enrolments, `campaign_senders` |
@@ -52,12 +56,13 @@ Specifies **Now** plus extension columns/interfaces. Does not specify Next/Later
 
 ## 3. Schema (Now)
 
-Abbreviated; every workspace table includes `workspace_id` and composite FKs as in §1.
+Abbreviated **applied** Now plus tables that LLD always listed (`templates` was specified before it was migrated). **v0.5 additive DDL to run via dbmate is only in `docs/SCHEMA.md`.** Every workspace table includes `workspace_id` and composite FKs as in §1.
 
 ```sql
 create table workspaces (
   id uuid primary key, name text not null,
   sends_paused boolean not null default false,  -- kill switch
+  attrs jsonb not null default '{}', -- M7.2 SCHEMA.md
   created_at timestamptz not null default now()
 );
 create table users (
@@ -68,6 +73,7 @@ create table memberships (
   workspace_id uuid references workspaces (id),
   user_id uuid references users (id),
   role text not null check (role in ('owner','member','viewer')),
+  attrs jsonb not null default '{}', -- M7.2 SCHEMA.md; not on users
   primary key (workspace_id, user_id)
 );
 create table sessions (
@@ -163,6 +169,7 @@ create table companies (
   domain citext, name text not null,
   last_contacted_at timestamptz, cooldown_days int not null default 30,
   cooldown_override_reason text,
+  custom jsonb not null default '{}', -- M7.2; not in applied contacts migration yet
   primary key (workspace_id, id), unique (workspace_id, domain)
 );
 create table contacts (
@@ -402,7 +409,7 @@ type Transport interface {
 | app_password | SMTP | IMAP SEARCH header Message-ID; Gmail files Sent on Send — AppendSent no-op |
 | smtp_imap | SMTP | AppendSent after **Send success** if server does not file; FindSent IMAP |
 | service_account | Gmail API raw send | Gmail API get/list by rfc822 msgid |
-| oauth | stub | stub |
+| oauth | Gmail API user | Gmail history / get |
 
 `Send` success always wins over `AppendSent` failure: ledger `sent`, attempt row records append error.
 
@@ -500,11 +507,11 @@ No send tool. No `quality.review` job in Now.
 
 ## 9. HTTP (Now)
 
-Auth, workspaces/members, mailboxes (test, reconnect, pause), google-service-accounts, pools, `sending-domains`, warmup-profiles, contacts/import, suppression, profiles/resumes, evidence (propose, confirm, list), jobs, campaigns (steps, senders, enrol, start/pause/stop), drafts (patch, approve, reject, regenerate), threads/reply/read, applications, settings/ai, settings/sender-identity, settings/kill-switch, `/events/stream`, public `POST/GET /u/{token}`.
+Auth, workspaces/members, mailboxes (test, reconnect, pause), google-service-accounts, pools, `sending-domains`, warmup-profiles, contacts/import (preview + `columns` map), `field_defs`, suppression, profiles/resumes, cv documents/renders, evidence (propose, confirm, list), jobs, templates, campaigns (steps, senders, enrol, start/pause/stop; start requires From), drafts (patch, approve, reject, regenerate), threads/reply/read, applications, settings/ai, settings/sender-identity, settings/kill-switch, `/events/stream`, public `POST/GET /u/{token}`.
 
 Errors `{error:{code,message,details}}`. Cursor pagination.
 
-Reject: `reply_mode` other than `draft`|`off`; empty provenance on contact; campaign start without sender identity when pack is commercial.
+Reject: `reply_mode` other than `draft`|`off`; empty provenance on contact; campaign start without sender identity when pack is commercial; campaign start with no senders and empty pool; compose with no AI key unless `kind=fake`.
 
 ## 10. Web routes (Now)
 
@@ -512,7 +519,7 @@ Reject: `reply_mode` other than `draft`|`off`; empty provenance on contact; camp
 
 ## 11. Config (env)
 
-`DATABASE_URL`, `MASTER_KEYS`, `MASTER_KEY_ACTIVE`, `TOKEN_KEY`, `SESSION_KEY`, `PUBLIC_APP_URL`, `PUBLIC_TRACK_HOST`, `STORAGE_DRIVER`, `S3_*`, optional platform `OPENAI_API_KEY` / `GEMINI_API_KEY` (workspaces BYOK), `GOOGLE_OAUTH_CLIENT_ID/SECRET` (login only), `EMBED_DIM` (must match migration), `WORKER_CONCURRENCY_SEND`, `WORKER_CONCURRENCY_AI`, `UNKNOWN_TIMEOUT_S` default 900, `UNDO_HOLD_S` default 300.
+`DATABASE_URL`, `MASTER_KEYS`, `MASTER_KEY_ACTIVE`, `TOKEN_KEY`, `SESSION_KEY`, `PUBLIC_APP_URL`, `PUBLIC_TRACK_HOST`, `STORAGE_DRIVER`, `S3_*`, optional platform `OPENAI_API_KEY` / `GEMINI_API_KEY` (workspaces BYOK), `GOOGLE_OAUTH_CLIENT_ID/SECRET` / `GOOGLE_OAUTH_REDIRECT_URI` (Gmail mailbox OAuth; names must be tagged `envconfig` so `OAuth` does not split to `O_AUTH`), `EMBED_DIM` (must match migration), `WORKER_CONCURRENCY_SEND`, `WORKER_CONCURRENCY_AI`, `UNKNOWN_TIMEOUT_S` default 900, `UNDO_HOLD_S` default 300.
 
 ## 12. Tests (Now, blocking)
 
@@ -528,4 +535,188 @@ Reject: `reply_mode` other than `draft`|`off`; empty provenance on contact; camp
 
 ## 13. Build order
 
-Matches PRD §9. First mergeable slice: repo (pnpm + Go module + docker-compose postgres), dbmate migration 1 (workspaces/users/sessions), auth, empty web shell.
+Shipped through M6 + Gmail user OAuth. §14 objects are **closed**. Next: ACTION_PLAN **M7.1**.
+
+## 14. Fields, templates, CV (v0.5)
+
+DDL to migrate: **`docs/SCHEMA.md`**. This section is why those tables look like that.
+
+### 14.0 Current scenario (constraints we are not free to ignore)
+
+Shipped and in production-shaped local use:
+
+- Tenancy is **workspace**, not user. RLS `FORCE` on `app.workspace_id`. `users.email` is **globally** unique; `memberships` is the per-workspace join (`memberships_by_user` exists so login can list workspaces **before** a GUC).
+- `contacts.custom jsonb` already exists; CSV import only aliases `email` / `first_name` / `last_name` / `title` / `company`. Provenance required. Dedup `(workspace_id, email)`.
+- `campaign_steps.template_id` and `content in ('ai','template')` already exist **without** a `templates` table or FK.
+- `drafts.mailbox_id` is **NOT NULL**. One-off compose already picks a From. Campaign first-touch still goes through ledger reserve; do not assume mailbox is unknown at draft insert, but **do not attach a CV until that mailbox is the one that will send**.
+- MIME is `multipart/alternative` only (no file parts). Gmail send is **raw RFC2822**.
+- Compose binder falls back to `ai.Fake` on missing key. Settings already store kind + sealed key.
+- `resumes` is text + `file_key` for evidence propose, not a send artifact.
+- HLD scale: tens of workspaces, ~50 mailboxes, hundreds of sends/day — not a warehouse. We optimize for **correct merge and one PDF per send**, not analytics over custom fields.
+- Operator still approves every outbound. Replies never auto-send.
+
+Everything below is chosen against that, not against a greenfield CRM.
+
+### 14.1 Objects: why these four tables
+
+| Operator word | Table | Decision | Rejected |
+|---|---|---|---|
+| Lead / contact | `contacts` + `custom` | Person we email. Custom bag already shipped; keep it. | New `leads` table (split from contacts) — we have one person record and readiness/suppression already on contacts. |
+| Account (their company) | `companies` + `custom` (add) | Domain is the natural key we already unique on. | Treating workspace as “account” — that is *our* tenant, not Acme Inc. |
+| User (teammate) | **`memberships.attrs`** | Fields are **workspace-scoped** (title, signature, calendar in *this* product). | Columns on `users` — same login in two workspaces would share or leak a signature; also `users` is not RLS-by-workspace (it is the login row). |
+| Our tenant | `workspaces.attrs` + existing `sender_identities` | CAN-SPAM name/address stay real columns (required, queried, not optional JSON). | Putting legal_name only in attrs — start-campaign gate would scrape JSON. |
+
+`profiles` stay persona + CV, not a field object. Enrolment `context` stays notes + optional job — not a place to hide custom lead fields (those must survive across campaigns).
+
+**Contact and member fields are necessary in this cut** because CSV/templates/`{{user.signature}}`/`{{contact.*}}` read them. Company and workspace attrs are the same *mechanism* so we do not add a second pattern later; they are not on the critical send path.
+
+**Merge order** (first hit wins): `contact` → `company` → `user` (membership of approver, else enroler) → `workspace` / `sender` → `profile` → `job` → `mailbox`. Builtins always win over custom of the same key.
+
+### 14.2 Catalog + JSON values, not EAV
+
+**Choice:** `field_defs` (schema) + JSON map on the row (data).
+
+| Alternative | Why not now |
+|---|---|
+| EAV `field_values (object_id, def_id, value)` | We do not `WHERE custom_x =` in the scheduler. Every compose would join 20 rows. RLS on a values table is more surface. Promote later if we filter lists by custom field. |
+| Only JSON, no catalog | Templates cannot reject `{{contact.nope}}` on save; CSV mapper has nothing to offer but free text. |
+| JSON schema in `workspaces.settings` | No row-level list for UI; harder unique `(object, key)`; same RLS as a table anyway. |
+| Postgres tables per workspace / `ALTER TABLE` | Migrations are global dbmate; cannot let tenants add columns. |
+| Put every field as a real column (`linkedin_url` already is) | We already promoted the ones send/readiness need. The long tail is tenant-specific. |
+
+```sql
+create table field_defs (
+  workspace_id uuid not null references workspaces (id),
+  id uuid not null,
+  object text not null check (object in ('contact','company','member','workspace')),
+  key text not null check (key ~ '^[a-z][a-z0-9_]{0,39}$'),
+  label text not null,
+  kind text not null check (kind in ('text','number','url','date','boolean','select')),
+  required boolean not null default false,
+  options jsonb not null default '[]',
+  position int not null default 0,
+  primary key (workspace_id, id),
+  unique (workspace_id, object, key)
+);
+```
+
+Also: `companies.custom jsonb not null default '{}'`, `memberships.attrs jsonb not null default '{}'`, `workspaces.attrs jsonb not null default '{}'`. Contacts already have `custom`.
+
+**Write rule:** keys in JSON ⊆ defs for that object. Unknown key → 400. Builtin keys are **not** stored in JSON (they have columns). Delete def → leave orphan JSON (ignore on read); no table rewrite. Rename = new key. Cap **50 defs / object / workspace** so merge stays bounded.
+
+**Builtins (forbidden as `field_defs.key`):**
+
+- contact: `email`, `first_name`, `last_name`, `title`, `linkedin_url`, `timezone`, `region`, `role_class`, `tags`
+- company: `domain`, `name`
+- member: `email`, `name`, `role` (from `users` + membership)
+- workspace/sender: `name`, `legal_name`, `reply_address`, `postal_address`
+
+### 14.3 CSV map
+
+**Choice:** client sends `columns: {field_key: csv_header}`. Server does not persist mapping (HLD: session only). Guess aliases + def labels; **never invent `email`**.
+
+Rejected: persist `import_presets` now — one more table before we know if operators reuse the same sheet. Rejected: “first column is email” — silent corruption.
+
+Import still requires provenance. Company create/find by name/domain only in this slice; `company.<custom>` map is a follow-on (same `columns` shape, prefix), not a second importer.
+
+### 14.4 Templates
+
+**Choice:** workspace `templates` table + FK from existing `campaign_steps.template_id`.
+
+Rejected: body on the step only — cannot reuse “job first touch” across campaigns. Rejected: Liquid/Mustache engine — we need a **closed** var set (builtins ∪ defs) so save-time reject works; a full engine invites `{{#each}}` and injection. Small `{{path}}` / `{{path | fallback}}` parser.
+
+```sql
+create table templates (
+  workspace_id uuid not null references workspaces (id),
+  id uuid not null,
+  name text not null,
+  subject text not null,
+  body_text text not null,
+  body_html text,
+  primary key (workspace_id, id)
+);
+alter table campaign_steps
+  add foreign key (workspace_id, template_id) references templates (workspace_id, id);
+```
+
+(`template_id` is already nullable on steps.) Render at draft create. Leftover `{{` still gated.
+
+### 14.5 CV: structured spec + render rows
+
+**Choice:** canonical CV is JSON (`cv_documents.spec`) **without email**. Bytes we attach are `cv_renders` produced **for a mailbox** (and optional `job_id`). Upload (`resumes`) stays evidence input.
+
+| Alternative | Why not |
+|---|---|
+| Attach the uploaded PDF | Cannot reliably change the contact email; recruiter replies off-thread when From ≠ CV. |
+| pdfcpu/qpdf stamp on upload | Layout-fragile; fonts/XObject; two mailboxes still need two files anyway. |
+| One PDF column on `profiles` | Round-robin would send the wrong From. |
+| Render at compose always | Fine when `drafts.mailbox_id` is already the sender; **invalid if reserve later picks another mailbox**. Rule: `from_email` on the render **must equal** `mailboxes.email` of the ledger mailbox at `sending`. If draft mailbox ≠ reserved mailbox, re-render or fail. |
+| Store PDF on `drafts` as bytea | Blows up WAL; we already have `storage` + `file_key` on resumes. |
+
+```sql
+create table cv_documents (
+  workspace_id uuid not null references workspaces (id),
+  id uuid not null,
+  profile_id uuid not null,
+  version int not null,
+  spec jsonb not null, -- name, headline, sections; never email
+  primary key (workspace_id, id),
+  unique (workspace_id, profile_id, version),
+  foreign key (workspace_id, profile_id) references profiles (workspace_id, id)
+);
+
+create table cv_renders (
+  workspace_id uuid not null references workspaces (id),
+  id uuid not null,
+  cv_id uuid not null,
+  mailbox_id uuid not null,
+  job_id uuid,
+  file_key text not null,
+  file_name text not null,
+  mime text not null default 'application/pdf',
+  size int not null,
+  from_email citext not null,
+  primary key (workspace_id, id),
+  foreign key (workspace_id, cv_id) references cv_documents (workspace_id, id),
+  foreign key (workspace_id, mailbox_id) references mailboxes (workspace_id, id)
+);
+-- Postgres UNIQUE treats NULLs as distinct; two "untailored" rows would pass a
+-- unique (cv_id, mailbox_id, job_id). Use partial indexes instead:
+create unique index cv_renders_untailored
+  on cv_renders (workspace_id, cv_id, mailbox_id) where job_id is null;
+create unique index cv_renders_tailored
+  on cv_renders (workspace_id, cv_id, mailbox_id, job_id) where job_id is not null;
+
+alter table drafts add column attachment_render_id uuid;
+```
+
+Job pack: no render at `sending` → do not `Transport.Send`. Tailor (M8.3) = new render with `job_id`, same `cv_id` (spec unchanged unless operator saves a new version). Check: `from_email = mailboxes.email`.
+
+MIME: `Files []` on `mime.Message`; outer mixed, inner alternative. Fail closed on size.
+
+### 14.6 Compose bind / start (no DDL)
+
+Fake fallback is a product bug in the current binder, not a missing table. Fail if no key. `kind=fake` only when settings say so.
+
+Start: 400 if no `campaign_senders` and pool empty — empty group is already a UI state.
+
+### 14.7 Slice ↔ DDL
+
+| Slice | DDL |
+|---|---|
+| M7.1 | none |
+| M7.2 | `field_defs`; `companies.custom`; `memberships.attrs`; `workspaces.attrs` |
+| M7.3 | `templates` + FK `campaign_steps` |
+| M7.4 | none |
+| M8.1 | none (mime) |
+| M8.2 | `cv_documents`, `cv_renders` (+ partial uniques), `drafts.attachment_render_id` |
+| M8.3 | none (row with `job_id`) |
+
+### 14.8 Tests (add)
+
+- Builtin key cannot be inserted into `field_defs`; contact JSON with unknown key rejected; membership attrs do not appear when the same user is queried in another workspace.
+- CSV: `Work Email` mapped → contact; no email map and no alias → error.
+- Template `{{contact.nope}}` rejected; `{{contact.first_name \| there}}` ok.
+- Start empty From → 400.
+- Two mailboxes → two renders, same spec, different `from_email`; second untailored insert for same `(cv, mailbox)` conflicts.
+- Tailor bullet with a number not in confirmed evidence fails; Fake string never used when no key.

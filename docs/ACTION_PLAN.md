@@ -1,8 +1,8 @@
 # Action plan
 
-Authority: PRD/HLD/LLD v0.4 **Now** cut. Theme: `docs/design/theme.css`. Cadence: one **slice** at a time (learn Go on each), then stop.
+Authority: PRD/HLD/LLD **v0.5** (frozen for M7–M8). DDL: `docs/SCHEMA.md`. Theme: `docs/design/theme.css`. Cadence: one **slice** at a time (learn Go on each), then stop.
 
-Not in this plan: auto-reply, OAuth send, Outlook, MCP, region-rules, document KB, `quality.review`, peer warmup, scraping, billing, dark mode.
+Not in this plan: auto-reply, Outlook, MCP, region-rules, document KB, `quality.review`, peer warmup, scraping, ATS crawl, billing, dark mode. Gmail **user** OAuth send/read is shipped. Workspace SA send is still out.
 
 ---
 
@@ -140,24 +140,41 @@ A **milestone** is not done until its “Done when” holds **and** its tests ar
 
 ---
 
-## After Now (not scheduled)
+## M7 — Writing loop (bind, lists, templates, From)
 
-Workspace Gmail polish, OAuth implementation, DNS monitor, angles, `quality.review`, KB/RRF, extra DB roles, OSS README, hosted-for-friends extras. PRD §9 item 6 (Gmail API, sender identity, erasure, unsub headers) is **folded into M2/M3/M6** where it unblocks send; remaining polish is After.
+**Goal:** A real model writes or a saved template fills; a CSV with odd headers becomes contacts; Start has a mailbox. HLD §13.1–13.4.
+
+| Slice | Build | Go to notice | Done when |
+|---|---|---|---|
+| **M7.1** Compose bind | `writer()` does not fall back to `ai.Fake` unless `kind=fake`. No key / no binding → HTTP error, not stub copy. api/worker keep Fake **only** as test/default when settings say fake. Log compose kind at call site | `errors.Is`, binder already on postgres | Compose with a saved OpenAI/Gemini key returns that model’s text; empty settings return a clear error |
+| **M7.2** Fields + CSV map | dbmate `field_defs` + `companies.custom` / `memberships.attrs` / `workspaces.attrs`. Preview headers + samples. Import `columns` map to builtin or def key. Email mapping required if header is not an alias | `encoding/csv` already; map lookup | `Work Email` imports when mapped; unmapped email refuses import; member attrs do not leak across workspaces |
+| **M7.3** Templates | dbmate `templates`; step `content=template` + `template_id`; render with `\|` fallbacks; unknown vars rejected on save; leftover `{{` still gated | `strings.Replacer` / small parser, table tests | Save `{{nope}}` fails; draft for Ada uses first name |
+| **M7.4** Start needs From | `Start` 400 if no `campaign_senders` and pool has 0 members. Mailbox group UI already exists — use it | — | Empty group cannot start; adding the Gmail mailbox unblocks |
+
+**Out:** PDF, JD fetch, crawler.
 
 ---
 
-## Suggested first week (if slices stay small)
+## M8 — File on the mail
 
-1. M0.1 tooling  
-2. M0.2 dbmate  
-3. M0.3 sqlc health  
-4. M0.4 themed web shell  
-5. M1.1 crypto  
+**Goal:** Job sends attach a CV whose contact email is the sending mailbox. Tailor is a second slice on the same JSON. HLD §13.5–13.6, §4.4.
 
-Web UI for a domain ships in the same milestone as the API, **after** the Go for that domain exists—not a fake dashboard first.
+| Slice | Build | Go to notice | Done when |
+|---|---|---|---|
+| **M8.1** MIME mixed | `mime.Message` files; outer mixed + inner alternative. Unit test bytes contain `Content-Disposition: attachment` | `mime/multipart` nested writers | Mailpit (or fixture) shows one attachment; no attachment ⇒ same as today |
+| **M8.2** Structured CV + stamp | Profile CV JSON (not PDF rewrite). After ledger has a mailbox, render PDF with that `From`, store `file_key`, attach on `job` (and campaign opt-in). Review shows filename + From. Render fail → no send | `storage` interface; render behind a small `cv.Render` | Two mailboxes ⇒ two PDFs, same experience, different email on the file |
+| **M8.3** Tailor per JD | Propose JSON patch from confirmed evidence + JD; same claim gates on PDF text; operator reviews PDF; one regen | Completer JSON already | Invented employer fails the draft; dropped bullet that was unconfirmed is OK |
+
+**Out:** Catalogue crawl, auto-apply, editing arbitrary uploaded PDFs in place.
+
+---
+
+## After this cut (not scheduled)
+
+JD URL / catalogue as a **source**, Workspace SA send, erasure-vs-evidence, public OAuth verification, DNS monitor, angles, `quality.review`, KB/RRF.
 
 ---
 
 ## Next
 
-**M0.1** — git, Compose Postgres, Go module, `GET /health`.
+**M7.1** — Compose bind: real key or a hard error, never silent Fake.
