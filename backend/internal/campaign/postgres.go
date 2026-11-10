@@ -26,6 +26,7 @@ var (
 	ErrStatus    = errors.New("invalid campaign status")
 	ErrName      = errors.New("name required")
 	ErrMailbox   = errors.New("mailbox required")
+	ErrFrom      = errors.New("add a mailbox to this campaign or group")
 	ErrStage     = errors.New("pick a valid stage")
 	ErrTemplate  = errors.New("pick a saved email")
 )
@@ -244,8 +245,7 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 			for _, m := range members {
 				ids = append(ids, m.MailboxID)
 			}
-		}
-		if len(ids) == 0 {
+		} else if len(ids) == 0 {
 			return ErrMailbox
 		}
 		row, err := q.InsertCampaign(ctx, db.InsertCampaignParams{
@@ -367,6 +367,9 @@ func (p *Postgres) Start(ctx context.Context, workspaceID, id uuid.UUID) (Campai
 	if c.Status != "draft" && c.Status != "paused" {
 		return Campaign{}, ErrStatus
 	}
+	if err := p.ensureFrom(ctx, workspaceID, &c); err != nil {
+		return Campaign{}, err
+	}
 	if c.Commercial {
 		if _, err := p.GetIdentity(ctx, workspaceID); err != nil {
 			if errors.Is(err, ErrNotFound) {
@@ -376,6 +379,49 @@ func (p *Postgres) Start(ctx context.Context, workspaceID, id uuid.UUID) (Campai
 		}
 	}
 	return p.setStatus(ctx, workspaceID, id, "running", c.Commercial || c.ListUnsubscribe)
+}
+
+func (p *Postgres) ensureFrom(ctx context.Context, workspaceID uuid.UUID, c *Campaign) error {
+	if len(c.Senders) > 0 {
+		return nil
+	}
+	if c.PoolID == nil {
+		return ErrFrom
+	}
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		members, err := q.ListMailboxPoolMembersForPool(ctx, db.ListMailboxPoolMembersForPoolParams{
+			WorkspaceID: workspaceID, PoolID: *c.PoolID,
+		})
+		if err != nil {
+			return err
+		}
+		if len(members) == 0 {
+			return ErrFrom
+		}
+		for i, m := range members {
+			if err := q.InsertCampaignSender(ctx, db.InsertCampaignSenderParams{
+				WorkspaceID: workspaceID, CampaignID: c.ID, MailboxID: m.MailboxID, Position: int32(i), Weight: 1,
+			}); err != nil {
+				if isUnique(err) {
+					continue
+				}
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	loaded, err := p.Get(ctx, workspaceID, c.ID)
+	if err != nil {
+		return err
+	}
+	if len(loaded.Senders) == 0 {
+		return ErrFrom
+	}
+	*c = loaded
+	return nil
 }
 
 func (p *Postgres) Pause(ctx context.Context, workspaceID, id uuid.UUID) (Campaign, error) {

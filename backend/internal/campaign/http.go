@@ -379,7 +379,7 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, "forbidden", "owner or member role required")
 	case errors.Is(err, ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "not found")
-	case errors.Is(err, ErrIdentity), errors.Is(err, ErrContext), errors.Is(err, ErrPack), errors.Is(err, ErrName), errors.Is(err, ErrMailbox), errors.Is(err, ErrStatus), errors.Is(err, ErrStage), errors.Is(err, ErrTemplate):
+	case errors.Is(err, ErrIdentity), errors.Is(err, ErrContext), errors.Is(err, ErrPack), errors.Is(err, ErrName), errors.Is(err, ErrMailbox), errors.Is(err, ErrFrom), errors.Is(err, ErrStatus), errors.Is(err, ErrStage), errors.Is(err, ErrTemplate):
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 	case errors.Is(err, ErrDuplicate):
 		writeError(w, http.StatusConflict, "conflict", err.Error())

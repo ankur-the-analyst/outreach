@@ -54,6 +54,8 @@ function operatorError(message: string): string {
       return "Add your name and postal address first";
     case "mailbox required":
       return "Pick a mailbox or a group";
+    case "add a mailbox to this campaign or group":
+      return "Add a mailbox to this campaign or group";
     case "pick a saved email":
       return "Pick a saved email";
     default:
@@ -162,7 +164,7 @@ export function CampaignBoard({
             <Button
               type="button"
               className="rounded-md"
-              disabled={mailboxes.length === 0}
+              disabled={mailboxes.length === 0 && pools.length === 0}
               onClick={() => setCreateOpen(true)}
             >
               <Plus className="size-4" strokeWidth={1.5} />
@@ -342,6 +344,9 @@ function CampaignCard({
             {" · "}
             {emails} {emails === 1 ? "email" : "emails"}
             {group ? ` · ${group.name}` : box ? ` · ${box.email}` : ""}
+            {campaign.senders.length === 0
+              ? " · add a mailbox to start"
+              : ""}
             {profile ? ` · ${profile.name}` : ""}
           </p>
         </div>
