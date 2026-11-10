@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/ai"
 	"outreach/internal/compose"
+	"outreach/internal/cv"
 	"outreach/internal/db"
 )
 
@@ -105,12 +106,17 @@ type Binder interface {
 	Provider(ctx context.Context, workspaceID uuid.UUID, role ai.Role) (ai.Provider, error)
 }
 
+type Stamper interface {
+	Stamp(ctx context.Context, q *db.Queries, workspaceID, profileID, mailboxID uuid.UUID) (cv.Render, error)
+}
+
 type Postgres struct {
 	pool     *db.Pool
 	packs    map[string]Pack
 	retrieve Retriever
 	write    compose.Completer
 	bind     Binder
+	stamp    Stamper
 }
 
 func NewPostgres(pool *db.Pool, packs map[string]Pack) *Postgres {
@@ -129,6 +135,11 @@ func (p *Postgres) WithWriter(w compose.Completer) *Postgres {
 
 func (p *Postgres) WithBinder(b Binder) *Postgres {
 	p.bind = b
+	return p
+}
+
+func (p *Postgres) WithStamp(s Stamper) *Postgres {
+	p.stamp = s
 	return p
 }
 

@@ -60,6 +60,7 @@ export function ProfileBook({ profiles }: { profiles: Profile[] }) {
                   </p>
                 ) : null}
                 <ResumePaste profileID={p.id} />
+                <CvForm profileID={p.id} />
               </li>
             ))}
           </ul>
@@ -191,6 +192,80 @@ function ResumePaste({ profileID }: { profileID: string }) {
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
       <Button type="submit" variant="outline" className="w-fit rounded-md" pending={pending}>
         Save resume
+      </Button>
+    </form>
+  );
+}
+
+function CvForm({ profileID }: { profileID: string }) {
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [headline, setHeadline] = useState("");
+  const [lines, setLines] = useState("");
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setPending(true);
+    const bullets = lines
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const res = await fetch(`/api/v1/profiles/${profileID}/cv`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        headline,
+        sections: bullets.length ? [{ title: "Experience", lines: bullets }] : [],
+      }),
+    });
+    setPending(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as
+        | { error?: { message?: string } }
+        | null;
+      setError(data?.error?.message ?? "Could not save CV");
+      return;
+    }
+    setName("");
+    setHeadline("");
+    setLines("");
+    router.refresh();
+  }
+
+  return (
+    <form
+      onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
+      className="mt-4 flex flex-col gap-2"
+    >
+      <Label htmlFor={`cv-name-${profileID}`}>CV name</Label>
+      <Input
+        id={`cv-name-${profileID}`}
+        required
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <Label htmlFor={`cv-headline-${profileID}`}>Headline</Label>
+      <Input
+        id={`cv-headline-${profileID}`}
+        value={headline}
+        onChange={(e) => setHeadline(e.target.value)}
+      />
+      <Label htmlFor={`cv-lines-${profileID}`}>Experience (one line each)</Label>
+      <textarea
+        id={`cv-lines-${profileID}`}
+        rows={4}
+        value={lines}
+        onChange={(e) => setLines(e.target.value)}
+        className={fieldTextarea}
+      />
+      {error ? <p className="font-body-md text-destructive">{error}</p> : null}
+      <Button type="submit" variant="outline" className="w-fit rounded-md" pending={pending}>
+        Save CV
       </Button>
     </form>
   );

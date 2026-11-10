@@ -53,6 +53,7 @@ type Postgres struct {
 	hold       time.Duration
 	unknown    time.Duration
 	dial       Dialer
+	attach     Attacher
 	queue      ReconcileEnqueuer
 	block      Blocker
 	publicBase string

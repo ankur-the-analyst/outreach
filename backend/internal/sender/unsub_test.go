@@ -1,4 +1,4 @@
-package sender
+package sender_test
 
 import (
 	"bytes"
@@ -15,8 +15,29 @@ import (
 	"outreach/internal/mailbox"
 	"outreach/internal/mime"
 	"outreach/internal/pacing"
+	"outreach/internal/sender"
 	"outreach/internal/suppression"
 )
+
+type unsubTransport struct {
+	last *mime.Built
+}
+
+func (s *unsubTransport) Test(context.Context) error { return nil }
+func (s *unsubTransport) Send(_ context.Context, m *mime.Built) (mailbox.SendResult, error) {
+	s.last = m
+	return mailbox.SendResult{}, nil
+}
+func (s *unsubTransport) AppendSent(context.Context, *mime.Built) error { return nil }
+func (s *unsubTransport) FindSent(context.Context, string) (bool, error) {
+	return false, nil
+}
+
+type unsubDialer struct{ tr mailbox.Transport }
+
+func (s unsubDialer) Dial(context.Context, uuid.UUID, uuid.UUID) (mailbox.Transport, string, error) {
+	return s.tr, "dev@example.test", nil
+}
 
 func TestCommercialSendSetsRFC8058(t *testing.T) {
 	url := os.Getenv("DATABASE_APP_URL")
@@ -127,18 +148,18 @@ func TestCommercialSendSetsRFC8058(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stub := &stubTransport{}
-	led := NewPostgres(pool, time.Now, time.Minute).
-		WithDialer(stubDialer{tr: stub}).
+	stub := &unsubTransport{}
+	led := sender.NewPostgres(pool, time.Now, time.Minute).
+		WithDialer(unsubDialer{tr: stub}).
 		WithUnsub("http://127.0.0.1:8080", keys)
-	held, err := led.Hold(ctx, wsID, HoldInput{MailboxID: mb.ID, RFCMessageID: msgid, DraftID: draft.ID})
+	held, err := led.Hold(ctx, wsID, sender.HoldInput{MailboxID: mb.ID, RFCMessageID: msgid, DraftID: draft.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := led.Advance(ctx, wsID, held.ID, pacing.StateReserved); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := led.Send(ctx, wsID, held.ID, SendInput{
+	if _, err := led.Send(ctx, wsID, held.ID, sender.SendInput{
 		To: []string{ct.Email}, Subject: "Cold", Text: "hi",
 	}); err != nil {
 		t.Fatal(err)
@@ -268,18 +289,18 @@ func TestJobSendHasOptOutLine(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stub := &stubTransport{}
-	led := NewPostgres(pool, time.Now, time.Minute).
-		WithDialer(stubDialer{tr: stub}).
+	stub := &unsubTransport{}
+	led := sender.NewPostgres(pool, time.Now, time.Minute).
+		WithDialer(unsubDialer{tr: stub}).
 		WithUnsub("http://127.0.0.1:8080", keys)
-	held, err := led.Hold(ctx, wsID, HoldInput{MailboxID: mb.ID, RFCMessageID: msgid, DraftID: draft.ID})
+	held, err := led.Hold(ctx, wsID, sender.HoldInput{MailboxID: mb.ID, RFCMessageID: msgid, DraftID: draft.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := led.Advance(ctx, wsID, held.ID, pacing.StateReserved); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := led.Send(ctx, wsID, held.ID, SendInput{
+	if _, err := led.Send(ctx, wsID, held.ID, sender.SendInput{
 		To: []string{ct.Email}, Subject: "AE intro", Text: "hi",
 	}); err != nil {
 		t.Fatal(err)

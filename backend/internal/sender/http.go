@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"outreach/internal/auth"
+	"outreach/internal/mime"
 )
 
 type Store interface {
@@ -252,7 +253,16 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "sends_paused", err.Error())
 	case errors.Is(err, ErrSuppressed):
 		writeError(w, http.StatusConflict, "suppressed", err.Error())
+	case errors.Is(err, mime.ErrTooLarge):
+		writeError(w, http.StatusBadRequest, "invalid_input", "this mail is too large to send")
 	default:
+		if err != nil {
+			switch err.Error() {
+			case "add a CV to this profile", "this file's From does not match the mailbox":
+				writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
+				return
+			}
+		}
 		writeError(w, http.StatusInternalServerError, "internal", "internal error")
 	}
 }

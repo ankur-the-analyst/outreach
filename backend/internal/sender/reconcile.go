@@ -81,6 +81,11 @@ func (p *Postgres) Reconcile(ctx context.Context, workspaceID, ledgerID uuid.UUI
 		return p.Advance(ctx, workspaceID, ledgerID, pacing.StateFailed)
 	}
 
+	in, err = p.withFiles(ctx, workspaceID, ledgerID, row.MailboxID, from, in)
+	if err != nil {
+		_, _ = p.Advance(ctx, workspaceID, ledgerID, pacing.StateFailed)
+		return Entry{}, err
+	}
 	built, err := p.buildMIME(ctx, workspaceID, ledgerID, from, row.RfcMessageID, in)
 	if err != nil {
 		_, _ = p.Advance(ctx, workspaceID, ledgerID, pacing.StateFailed)

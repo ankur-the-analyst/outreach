@@ -340,6 +340,12 @@ function ReviewRow({
             To {draft.to}
             {mailbox ? ` · via ${mailbox.email}` : ""}
           </p>
+          {draft.attachment_name ? (
+            <p className="mt-1 font-body-sm text-muted-foreground">
+              File {draft.attachment_name}
+              {draft.attachment_from ? ` · From ${draft.attachment_from}` : ""}
+            </p>
+          ) : null}
         </div>
         <Pill
           tone={bucket === "undo" || bucket === "pending" ? "primary" : "muted"}

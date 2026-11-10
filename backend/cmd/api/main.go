@@ -19,6 +19,7 @@ import (
 	"outreach/internal/config"
 	"outreach/internal/contacts"
 	"outreach/internal/crypto"
+	"outreach/internal/cv"
 	"outreach/internal/db"
 	"outreach/internal/events"
 	"outreach/internal/evidence"
@@ -124,12 +125,15 @@ func main() {
 	unknown := time.Duration(cfg.UnknownTimeoutS) * time.Second
 	suppStore := suppression.NewPostgres(pool, keys)
 	supp := suppression.New(suppStore, keys)
+	blobs := storage.NewMemory()
+	cvStore := cv.NewPostgres(pool, blobs)
 	led := sender.NewPostgres(pool, time.Now, hold).
 		WithDialer(dialer).
 		WithUnknownTimeout(unknown).
 		WithQueue(reconcileJobs{client: jobs}).
 		WithBlocker(suppStore).
-		WithUnsub(cfg.PublicBaseURL, keys)
+		WithUnsub(cfg.PublicBaseURL, keys).
+		WithAttach(cvStore)
 	snd := sender.New(led)
 	writer := &ai.Fake{
 		Model: "fake-8", Dim: evidence.Dim,
@@ -143,7 +147,8 @@ func main() {
 	cmp := compose.New(compose.NewPostgres(pool, led).WithBinder(aiStore).WithCite(evStore).WithRetrieve(evStore))
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
 	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc).WithOpener(dialer))
-	jd := jobsjd.New(jobsjd.NewPostgres(pool, storage.NewMemory(), writer).WithBinder(aiStore))
+	jd := jobsjd.New(jobsjd.NewPostgres(pool, blobs, writer).WithBinder(aiStore))
+	cvHTTP := cv.New(cvStore)
 	fieldStore := fields.NewPostgres(pool)
 	fd := fields.New(fieldStore)
 	tpl := templates.New(templates.NewPostgres(pool))
@@ -153,7 +158,7 @@ func main() {
 		logger.Error("load packs", "err", err)
 		os.Exit(1)
 	}
-	camp := campaign.New(campaign.NewPostgres(pool, packs).WithBinder(aiStore).WithRetrieve(evStore))
+	camp := campaign.New(campaign.NewPostgres(pool, packs).WithBinder(aiStore).WithRetrieve(evStore).WithStamp(cvStore))
 
 	mux := http.NewServeMux()
 	hs := health.New(health.NewPostgres(pool))
@@ -219,6 +224,7 @@ func main() {
 	mux.Handle("GET /api/v1/profiles", a.Require(http.HandlerFunc(jd.ListProfiles)))
 	mux.Handle("POST /api/v1/profiles", a.Require(http.HandlerFunc(jd.CreateProfile)))
 	mux.Handle("POST /api/v1/profiles/{id}/resumes", a.Require(http.HandlerFunc(jd.UploadResume)))
+	mux.Handle("POST /api/v1/profiles/{id}/cv", a.Require(http.HandlerFunc(cvHTTP.Save)))
 	mux.Handle("GET /api/v1/jobs", a.Require(http.HandlerFunc(jd.ListJobs)))
 	mux.Handle("POST /api/v1/jobs", a.Require(http.HandlerFunc(jd.CreateJob)))
 	mux.Handle("POST /api/v1/jobs/{id}/fit", a.Require(http.HandlerFunc(jd.Fit)))

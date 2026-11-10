@@ -27,19 +27,21 @@ var (
 )
 
 type Draft struct {
-	ID           uuid.UUID    `json:"id"`
-	MailboxID    uuid.UUID    `json:"mailbox_id"`
-	To           string       `json:"to"`
-	RFCMessageID string       `json:"rfc_message_id"`
-	Kind         string       `json:"kind"`
-	Subject      string       `json:"subject"`
-	BodyHTML     string       `json:"body_html"`
-	BodyText     string       `json:"body_text"`
-	Status       string       `json:"status"`
-	FactsUsed    []Fact       `json:"facts_used,omitempty"`
-	LedgerID     *uuid.UUID   `json:"ledger_id,omitempty"`
-	LedgerState  pacing.State `json:"ledger_state,omitempty"`
-	ReleaseAt    *time.Time   `json:"release_at,omitempty"`
+	ID             uuid.UUID    `json:"id"`
+	MailboxID      uuid.UUID    `json:"mailbox_id"`
+	To             string       `json:"to"`
+	RFCMessageID   string       `json:"rfc_message_id"`
+	Kind           string       `json:"kind"`
+	Subject        string       `json:"subject"`
+	BodyHTML       string       `json:"body_html"`
+	BodyText       string       `json:"body_text"`
+	Status         string       `json:"status"`
+	FactsUsed      []Fact       `json:"facts_used,omitempty"`
+	LedgerID       *uuid.UUID   `json:"ledger_id,omitempty"`
+	LedgerState    pacing.State `json:"ledger_state,omitempty"`
+	ReleaseAt      *time.Time   `json:"release_at,omitempty"`
+	AttachmentName string       `json:"attachment_name,omitempty"`
+	AttachmentFrom string       `json:"attachment_from,omitempty"`
 }
 
 type CreateInput struct {
@@ -312,6 +314,12 @@ func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID, after *uuid.
 		rows = make([]Draft, 0, len(got))
 		for _, row := range got {
 			d := draftFrom(row.ID, row.MailboxID, row.ToAddr, row.RfcMessageID, row.Kind, row.Subject, row.BodyHtml, row.BodyText, row.Status, row.LedgerID, row.LedgerState.String, row.ReleaseAt)
+			if row.AttachmentName.Valid {
+				d.AttachmentName = row.AttachmentName.String
+			}
+			if row.AttachmentFrom.Valid {
+				d.AttachmentFrom = row.AttachmentFrom.String
+			}
 			if len(row.FactsUsed) > 0 {
 				if err := json.Unmarshal(row.FactsUsed, &d.FactsUsed); err != nil {
 					return err

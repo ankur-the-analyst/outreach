@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/compose"
+	"outreach/internal/cv"
 	"outreach/internal/db"
 	"outreach/internal/evidence"
 	"outreach/internal/mime"
@@ -257,6 +258,19 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 			WorkspaceID: workspaceID, ID: enrolmentID, Status: "waiting_review",
 		}); err != nil {
 			return err
+		}
+		if p.stamp != nil && camp.Intent == "job" && profileID != nil {
+			r, err := p.stamp.Stamp(ctx, q, workspaceID, *profileID, *mailboxID)
+			if err != nil && !errors.Is(err, cv.ErrNoCV) {
+				return err
+			}
+			if err == nil {
+				if err := q.UpdateDraftAttachment(ctx, db.UpdateDraftAttachmentParams{
+					WorkspaceID: workspaceID, ID: row.ID, AttachmentRenderID: &r.ID,
+				}); err != nil {
+					return err
+				}
+			}
 		}
 		out = Draft{ID: row.ID, MailboxID: row.MailboxID, To: row.ToAddr, Subject: row.Subject, Body: row.BodyText, Status: row.Status, FactsUsed: facts}
 		return nil

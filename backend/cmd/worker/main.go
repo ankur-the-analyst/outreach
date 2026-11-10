@@ -17,6 +17,7 @@ import (
 	"outreach/internal/campaign"
 	"outreach/internal/config"
 	"outreach/internal/crypto"
+	"outreach/internal/cv"
 	"outreach/internal/db"
 	"outreach/internal/evidence"
 	"outreach/internal/inbound"
@@ -24,6 +25,7 @@ import (
 	"outreach/internal/mailbox/gmail"
 	"outreach/internal/mailbox/smtpimap"
 	"outreach/internal/sender"
+	"outreach/internal/storage"
 	"outreach/internal/suppression"
 	mailsync "outreach/internal/sync"
 	"outreach/internal/worker"
@@ -63,10 +65,12 @@ func main() {
 		ClientSecret: cfg.GoogleOAuthClientSecret,
 	}))
 	dialer := mailbox.NewDialer(pool, keys, reg)
+	cvStore := cv.NewPostgres(pool, storage.NewMemory())
 	led := sender.NewPostgres(pool, time.Now, hold).
 		WithDialer(dialer).
 		WithUnknownTimeout(unknown).
-		WithUnsub(cfg.PublicBaseURL, keys)
+		WithUnsub(cfg.PublicBaseURL, keys).
+		WithAttach(cvStore)
 	jobs, err := worker.NewInsertClient(pool)
 	if err != nil {
 		logger.Error("river insert client", "err", err)
@@ -88,7 +92,8 @@ func main() {
 	aiStore := ai.NewPostgres(pool, keys)
 	camp := campaign.NewPostgres(pool, packs).
 		WithRetrieve(evidence.NewPostgres(pool, writer)).
-		WithBinder(aiStore)
+		WithBinder(aiStore).
+		WithStamp(cvStore)
 
 	client, err := worker.NewWorkerClient(pool, func(w *river.Workers) {
 		worker.AddReconcile(w, func(ctx context.Context, a worker.ReconcileArgs) error {

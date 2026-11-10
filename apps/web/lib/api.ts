@@ -178,6 +178,8 @@ export type Draft = {
   ledger_state?: string;
   release_at?: string;
   facts_used?: { claim: string; evidence_id: string }[];
+  attachment_name?: string;
+  attachment_from?: string;
 };
 
 export function getDrafts() {

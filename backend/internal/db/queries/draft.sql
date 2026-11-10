@@ -49,12 +49,16 @@ returning
 select
   d.workspace_id, d.id, d.mailbox_id, d.to_addr, d.rfc_message_id,
   d.kind, d.subject, d.body_html, d.body_text, d.facts_used, d.status, d.approved_by, d.created_at,
-  l.id as ledger_id, l.state as ledger_state, l.release_at
+  l.id as ledger_id, l.state as ledger_state, l.release_at,
+  r.file_name as attachment_name, r.from_email as attachment_from
 from drafts d
 left join send_ledger l
   on l.workspace_id = d.workspace_id
  and l.draft_id = d.id
  and l.state in ('held', 'reserved', 'sending', 'sent', 'unknown')
+left join cv_renders r
+  on r.workspace_id = d.workspace_id
+ and r.id = d.attachment_render_id
 where d.workspace_id = $1
   and d.status in ('pending', 'approved')
   and (sqlc.narg('after')::uuid is null or d.id < sqlc.narg('after'))

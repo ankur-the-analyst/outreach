@@ -19,6 +19,10 @@ type Dialer interface {
 	Dial(ctx context.Context, workspaceID, mailboxID uuid.UUID) (mailbox.Transport, string, error)
 }
 
+type Attacher interface {
+	Files(ctx context.Context, workspaceID, ledgerID, mailboxID uuid.UUID, from string) ([]mime.File, error)
+}
+
 type SendInput struct {
 	To      []string
 	Subject string
@@ -29,6 +33,11 @@ type SendInput struct {
 
 func (p *Postgres) WithDialer(d Dialer) *Postgres {
 	p.dial = d
+	return p
+}
+
+func (p *Postgres) WithAttach(a Attacher) *Postgres {
+	p.attach = a
 	return p
 }
 
@@ -52,6 +61,11 @@ func (p *Postgres) Send(ctx context.Context, workspaceID, ledgerID uuid.UUID, in
 		return Entry{}, err
 	}
 	tr, from, err := p.dial.Dial(ctx, workspaceID, ent.MailboxID)
+	if err != nil {
+		_, _ = p.Advance(ctx, workspaceID, ledgerID, pacing.StateFailed)
+		return Entry{}, err
+	}
+	in, err = p.withFiles(ctx, workspaceID, ent.ID, ent.MailboxID, from, in)
 	if err != nil {
 		_, _ = p.Advance(ctx, workspaceID, ledgerID, pacing.StateFailed)
 		return Entry{}, err
@@ -87,6 +101,20 @@ func (p *Postgres) Send(ctx context.Context, workspaceID, ledgerID uuid.UUID, in
 	}
 	_ = p.recordAttempt(ctx, workspaceID, ledgerID, outcome, appendErr)
 	return p.Advance(ctx, workspaceID, ledgerID, pacing.StateSent)
+}
+
+func (p *Postgres) withFiles(ctx context.Context, workspaceID, ledgerID, mailboxID uuid.UUID, from string, in SendInput) (SendInput, error) {
+	if p.attach == nil {
+		return in, nil
+	}
+	extra, err := p.attach.Files(ctx, workspaceID, ledgerID, mailboxID, from)
+	if err != nil {
+		return in, err
+	}
+	if len(extra) > 0 {
+		in.Files = append(in.Files, extra...)
+	}
+	return in, nil
 }
 
 func isSendTimeout(err error) bool {

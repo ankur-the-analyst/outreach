@@ -146,6 +146,29 @@ type Contact struct {
 	CreatedAt          pgtype.Timestamptz
 }
 
+type CvDocument struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	ProfileID   uuid.UUID
+	Version     int32
+	Spec        json.RawMessage
+	CreatedAt   pgtype.Timestamptz
+}
+
+type CvRender struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	CvID        uuid.UUID
+	MailboxID   uuid.UUID
+	JobID       *uuid.UUID
+	FileKey     string
+	FileName    string
+	Mime        string
+	Size        int32
+	FromEmail   string
+	CreatedAt   pgtype.Timestamptz
+}
+
 type Draft struct {
 	WorkspaceID             uuid.UUID
 	ID                      uuid.UUID
@@ -164,6 +187,7 @@ type Draft struct {
 	Status                  string
 	ApprovedBy              *uuid.UUID
 	CreatedAt               pgtype.Timestamptz
+	AttachmentRenderID      *uuid.UUID
 }
 
 type Enrolment struct {
