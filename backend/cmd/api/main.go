@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -112,6 +113,7 @@ func main() {
 			ClientSecret: cfg.GoogleOAuthClientSecret,
 			RedirectURI:  cfg.GoogleOAuthRedirectURI,
 			StateKey:     cfg.OAuthStateKey(),
+			SuccessPath:  strings.TrimRight(cfg.PublicAppURL, "/") + "/mailboxes",
 		}).
 		WithDialer(dialer).
 		WithSync(syncJobs{client: jobs})
@@ -176,7 +178,7 @@ func main() {
 	mux.Handle("GET /api/v1/sending-domains", a.Require(http.HandlerFunc(mb.ListDomains)))
 	mux.Handle("GET /api/v1/mailboxes/oauth/google", a.Require(http.HandlerFunc(mb.OAuthEnabled)))
 	mux.Handle("GET /api/v1/mailboxes/oauth/google/start", a.Require(http.HandlerFunc(mb.OAuthStart)))
-	mux.Handle("GET /api/v1/mailboxes/oauth/callback", a.Require(http.HandlerFunc(mb.OAuthCallback)))
+	mux.HandleFunc("GET /api/v1/mailboxes/oauth/callback", mb.OAuthCallback)
 	mux.Handle("POST /api/v1/mailboxes", a.Require(http.HandlerFunc(mb.Create)))
 	mux.Handle("PATCH /api/v1/mailboxes/{id}", a.Require(http.HandlerFunc(mb.Patch)))
 	mux.Handle("POST /api/v1/mailboxes/{id}/pause", a.Require(http.HandlerFunc(mb.Pause)))

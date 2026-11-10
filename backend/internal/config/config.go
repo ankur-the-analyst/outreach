@@ -16,6 +16,7 @@ type Config struct {
 	UnknownTimeoutS         int    `split_words:"true" default:"900"`
 	MailpitAPI              string `split_words:"true" default:"http://127.0.0.1:8025"`
 	PublicBaseURL           string `split_words:"true" default:"http://127.0.0.1:8080"`
+	PublicAppURL            string `split_words:"true" default:"http://localhost:3000"`
 	GoogleOAuthClientID     string `split_words:"true"`
 	GoogleOAuthClientSecret string `split_words:"true"`
 	GoogleOAuthRedirectURI  string `split_words:"true" default:"http://localhost:3000/api/v1/mailboxes/oauth/callback"`

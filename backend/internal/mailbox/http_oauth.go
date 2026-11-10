@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"outreach/internal/auth"
 )
 
 const (
@@ -176,14 +177,8 @@ func (a *API) OAuthStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) OAuthCallback(w http.ResponseWriter, r *http.Request) {
-	s, ok := a.session(w, r)
-	if !ok {
-		return
-	}
-	if err := a.requireEdit(r.Context(), s); err != nil {
-		writeStoreError(w, err)
-		return
-	}
+	// Google hits this URL on the API host. Auth is the HMAC state from
+	// /start (session cookie stays on the app origin).
 	if a.oauth.ClientID == "" {
 		a.redirectMailboxes(w, r, "google_not_configured")
 		return
@@ -198,7 +193,12 @@ func (a *API) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	st, err := verifyOAuthState(a.oauth.StateKey, state, a.oauth.Now())
-	if err != nil || st.WorkspaceID != s.WorkspaceID || st.UserID != s.UserID {
+	if err != nil {
+		a.redirectMailboxes(w, r, "google_state")
+		return
+	}
+	s := auth.Session{UserID: st.UserID, WorkspaceID: st.WorkspaceID}
+	if err := a.requireEdit(r.Context(), s); err != nil {
 		a.redirectMailboxes(w, r, "google_state")
 		return
 	}

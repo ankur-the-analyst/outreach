@@ -71,11 +71,6 @@ func TestOAuthCallbackConnects(t *testing.T) {
 		t.Fatal(err)
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/mailboxes/oauth/callback?code=abc&state="+st, nil)
-	req.AddCookie(&http.Cookie{Name: oauthStateCookie, Value: st})
-	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
-		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
-		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
-	}))
 	rec := httptest.NewRecorder()
 	api.OAuthCallback(rec, req)
 	if rec.Code != http.StatusFound || !strings.Contains(rec.Header().Get("Location"), "connected=1") {
@@ -83,5 +78,16 @@ func TestOAuthCallbackConnects(t *testing.T) {
 	}
 	if store.connect.AuthKind != "oauth" || store.connect.Email != "ada@gmail.com" || store.connect.Provider != "gmail" || store.connect.Password != "rt" {
 		t.Fatalf("%+v", store.connect)
+	}
+}
+
+func TestOAuthCallbackRejectsBadState(t *testing.T) {
+	t.Parallel()
+	api := oauthAPI(&fakeStore{role: "owner"}, fakeEx{refresh: "rt", email: "ada@gmail.com"})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/mailboxes/oauth/callback?code=abc&state=nope", nil)
+	rec := httptest.NewRecorder()
+	api.OAuthCallback(rec, req)
+	if rec.Code != http.StatusFound || !strings.Contains(rec.Header().Get("Location"), "google_state") {
+		t.Fatalf("got %d %s", rec.Code, rec.Header().Get("Location"))
 	}
 }
