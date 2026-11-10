@@ -45,7 +45,15 @@ func AddSync(workers *river.Workers, run func(ctx context.Context, args SyncArgs
 }
 
 func EnqueueSync(ctx context.Context, client *river.Client[pgx.Tx], workspaceID, mailboxID uuid.UUID) error {
-	_, err := client.Insert(ctx, SyncArgs{WorkspaceID: workspaceID, MailboxID: mailboxID}, nil)
+	return EnqueueSyncLater(ctx, client, workspaceID, mailboxID, 0)
+}
+
+func EnqueueSyncLater(ctx context.Context, client *river.Client[pgx.Tx], workspaceID, mailboxID uuid.UUID, delay time.Duration) error {
+	var opts *river.InsertOpts
+	if delay > 0 {
+		opts = &river.InsertOpts{ScheduledAt: time.Now().Add(delay)}
+	}
+	_, err := client.Insert(ctx, SyncArgs{WorkspaceID: workspaceID, MailboxID: mailboxID}, opts)
 	if err != nil {
 		return fmt.Errorf("worker: insert sync: %w", err)
 	}

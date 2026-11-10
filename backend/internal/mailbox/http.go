@@ -33,9 +33,17 @@ type SMTPTester interface {
 	Test(ctx context.Context, host string, port int) error
 }
 
+type TransportDialer interface {
+	Dial(ctx context.Context, workspaceID, mailboxID uuid.UUID) (Transport, string, error)
+}
+
 type API struct {
-	store Store
-	smtp  SMTPTester
+	store     Store
+	smtp      SMTPTester
+	oauth     OAuthConfig
+	dial      TransportDialer
+	syncq     SyncQueue
+	exchanger tokenExchanger
 }
 
 func New(store Store, smtp SMTPTester) *API {
@@ -302,6 +310,19 @@ func (a *API) Test(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_input", "invalid id")
+		return
+	}
+	if a.dial != nil {
+		ops, _, err := a.dial.Dial(r.Context(), s.WorkspaceID, id)
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		if err := ops.Test(r.Context()); err != nil {
+			writeError(w, http.StatusBadGateway, "test_failed", err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 		return
 	}
 	host, port, err := a.store.SMTPEndpoint(r.Context(), s.WorkspaceID, id)

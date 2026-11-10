@@ -69,11 +69,18 @@ from messages
 where workspace_id = $1 and thread_id = $2
 order by coalesce(sent_at, received_at, now());
 
+-- name: GetSyncState :one
+select gmail_history_id, last_synced_at, last_error
+from sync_state
+where workspace_id = $1 and mailbox_id = $2 and folder = $3;
+
 -- name: UpsertSyncState :exec
-insert into sync_state (workspace_id, mailbox_id, folder, last_synced_at, last_error)
-values ($1, $2, $3, $4, $5)
+insert into sync_state (workspace_id, mailbox_id, folder, last_synced_at, last_error, gmail_history_id)
+values ($1, $2, $3, $4, $5, sqlc.narg('gmail_history_id'))
 on conflict (workspace_id, mailbox_id, folder) do update
-set last_synced_at = excluded.last_synced_at, last_error = excluded.last_error;
+set last_synced_at = excluded.last_synced_at,
+    last_error = excluded.last_error,
+    gmail_history_id = coalesce(excluded.gmail_history_id, sync_state.gmail_history_id);
 
 -- name: OldestSyncAt :one
 select min(last_synced_at)::timestamptz as last_at

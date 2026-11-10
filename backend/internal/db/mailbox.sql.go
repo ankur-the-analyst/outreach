@@ -153,7 +153,7 @@ func (q *Queries) GetMailbox(ctx context.Context, arg GetMailboxParams) (GetMail
 
 const getMailboxDial = `-- name: GetMailboxDial :one
 select
-  m.email, m.auth_kind, m.smtp_host, m.smtp_port, m.username,
+  m.email, m.auth_kind, m.provider, m.smtp_host, m.smtp_port, m.username,
   m.imap_host, m.imap_port,
   s.key_version, s.wrapped_dek, s.nonce, s.ciphertext
 from mailboxes m
@@ -169,6 +169,7 @@ type GetMailboxDialParams struct {
 type GetMailboxDialRow struct {
 	Email      string
 	AuthKind   string
+	Provider   string
 	SmtpHost   pgtype.Text
 	SmtpPort   pgtype.Int4
 	Username   pgtype.Text
@@ -186,6 +187,7 @@ func (q *Queries) GetMailboxDial(ctx context.Context, arg GetMailboxDialParams) 
 	err := row.Scan(
 		&i.Email,
 		&i.AuthKind,
+		&i.Provider,
 		&i.SmtpHost,
 		&i.SmtpPort,
 		&i.Username,

@@ -20,6 +20,9 @@ import (
 	"outreach/internal/db"
 	"outreach/internal/evidence"
 	"outreach/internal/inbound"
+	"outreach/internal/mailbox"
+	"outreach/internal/mailbox/gmail"
+	"outreach/internal/mailbox/smtpimap"
 	"outreach/internal/sender"
 	"outreach/internal/suppression"
 	mailsync "outreach/internal/sync"
@@ -52,8 +55,16 @@ func main() {
 
 	hold := time.Duration(cfg.UndoHoldS) * time.Second
 	unknown := time.Duration(cfg.UnknownTimeoutS) * time.Second
+	reg := mailbox.NewRegistry()
+	reg.Register("smtp_imap", "", smtpimap.Factory)
+	reg.Register("app_password", "", smtpimap.Factory)
+	reg.Register("oauth", "gmail", gmail.NewFactory(gmail.Config{
+		ClientID:     cfg.GoogleOAuthClientID,
+		ClientSecret: cfg.GoogleOAuthClientSecret,
+	}))
+	dialer := mailbox.NewDialer(pool, keys, reg)
 	led := sender.NewPostgres(pool, time.Now, hold).
-		WithDialer(sender.NewMailboxDialer(pool, keys)).
+		WithDialer(dialer).
 		WithUnknownTimeout(unknown).
 		WithUnsub(cfg.PublicBaseURL, keys)
 	jobs, err := worker.NewInsertClient(pool)
@@ -63,7 +74,7 @@ func main() {
 	}
 	suppStore := suppression.NewPostgres(pool, keys)
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
-	ing := mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc)
+	ing := mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc).WithOpener(dialer)
 	packs, err := campaign.LoadPacks()
 	if err != nil {
 		logger.Error("load packs", "err", err)
@@ -89,7 +100,10 @@ func main() {
 		})
 		worker.AddSync(w, func(ctx context.Context, a worker.SyncArgs) error {
 			_, err := ing.SyncMailbox(ctx, a.WorkspaceID, a.MailboxID)
-			return err
+			if err != nil {
+				return err
+			}
+			return worker.EnqueueSyncLater(ctx, jobs, a.WorkspaceID, a.MailboxID, 90*time.Second)
 		})
 		worker.AddClassify(w, func(ctx context.Context, a worker.ClassifyArgs) error {
 			return proc.ClassifyStored(ctx, a.WorkspaceID, a.MessageID)

@@ -67,6 +67,7 @@ type ConnectInput struct {
 	IMAPHost    string
 	IMAPPort    int
 	WarmupKind  string
+	Provider    string
 }
 
 type Postgres struct {
@@ -208,7 +209,7 @@ func (p *Postgres) Connect(ctx context.Context, workspaceID uuid.UUID, in Connec
 	if err := RejectGmailServiceAccount(in.Email, in.AuthKind); err != nil {
 		return Mailbox{}, err
 	}
-	if in.AuthKind == "oauth" {
+	if in.AuthKind == "oauth" && strings.TrimSpace(in.Password) == "" {
 		return Mailbox{}, ErrNotConfigured
 	}
 	var out Mailbox
@@ -260,10 +261,14 @@ func (p *Postgres) Connect(ctx context.Context, workspaceID uuid.UUID, in Connec
 			if err != nil {
 				return fmt.Errorf("mailbox: seal: %w", err)
 			}
+			kind := "app_password"
+			if in.AuthKind == "oauth" {
+				kind = "oauth_token"
+			}
 			if err := q.InsertSecret(ctx, db.InsertSecretParams{
 				WorkspaceID: workspaceID,
 				ID:          id,
-				Kind:        "app_password",
+				Kind:        kind,
 				KeyVersion:  int32(sealed.KeyVersion),
 				WrappedDek:  sealed.WrappedDEK,
 				Nonce:       sealed.Nonce,
@@ -278,7 +283,10 @@ func (p *Postgres) Connect(ctx context.Context, workspaceID uuid.UUID, in Connec
 		if err != nil {
 			return err
 		}
-		provider := ProviderFor(in.Email)
+		provider := strings.TrimSpace(in.Provider)
+		if provider == "" {
+			provider = ProviderFor(in.Email)
+		}
 		if in.AuthKind == "service_account" {
 			provider = "workspace"
 		}

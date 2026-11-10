@@ -12,6 +12,7 @@ require (
 	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.51.1
 	github.com/riverqueue/river/rivertype v0.51.1
 	golang.org/x/crypto v0.58.0
+	golang.org/x/oauth2 v0.31.0
 	google.golang.org/genai v1.77.0
 )
 

@@ -25,6 +25,7 @@ import (
 	"outreach/internal/inbound"
 	"outreach/internal/jobsjd"
 	"outreach/internal/mailbox"
+	"outreach/internal/mailbox/gmail"
 	"outreach/internal/mailbox/smtpimap"
 	"outreach/internal/sender"
 	"outreach/internal/storage"
@@ -44,6 +45,14 @@ type classifyJobs struct {
 
 func (j classifyJobs) Enqueue(ctx context.Context, workspaceID, messageID uuid.UUID) error {
 	return worker.EnqueueClassify(ctx, j.client, workspaceID, messageID)
+}
+
+type syncJobs struct {
+	client *river.Client[pgx.Tx]
+}
+
+func (j syncJobs) EnqueueSync(ctx context.Context, workspaceID, mailboxID uuid.UUID) error {
+	return worker.EnqueueSync(ctx, j.client, workspaceID, mailboxID)
 }
 
 func (j reconcileJobs) EnqueueReconcile(ctx context.Context, workspaceID, ledgerID uuid.UUID, in sender.SendInput) error {
@@ -84,19 +93,35 @@ func main() {
 	a := auth.New(auth.NewPostgres(pool))
 	wsStore := workspace.NewPostgres(pool)
 	ws := workspace.New(wsStore)
-	mb := mailbox.New(mailbox.NewPostgres(pool, keys), smtpimap.Probe{})
+	reg := mailbox.NewRegistry()
+	reg.Register("smtp_imap", "", smtpimap.Factory)
+	reg.Register("app_password", "", smtpimap.Factory)
+	reg.Register("oauth", "gmail", gmail.NewFactory(gmail.Config{
+		ClientID:     cfg.GoogleOAuthClientID,
+		ClientSecret: cfg.GoogleOAuthClientSecret,
+	}))
+	dialer := mailbox.NewDialer(pool, keys, reg)
 	jobs, err := worker.NewInsertClient(pool)
 	if err != nil {
 		logger.Error("river client", "err", err)
 		os.Exit(1)
 	}
+	mb := mailbox.New(mailbox.NewPostgres(pool, keys), smtpimap.Probe{}).
+		WithOAuth(mailbox.OAuthConfig{
+			ClientID:     cfg.GoogleOAuthClientID,
+			ClientSecret: cfg.GoogleOAuthClientSecret,
+			RedirectURI:  cfg.GoogleOAuthRedirectURI,
+			StateKey:     cfg.OAuthStateKey(),
+		}).
+		WithDialer(dialer).
+		WithSync(syncJobs{client: jobs})
 	wrk := worker.New(pool, wsStore, jobs)
 	hold := time.Duration(cfg.UndoHoldS) * time.Second
 	unknown := time.Duration(cfg.UnknownTimeoutS) * time.Second
 	suppStore := suppression.NewPostgres(pool, keys)
 	supp := suppression.New(suppStore, keys)
 	led := sender.NewPostgres(pool, time.Now, hold).
-		WithDialer(sender.NewMailboxDialer(pool, keys)).
+		WithDialer(dialer).
 		WithUnknownTimeout(unknown).
 		WithQueue(reconcileJobs{client: jobs}).
 		WithBlocker(suppStore).
@@ -113,7 +138,7 @@ func main() {
 	aiHTTP := ai.NewAPI(aiStore)
 	cmp := compose.New(compose.NewPostgres(pool, led).WithWriter(writer).WithBinder(aiStore).WithCite(evStore).WithRetrieve(evStore))
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
-	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc))
+	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc).WithOpener(dialer))
 	jd := jobsjd.New(jobsjd.NewPostgres(pool, storage.NewMemory(), writer).WithBinder(aiStore))
 	ct := contacts.New(contacts.NewPostgres(pool).WithHMAC(keys))
 	packs, err := campaign.LoadPacks()
@@ -149,6 +174,9 @@ func main() {
 	mux.Handle("POST /api/v1/mailbox-pools", a.Require(http.HandlerFunc(mb.CreatePool)))
 	mux.Handle("GET /api/v1/mailboxes", a.Require(http.HandlerFunc(mb.List)))
 	mux.Handle("GET /api/v1/sending-domains", a.Require(http.HandlerFunc(mb.ListDomains)))
+	mux.Handle("GET /api/v1/mailboxes/oauth/google", a.Require(http.HandlerFunc(mb.OAuthEnabled)))
+	mux.Handle("GET /api/v1/mailboxes/oauth/google/start", a.Require(http.HandlerFunc(mb.OAuthStart)))
+	mux.Handle("GET /api/v1/mailboxes/oauth/callback", a.Require(http.HandlerFunc(mb.OAuthCallback)))
 	mux.Handle("POST /api/v1/mailboxes", a.Require(http.HandlerFunc(mb.Create)))
 	mux.Handle("PATCH /api/v1/mailboxes/{id}", a.Require(http.HandlerFunc(mb.Patch)))
 	mux.Handle("POST /api/v1/mailboxes/{id}/pause", a.Require(http.HandlerFunc(mb.Pause)))

@@ -160,6 +160,31 @@ func (q *Queries) GetMessageByRFC(ctx context.Context, arg GetMessageByRFCParams
 	return i, err
 }
 
+const getSyncState = `-- name: GetSyncState :one
+select gmail_history_id, last_synced_at, last_error
+from sync_state
+where workspace_id = $1 and mailbox_id = $2 and folder = $3
+`
+
+type GetSyncStateParams struct {
+	WorkspaceID uuid.UUID
+	MailboxID   uuid.UUID
+	Folder      string
+}
+
+type GetSyncStateRow struct {
+	GmailHistoryID pgtype.Int8
+	LastSyncedAt   pgtype.Timestamptz
+	LastError      pgtype.Text
+}
+
+func (q *Queries) GetSyncState(ctx context.Context, arg GetSyncStateParams) (GetSyncStateRow, error) {
+	row := q.db.QueryRow(ctx, getSyncState, arg.WorkspaceID, arg.MailboxID, arg.Folder)
+	var i GetSyncStateRow
+	err := row.Scan(&i.GmailHistoryID, &i.LastSyncedAt, &i.LastError)
+	return i, err
+}
+
 const getThreadByRFC = `-- name: GetThreadByRFC :one
 select t.workspace_id, t.id, t.mailbox_id, t.contact_id, t.subject, t.gmail_thread_id, t.last_message_at, t.unread
 from threads t
@@ -492,18 +517,21 @@ func (q *Queries) UpdateMessageClassification(ctx context.Context, arg UpdateMes
 }
 
 const upsertSyncState = `-- name: UpsertSyncState :exec
-insert into sync_state (workspace_id, mailbox_id, folder, last_synced_at, last_error)
-values ($1, $2, $3, $4, $5)
+insert into sync_state (workspace_id, mailbox_id, folder, last_synced_at, last_error, gmail_history_id)
+values ($1, $2, $3, $4, $5, $6)
 on conflict (workspace_id, mailbox_id, folder) do update
-set last_synced_at = excluded.last_synced_at, last_error = excluded.last_error
+set last_synced_at = excluded.last_synced_at,
+    last_error = excluded.last_error,
+    gmail_history_id = coalesce(excluded.gmail_history_id, sync_state.gmail_history_id)
 `
 
 type UpsertSyncStateParams struct {
-	WorkspaceID  uuid.UUID
-	MailboxID    uuid.UUID
-	Folder       string
-	LastSyncedAt pgtype.Timestamptz
-	LastError    pgtype.Text
+	WorkspaceID    uuid.UUID
+	MailboxID      uuid.UUID
+	Folder         string
+	LastSyncedAt   pgtype.Timestamptz
+	LastError      pgtype.Text
+	GmailHistoryID pgtype.Int8
 }
 
 func (q *Queries) UpsertSyncState(ctx context.Context, arg UpsertSyncStateParams) error {
@@ -513,6 +541,7 @@ func (q *Queries) UpsertSyncState(ctx context.Context, arg UpsertSyncStateParams
 		arg.Folder,
 		arg.LastSyncedAt,
 		arg.LastError,
+		arg.GmailHistoryID,
 	)
 	return err
 }

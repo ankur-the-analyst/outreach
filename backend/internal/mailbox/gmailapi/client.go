@@ -72,3 +72,7 @@ func (c *Client) AppendSent(context.Context, *mime.Built) error {
 func (c *Client) FindSent(context.Context, string) (bool, error) {
 	return false, fmt.Errorf("gmailapi: find not wired")
 }
+
+func (c *Client) Fetch(context.Context, mailbox.FetchCursor) (mailbox.FetchResult, error) {
+	return mailbox.FetchResult{}, mailbox.ErrNotSupported
+}

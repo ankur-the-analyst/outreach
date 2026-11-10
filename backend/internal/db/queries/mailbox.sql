@@ -70,7 +70,7 @@ order by domain;
 
 -- name: GetMailboxDial :one
 select
-  m.email, m.auth_kind, m.smtp_host, m.smtp_port, m.username,
+  m.email, m.auth_kind, m.provider, m.smtp_host, m.smtp_port, m.username,
   m.imap_host, m.imap_port,
   s.key_version, s.wrapped_dek, s.nonce, s.ciphertext
 from mailboxes m

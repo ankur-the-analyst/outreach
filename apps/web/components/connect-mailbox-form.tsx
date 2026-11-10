@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,16 +12,55 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
+function oauthMessage(code: string): string {
+  switch (code) {
+    case "google_denied":
+      return "Google sign-in was cancelled";
+    case "google_not_configured":
+      return "Google sign-in is not configured on the server";
+    case "google_state":
+    case "google_code":
+    case "google_token":
+      return "Could not finish Google sign-in. Try again.";
+    default:
+      return "Could not connect Google mailbox";
+  }
+}
+
 export function ConnectMailboxControl() {
   const [open, setOpen] = useState(false);
+  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("connected") === "1") {
+      setNotice("Mailbox connected");
+    }
+    const err = q.get("error");
+    if (err) {
+      setNotice(oauthMessage(err));
+    }
+  }, []);
   return (
-    <>
+    <div className="flex flex-wrap items-center gap-2">
+      {notice ? (
+        <p className="font-body-sm text-muted-foreground">{notice}</p>
+      ) : null}
       <Button
         type="button"
         className="rounded-md"
+        onClick={() => {
+          window.location.href = "/api/v1/mailboxes/oauth/google/start";
+        }}
+      >
+        Connect Gmail
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="rounded-md"
         onClick={() => setOpen(true)}
       >
-        Connect mailbox
+        Connect SMTP
       </Button>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent>
@@ -33,7 +72,7 @@ export function ConnectMailboxControl() {
           </div>
         </SheetContent>
       </Sheet>
-    </>
+    </div>
   );
 }
 

@@ -123,7 +123,7 @@ export function authKindLabel(kind: string): string {
     case "service_account":
       return "Google Workspace";
     case "oauth":
-      return "OAuth";
+      return "Google";
     default:
       return kind;
   }

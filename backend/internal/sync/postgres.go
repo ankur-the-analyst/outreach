@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/db"
+	"outreach/internal/mailbox"
 )
 
 type Thread struct {
@@ -38,10 +40,15 @@ type InboundHandler interface {
 	Handle(ctx context.Context, workspaceID, mailboxID, messageID uuid.UUID, from, subject, body string) error
 }
 
+type Inbox interface {
+	Open(ctx context.Context, workspaceID, mailboxID uuid.UUID) (mailbox.Operations, string, error)
+}
+
 type Postgres struct {
 	pool   *db.Pool
 	source Source
 	inb    InboundHandler
+	open   Inbox
 }
 
 func NewPostgres(pool *db.Pool, source Source) *Postgres {
@@ -50,6 +57,11 @@ func NewPostgres(pool *db.Pool, source Source) *Postgres {
 
 func (p *Postgres) WithInbound(h InboundHandler) *Postgres {
 	p.inb = h
+	return p
+}
+
+func (p *Postgres) WithOpener(o Inbox) *Postgres {
+	p.open = o
 	return p
 }
 
@@ -70,9 +82,6 @@ func (p *Postgres) Membership(ctx context.Context, workspaceID, userID uuid.UUID
 }
 
 func (p *Postgres) SyncMailbox(ctx context.Context, workspaceID, mailboxID uuid.UUID) (int, error) {
-	if p.source == nil {
-		return 0, fmt.Errorf("sync: source required")
-	}
 	var email string
 	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
 		mb, err := q.GetMailbox(ctx, db.GetMailboxParams{WorkspaceID: workspaceID, ID: mailboxID})
@@ -88,9 +97,9 @@ func (p *Postgres) SyncMailbox(ctx context.Context, workspaceID, mailboxID uuid.
 	if err != nil {
 		return 0, err
 	}
-	items, err := p.source.List(ctx)
+	items, cursor, err := p.listItems(ctx, workspaceID, mailboxID)
 	if err != nil {
-		_ = p.mark(ctx, workspaceID, mailboxID, err)
+		_ = p.mark(ctx, workspaceID, mailboxID, err, "")
 		return 0, err
 	}
 	n := 0
@@ -99,15 +108,72 @@ func (p *Postgres) SyncMailbox(ctx context.Context, workspaceID, mailboxID uuid.
 			continue
 		}
 		if err := p.ingest(ctx, workspaceID, mailboxID, email, it); err != nil {
-			_ = p.mark(ctx, workspaceID, mailboxID, err)
+			_ = p.mark(ctx, workspaceID, mailboxID, err, cursor)
 			return n, err
 		}
 		n++
 	}
-	if err := p.mark(ctx, workspaceID, mailboxID, nil); err != nil {
+	if err := p.mark(ctx, workspaceID, mailboxID, nil, cursor); err != nil {
 		return n, err
 	}
 	return n, nil
+}
+
+func (p *Postgres) listItems(ctx context.Context, workspaceID, mailboxID uuid.UUID) ([]Item, string, error) {
+	if p.open != nil {
+		ops, _, err := p.open.Open(ctx, workspaceID, mailboxID)
+		if err != nil && !errors.Is(err, mailbox.ErrNotConfigured) && !errors.Is(err, mailbox.ErrInboxFallback) {
+			return nil, "", err
+		}
+		if err == nil {
+			cur := mailbox.FetchCursor{Token: p.syncCursor(ctx, workspaceID, mailboxID)}
+			res, ferr := ops.Fetch(ctx, cur)
+			if ferr == nil {
+				return messagesToItems(res.Messages), res.Cursor.Token, nil
+			}
+			if !errors.Is(ferr, mailbox.ErrInboxFallback) {
+				return nil, "", ferr
+			}
+		}
+	}
+	if p.source == nil {
+		return nil, "", fmt.Errorf("sync: source required")
+	}
+	items, err := p.source.List(ctx)
+	return items, "", err
+}
+
+func (p *Postgres) syncCursor(ctx context.Context, workspaceID, mailboxID uuid.UUID) string {
+	var token string
+	_ = p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.GetSyncState(ctx, db.GetSyncStateParams{
+			WorkspaceID: workspaceID, MailboxID: mailboxID, Folder: "INBOX",
+		})
+		if err != nil {
+			return err
+		}
+		if row.GmailHistoryID.Valid {
+			token = strconv.FormatInt(row.GmailHistoryID.Int64, 10)
+		}
+		return nil
+	})
+	return token
+}
+
+func messagesToItems(msgs []mailbox.Message) []Item {
+	out := make([]Item, 0, len(msgs))
+	for _, m := range msgs {
+		out = append(out, Item{
+			RFCMessageID: m.RFCMessageID,
+			InReplyTo:    m.InReplyTo,
+			Subject:      m.Subject,
+			From:         m.From,
+			To:           m.To,
+			Text:         m.Text,
+			At:           m.At,
+		})
+	}
+	return out
 }
 
 func (p *Postgres) ListThreads(ctx context.Context, workspaceID, mailboxID uuid.UUID) ([]Thread, error) {
@@ -288,18 +354,23 @@ func (p *Postgres) resolveThread(ctx context.Context, q *db.Queries, workspaceID
 	return id, err
 }
 
-func (p *Postgres) mark(ctx context.Context, workspaceID, mailboxID uuid.UUID, syncErr error) error {
+func (p *Postgres) mark(ctx context.Context, workspaceID, mailboxID uuid.UUID, syncErr error, cursor string) error {
 	errText := pgtype.Text{}
 	if syncErr != nil {
 		errText = pgtype.Text{String: syncErr.Error(), Valid: true}
 	}
+	hist := pgtype.Int8{}
+	if n, err := strconv.ParseInt(cursor, 10, 64); err == nil {
+		hist = pgtype.Int8{Int64: n, Valid: true}
+	}
 	return p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
 		return q.UpsertSyncState(ctx, db.UpsertSyncStateParams{
-			WorkspaceID:  workspaceID,
-			MailboxID:    mailboxID,
-			Folder:       "INBOX",
-			LastSyncedAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
-			LastError:    errText,
+			WorkspaceID:    workspaceID,
+			MailboxID:      mailboxID,
+			Folder:         "INBOX",
+			LastSyncedAt:   pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+			LastError:      errText,
+			GmailHistoryID: hist,
 		})
 	})
 }

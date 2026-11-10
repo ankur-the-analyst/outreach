@@ -26,3 +26,7 @@ func (Stub) AppendSent(context.Context, *mime.Built) error {
 func (Stub) FindSent(context.Context, string) (bool, error) {
 	return false, mailbox.ErrNotConfigured
 }
+
+func (Stub) Fetch(context.Context, mailbox.FetchCursor) (mailbox.FetchResult, error) {
+	return mailbox.FetchResult{}, mailbox.ErrNotConfigured
+}
