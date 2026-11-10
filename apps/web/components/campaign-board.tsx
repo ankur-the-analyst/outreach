@@ -54,6 +54,8 @@ function operatorError(message: string): string {
       return "Add your name and postal address first";
     case "mailbox required":
       return "Pick a mailbox or a group";
+    case "pick a saved email":
+      return "Pick a saved email";
     default:
       return message;
   }
@@ -361,6 +363,11 @@ function CampaignCard({
                       AI
                     </span>
                   ) : null}
+                  {step.content === "template" ? (
+                    <span className="ml-2 rounded-sm bg-accent px-1.5 py-0.5 font-label-sm text-primary">
+                      Saved email
+                    </span>
+                  ) : null}
                 </p>
               </div>
             )}
@@ -484,8 +491,28 @@ function CreateCampaign({
   const [profileID, setProfileID] = useState("");
   const [perDay, setPerDay] = useState("5");
   const [strategy, setStrategy] = useState("round_robin");
+  const [saved, setSaved] = useState<{ id: string; name: string }[]>([]);
+  const [templateID, setTemplateID] = useState("");
+  const [newName, setNewName] = useState("");
+  const [newSubject, setNewSubject] = useState(
+    "Hello {{contact.first_name | there}}",
+  );
+  const [newBody, setNewBody] = useState(
+    "Hi {{contact.first_name | there}},\n\nI wanted to reach out.\n",
+  );
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/v1/templates", { credentials: "include" });
+      if (!res.ok) {
+        return;
+      }
+      const data = (await res.json()) as { templates?: { id: string; name: string }[] };
+      setSaved(data.templates ?? []);
+    })();
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -503,6 +530,7 @@ function CreateCampaign({
         new_contacts_per_day: Number(perDay),
         sender_strategy: strategy,
         profile_id: profileID || undefined,
+        template_id: templateID || undefined,
       }),
     });
     setPending(false);
@@ -627,6 +655,87 @@ function CreateCampaign({
             <option value="manual">Manual</option>
           </select>
         </div>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="camp-saved">First email</Label>
+        <select
+          id="camp-saved"
+          value={templateID}
+          onChange={(e) => setTemplateID(e.target.value)}
+          className={fieldSelect}
+        >
+          <option value="">Write with AI</option>
+          {saved.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex flex-col gap-3 rounded-md border border-border bg-muted p-3">
+        <p className="font-label-md text-foreground">Save an email</p>
+        <p className="font-body-sm text-muted-foreground">
+          Use {"{{contact.first_name | there}}"} so a missing first name becomes
+          "there".
+        </p>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="saved-name">Name</Label>
+          <Input
+            id="saved-name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Job first touch"
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="saved-subject">Subject</Label>
+          <Input
+            id="saved-subject"
+            value={newSubject}
+            onChange={(e) => setNewSubject(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="saved-body">Body</Label>
+          <textarea
+            id="saved-body"
+            className={fieldTextarea}
+            rows={5}
+            value={newBody}
+            onChange={(e) => setNewBody(e.target.value)}
+          />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-fit rounded-md"
+          onClick={async () => {
+            setError("");
+            const res = await fetch("/api/v1/templates", {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: newName,
+                subject: newSubject,
+                body_text: newBody,
+              }),
+            });
+            if (!res.ok) {
+              const data = (await res.json().catch(() => null)) as
+                | { error?: { message?: string } }
+                | null;
+              setError(data?.error?.message ?? "Could not save email");
+              return;
+            }
+            const t = (await res.json()) as { id: string; name: string };
+            setSaved((cur) => [t, ...cur]);
+            setTemplateID(t.id);
+            setNewName("");
+          }}
+        >
+          Save email
+        </Button>
       </div>
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
       <div className="flex justify-end gap-2">

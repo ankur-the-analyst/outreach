@@ -492,6 +492,16 @@ type SyncState struct {
 	LastError      pgtype.Text
 }
 
+type Template struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Name        string
+	Subject     string
+	BodyText    string
+	BodyHtml    pgtype.Text
+	CreatedAt   pgtype.Timestamptz
+}
+
 type Thread struct {
 	WorkspaceID   uuid.UUID
 	ID            uuid.UUID

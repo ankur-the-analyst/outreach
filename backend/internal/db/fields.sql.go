@@ -31,6 +31,15 @@ func (q *Queries) CountFieldDefs(ctx context.Context, arg CountFieldDefsParams) 
 	return n, err
 }
 
+const deleteFieldDefsForWorkspace = `-- name: DeleteFieldDefsForWorkspace :exec
+delete from field_defs where workspace_id = $1
+`
+
+func (q *Queries) DeleteFieldDefsForWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteFieldDefsForWorkspace, workspaceID)
+	return err
+}
+
 const insertFieldDef = `-- name: InsertFieldDef :one
 insert into field_defs (
   workspace_id, id, object, key, label, kind, required, options, position

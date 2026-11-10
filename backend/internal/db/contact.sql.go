@@ -46,6 +46,44 @@ func (q *Queries) DeleteContactsForWorkspace(ctx context.Context, workspaceID uu
 	return err
 }
 
+const getCompany = `-- name: GetCompany :one
+select workspace_id, id, domain, name, last_contacted_at, cooldown_days, cooldown_override_reason, created_at
+from companies
+where workspace_id = $1 and id = $2
+`
+
+type GetCompanyParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+type GetCompanyRow struct {
+	WorkspaceID            uuid.UUID
+	ID                     uuid.UUID
+	Domain                 pgtype.Text
+	Name                   string
+	LastContactedAt        pgtype.Timestamptz
+	CooldownDays           int32
+	CooldownOverrideReason pgtype.Text
+	CreatedAt              pgtype.Timestamptz
+}
+
+func (q *Queries) GetCompany(ctx context.Context, arg GetCompanyParams) (GetCompanyRow, error) {
+	row := q.db.QueryRow(ctx, getCompany, arg.WorkspaceID, arg.ID)
+	var i GetCompanyRow
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.Domain,
+		&i.Name,
+		&i.LastContactedAt,
+		&i.CooldownDays,
+		&i.CooldownOverrideReason,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getCompanyByDomain = `-- name: GetCompanyByDomain :one
 select workspace_id, id, domain, name, last_contacted_at, cooldown_days, cooldown_override_reason, created_at
 from companies

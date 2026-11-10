@@ -77,14 +77,14 @@ order by position;
 
 -- name: InsertCampaignStep :one
 insert into campaign_steps (
-  workspace_id, id, campaign_id, position, kind, wait_days, content, ai_instructions
+  workspace_id, id, campaign_id, position, kind, wait_days, content, template_id, ai_instructions
 ) values (
-  $1, $2, $3, $4, $5, $6, $7, $8
+  $1, $2, $3, $4, $5, $6, $7, $8, $9
 )
-returning workspace_id, id, campaign_id, position, kind, wait_days, content, ai_instructions;
+returning workspace_id, id, campaign_id, position, kind, wait_days, content, template_id, ai_instructions;
 
 -- name: ListCampaignSteps :many
-select workspace_id, id, campaign_id, position, kind, wait_days, content, ai_instructions
+select workspace_id, id, campaign_id, position, kind, wait_days, content, template_id, ai_instructions
 from campaign_steps
 where workspace_id = $1 and campaign_id = $2
 order by position;

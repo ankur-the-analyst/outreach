@@ -8,6 +8,11 @@ select workspace_id, id, domain, name, last_contacted_at, cooldown_days, cooldow
 from companies
 where workspace_id = $1 and domain = $2;
 
+-- name: GetCompany :one
+select workspace_id, id, domain, name, last_contacted_at, cooldown_days, cooldown_override_reason, created_at
+from companies
+where workspace_id = $1 and id = $2;
+
 -- name: InsertContact :one
 insert into contacts (
   workspace_id, id, email, first_name, last_name, title, company_id,

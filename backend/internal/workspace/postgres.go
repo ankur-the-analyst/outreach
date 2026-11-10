@@ -99,6 +99,12 @@ func (p *Postgres) Delete(ctx context.Context, workspaceID uuid.UUID) error {
 		if err := q.DeleteCampaignsForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: campaigns: %w", err)
 		}
+		if err := q.DeleteTemplatesForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: saved emails: %w", err)
+		}
+		if err := q.DeleteFieldDefsForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: fields: %w", err)
+		}
 		if err := q.DeleteSenderIdentityForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: sender identity: %w", err)
 		}

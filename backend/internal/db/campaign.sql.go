@@ -394,11 +394,11 @@ func (q *Queries) InsertCampaignSender(ctx context.Context, arg InsertCampaignSe
 
 const insertCampaignStep = `-- name: InsertCampaignStep :one
 insert into campaign_steps (
-  workspace_id, id, campaign_id, position, kind, wait_days, content, ai_instructions
+  workspace_id, id, campaign_id, position, kind, wait_days, content, template_id, ai_instructions
 ) values (
-  $1, $2, $3, $4, $5, $6, $7, $8
+  $1, $2, $3, $4, $5, $6, $7, $8, $9
 )
-returning workspace_id, id, campaign_id, position, kind, wait_days, content, ai_instructions
+returning workspace_id, id, campaign_id, position, kind, wait_days, content, template_id, ai_instructions
 `
 
 type InsertCampaignStepParams struct {
@@ -409,21 +409,11 @@ type InsertCampaignStepParams struct {
 	Kind           string
 	WaitDays       pgtype.Int4
 	Content        pgtype.Text
+	TemplateID     *uuid.UUID
 	AiInstructions pgtype.Text
 }
 
-type InsertCampaignStepRow struct {
-	WorkspaceID    uuid.UUID
-	ID             uuid.UUID
-	CampaignID     uuid.UUID
-	Position       int32
-	Kind           string
-	WaitDays       pgtype.Int4
-	Content        pgtype.Text
-	AiInstructions pgtype.Text
-}
-
-func (q *Queries) InsertCampaignStep(ctx context.Context, arg InsertCampaignStepParams) (InsertCampaignStepRow, error) {
+func (q *Queries) InsertCampaignStep(ctx context.Context, arg InsertCampaignStepParams) (CampaignStep, error) {
 	row := q.db.QueryRow(ctx, insertCampaignStep,
 		arg.WorkspaceID,
 		arg.ID,
@@ -432,9 +422,10 @@ func (q *Queries) InsertCampaignStep(ctx context.Context, arg InsertCampaignStep
 		arg.Kind,
 		arg.WaitDays,
 		arg.Content,
+		arg.TemplateID,
 		arg.AiInstructions,
 	)
-	var i InsertCampaignStepRow
+	var i CampaignStep
 	err := row.Scan(
 		&i.WorkspaceID,
 		&i.ID,
@@ -443,6 +434,7 @@ func (q *Queries) InsertCampaignStep(ctx context.Context, arg InsertCampaignStep
 		&i.Kind,
 		&i.WaitDays,
 		&i.Content,
+		&i.TemplateID,
 		&i.AiInstructions,
 	)
 	return i, err
@@ -550,7 +542,7 @@ func (q *Queries) ListCampaignSenders(ctx context.Context, arg ListCampaignSende
 }
 
 const listCampaignSteps = `-- name: ListCampaignSteps :many
-select workspace_id, id, campaign_id, position, kind, wait_days, content, ai_instructions
+select workspace_id, id, campaign_id, position, kind, wait_days, content, template_id, ai_instructions
 from campaign_steps
 where workspace_id = $1 and campaign_id = $2
 order by position
@@ -561,26 +553,15 @@ type ListCampaignStepsParams struct {
 	CampaignID  uuid.UUID
 }
 
-type ListCampaignStepsRow struct {
-	WorkspaceID    uuid.UUID
-	ID             uuid.UUID
-	CampaignID     uuid.UUID
-	Position       int32
-	Kind           string
-	WaitDays       pgtype.Int4
-	Content        pgtype.Text
-	AiInstructions pgtype.Text
-}
-
-func (q *Queries) ListCampaignSteps(ctx context.Context, arg ListCampaignStepsParams) ([]ListCampaignStepsRow, error) {
+func (q *Queries) ListCampaignSteps(ctx context.Context, arg ListCampaignStepsParams) ([]CampaignStep, error) {
 	rows, err := q.db.Query(ctx, listCampaignSteps, arg.WorkspaceID, arg.CampaignID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListCampaignStepsRow
+	var items []CampaignStep
 	for rows.Next() {
-		var i ListCampaignStepsRow
+		var i CampaignStep
 		if err := rows.Scan(
 			&i.WorkspaceID,
 			&i.ID,
@@ -589,6 +570,7 @@ func (q *Queries) ListCampaignSteps(ctx context.Context, arg ListCampaignStepsPa
 			&i.Kind,
 			&i.WaitDays,
 			&i.Content,
+			&i.TemplateID,
 			&i.AiInstructions,
 		); err != nil {
 			return nil, err

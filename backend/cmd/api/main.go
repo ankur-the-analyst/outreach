@@ -33,6 +33,7 @@ import (
 	"outreach/internal/storage"
 	"outreach/internal/suppression"
 	mailsync "outreach/internal/sync"
+	"outreach/internal/templates"
 	"outreach/internal/worker"
 	"outreach/internal/workspace"
 )
@@ -145,6 +146,7 @@ func main() {
 	jd := jobsjd.New(jobsjd.NewPostgres(pool, storage.NewMemory(), writer).WithBinder(aiStore))
 	fieldStore := fields.NewPostgres(pool)
 	fd := fields.New(fieldStore)
+	tpl := templates.New(templates.NewPostgres(pool))
 	ct := contacts.New(contacts.NewPostgres(pool).WithHMAC(keys).WithCatalog(fieldStore)).WithCatalog(fieldStore)
 	packs, err := campaign.LoadPacks()
 	if err != nil {
@@ -223,6 +225,8 @@ func main() {
 	mux.Handle("GET /api/v1/fits", a.Require(http.HandlerFunc(jd.ListFits)))
 	mux.Handle("GET /api/v1/fields", a.Require(http.HandlerFunc(fd.List)))
 	mux.Handle("POST /api/v1/fields", a.Require(http.HandlerFunc(fd.Create)))
+	mux.Handle("GET /api/v1/templates", a.Require(http.HandlerFunc(tpl.List)))
+	mux.Handle("POST /api/v1/templates", a.Require(http.HandlerFunc(tpl.Create)))
 	mux.Handle("GET /api/v1/contacts", a.Require(http.HandlerFunc(ct.List)))
 	mux.Handle("POST /api/v1/contacts", a.Require(http.HandlerFunc(ct.Create)))
 	mux.Handle("POST /api/v1/contacts/preview", a.Require(http.HandlerFunc(ct.Preview)))

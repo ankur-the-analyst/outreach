@@ -17,3 +17,6 @@ insert into field_defs (
   $1, $2, $3, $4, $5, $6, $7, $8, $9
 )
 returning workspace_id, id, object, key, label, kind, required, options, position;
+
+-- name: DeleteFieldDefsForWorkspace :exec
+delete from field_defs where workspace_id = $1;

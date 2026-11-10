@@ -16,6 +16,7 @@ import (
 	"outreach/internal/evidence"
 	"outreach/internal/mime"
 	"outreach/internal/pacing"
+	"outreach/internal/templates"
 )
 
 type Retriever interface {
@@ -198,9 +199,31 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 		if err != nil {
 			return err
 		}
-		body, err := p.writeBody(ctx, workspaceID, notes, cited, facts)
-		if err != nil {
-			return err
+		subject := camp.Name
+		body := ""
+		var step *Step
+		for i := range camp.Steps {
+			if camp.Steps[i].Position == stepPosition {
+				step = &camp.Steps[i]
+				break
+			}
+		}
+		if step != nil && step.Content == "template" && step.TemplateID != nil {
+			tpl, err := q.GetTemplate(ctx, db.GetTemplateParams{WorkspaceID: workspaceID, ID: *step.TemplateID})
+			if err != nil {
+				return err
+			}
+			vals := fillVars(ctx, q, workspaceID, ct, en, camp)
+			subject = templates.Render(tpl.Subject, vals)
+			body = templates.Render(tpl.BodyText, vals)
+			if strings.TrimSpace(subject) == "" {
+				subject = camp.Name
+			}
+		} else {
+			body, err = p.writeBody(ctx, workspaceID, notes, cited, facts)
+			if err != nil {
+				return err
+			}
 		}
 		factsJSON, err := json.Marshal(facts)
 		if err != nil {
@@ -215,7 +238,7 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 			ToAddr:       ct.Email,
 			RfcMessageID: msgid,
 			Kind:         "outbound",
-			Subject:      camp.Name,
+			Subject:      subject,
 			BodyHtml:     "",
 			BodyText:     body,
 			FactsUsed:    factsJSON,
@@ -285,6 +308,38 @@ func (p *Postgres) writeBody(ctx context.Context, workspaceID uuid.UUID, notes s
 		return notes, nil
 	}
 	return body, nil
+}
+
+func fillVars(ctx context.Context, q *db.Queries, workspaceID uuid.UUID, ct db.GetContactRow, en db.GetEnrolmentRow, camp Campaign) map[string]string {
+	vals := map[string]string{
+		"contact.first_name": ct.FirstName.String,
+		"contact.last_name":  ct.LastName.String,
+		"contact.email":      ct.Email,
+		"contact.title":      ct.Title.String,
+	}
+	if ct.CompanyID != nil {
+		co, err := q.GetCompany(ctx, db.GetCompanyParams{WorkspaceID: workspaceID, ID: *ct.CompanyID})
+		if err == nil {
+			vals["company.name"] = co.Name
+		}
+	}
+	if en.JobID != nil {
+		job, err := q.GetJob(ctx, db.GetJobParams{WorkspaceID: workspaceID, ID: *en.JobID})
+		if err == nil {
+			vals["job.title"] = job.Title.String
+		}
+	}
+	profileID := en.ProfileID
+	if profileID == nil {
+		profileID = camp.ProfileID
+	}
+	if profileID != nil {
+		pr, err := q.GetProfile(ctx, db.GetProfileParams{WorkspaceID: workspaceID, ID: *profileID})
+		if err == nil {
+			vals["profile.name"] = pr.Name
+		}
+	}
+	return vals
 }
 
 func notesFromContext(raw json.RawMessage) string {

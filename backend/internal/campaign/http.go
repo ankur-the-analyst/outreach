@@ -116,6 +116,7 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		NewContactsPerDay int32    `json:"new_contacts_per_day"`
 		AIInstructions    string   `json:"ai_instructions"`
 		ProfileID         string   `json:"profile_id"`
+		TemplateID        string   `json:"template_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
@@ -148,10 +149,19 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		}
 		profileID = &p
 	}
+	var templateID *uuid.UUID
+	if in.TemplateID != "" {
+		t, err := uuid.Parse(in.TemplateID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_input", "invalid saved email")
+			return
+		}
+		templateID = &t
+	}
 	c, err := a.store.Create(r.Context(), s.WorkspaceID, CreateInput{
 		Name: in.Name, Intent: in.Intent, SenderStrategy: in.SenderStrategy,
 		MailboxIDs: ids, PoolID: poolID, NewContactsPerDay: in.NewContactsPerDay, AIInstructions: in.AIInstructions,
-		ProfileID: profileID,
+		ProfileID: profileID, TemplateID: templateID,
 	})
 	if err != nil {
 		writeStoreError(w, err)
@@ -369,7 +379,7 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, "forbidden", "owner or member role required")
 	case errors.Is(err, ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "not found")
-	case errors.Is(err, ErrIdentity), errors.Is(err, ErrContext), errors.Is(err, ErrPack), errors.Is(err, ErrName), errors.Is(err, ErrMailbox), errors.Is(err, ErrStatus), errors.Is(err, ErrStage):
+	case errors.Is(err, ErrIdentity), errors.Is(err, ErrContext), errors.Is(err, ErrPack), errors.Is(err, ErrName), errors.Is(err, ErrMailbox), errors.Is(err, ErrStatus), errors.Is(err, ErrStage), errors.Is(err, ErrTemplate):
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 	case errors.Is(err, ErrDuplicate):
 		writeError(w, http.StatusConflict, "conflict", err.Error())

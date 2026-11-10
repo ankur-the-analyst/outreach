@@ -243,11 +243,28 @@ export type Campaign = {
   list_unsubscribe: boolean;
   new_contacts_per_day?: number;
   sender_strategy: string;
-  steps: { position: number; kind: string; wait_days?: number; content?: string }[];
+  steps: {
+    position: number;
+    kind: string;
+    wait_days?: number;
+    content?: string;
+    template_id?: string;
+  }[];
   senders: { mailbox_id: string }[];
   pool_id?: string;
   created_at: string;
 };
+
+export type SavedEmail = {
+  id: string;
+  name: string;
+  subject: string;
+  body_text: string;
+};
+
+export function getSavedEmails() {
+  return apiGet<{ templates: SavedEmail[] }>("/api/v1/templates");
+}
 
 export function getCampaigns() {
   return apiGet<{ campaigns: Campaign[]; next_cursor?: string }>(

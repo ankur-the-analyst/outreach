@@ -27,6 +27,7 @@ var (
 	ErrName      = errors.New("name required")
 	ErrMailbox   = errors.New("mailbox required")
 	ErrStage     = errors.New("pick a valid stage")
+	ErrTemplate  = errors.New("pick a saved email")
 )
 
 type Identity struct {
@@ -36,11 +37,12 @@ type Identity struct {
 }
 
 type Step struct {
-	ID       uuid.UUID `json:"id"`
-	Position int32     `json:"position"`
-	Kind     string    `json:"kind"`
-	WaitDays *int32    `json:"wait_days,omitempty"`
-	Content  string    `json:"content,omitempty"`
+	ID         uuid.UUID  `json:"id"`
+	Position   int32      `json:"position"`
+	Kind       string     `json:"kind"`
+	WaitDays   *int32     `json:"wait_days,omitempty"`
+	Content    string     `json:"content,omitempty"`
+	TemplateID *uuid.UUID `json:"template_id,omitempty"`
 }
 
 type Sender struct {
@@ -88,6 +90,7 @@ type CreateInput struct {
 	NewContactsPerDay int32
 	AIInstructions    string
 	ProfileID         *uuid.UUID
+	TemplateID        *uuid.UUID
 }
 
 type EnrolInput struct {
@@ -272,6 +275,15 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 				return err
 			}
 		}
+		if in.TemplateID != nil {
+			if _, err := q.GetTemplate(ctx, db.GetTemplateParams{WorkspaceID: workspaceID, ID: *in.TemplateID}); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return ErrTemplate
+				}
+				return err
+			}
+		}
+		applied := false
 		for _, st := range pack.Steps {
 			sid, err := uuid.NewV7()
 			if err != nil {
@@ -281,9 +293,16 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 			if st.Kind == "wait" && st.WaitDays > 0 {
 				wait = pgtype.Int4{Int32: int32(st.WaitDays), Valid: true}
 			}
+			content := st.Content
+			var tid *uuid.UUID
+			if st.Kind == "email" && in.TemplateID != nil && !applied {
+				content = "template"
+				tid = in.TemplateID
+				applied = true
+			}
 			if _, err := q.InsertCampaignStep(ctx, db.InsertCampaignStepParams{
 				WorkspaceID: workspaceID, ID: sid, CampaignID: id, Position: int32(st.Position),
-				Kind: st.Kind, WaitDays: wait, Content: text(st.Content),
+				Kind: st.Kind, WaitDays: wait, Content: text(content), TemplateID: tid,
 			}); err != nil {
 				return err
 			}
@@ -506,7 +525,7 @@ func loadCampaign(ctx context.Context, q *db.Queries, workspaceID, id uuid.UUID,
 		c.Commercial = pack.CommercialStart()
 	}
 	for _, st := range steps {
-		step := Step{ID: st.ID, Position: st.Position, Kind: st.Kind, Content: st.Content.String}
+		step := Step{ID: st.ID, Position: st.Position, Kind: st.Kind, Content: st.Content.String, TemplateID: st.TemplateID}
 		if st.WaitDays.Valid {
 			d := st.WaitDays.Int32
 			step.WaitDays = &d
