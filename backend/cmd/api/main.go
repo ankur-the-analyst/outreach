@@ -22,6 +22,7 @@ import (
 	"outreach/internal/db"
 	"outreach/internal/events"
 	"outreach/internal/evidence"
+	"outreach/internal/fields"
 	"outreach/internal/health"
 	"outreach/internal/inbound"
 	"outreach/internal/jobsjd"
@@ -142,7 +143,9 @@ func main() {
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
 	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc).WithOpener(dialer))
 	jd := jobsjd.New(jobsjd.NewPostgres(pool, storage.NewMemory(), writer).WithBinder(aiStore))
-	ct := contacts.New(contacts.NewPostgres(pool).WithHMAC(keys))
+	fieldStore := fields.NewPostgres(pool)
+	fd := fields.New(fieldStore)
+	ct := contacts.New(contacts.NewPostgres(pool).WithHMAC(keys).WithCatalog(fieldStore)).WithCatalog(fieldStore)
 	packs, err := campaign.LoadPacks()
 	if err != nil {
 		logger.Error("load packs", "err", err)
@@ -218,6 +221,8 @@ func main() {
 	mux.Handle("POST /api/v1/jobs", a.Require(http.HandlerFunc(jd.CreateJob)))
 	mux.Handle("POST /api/v1/jobs/{id}/fit", a.Require(http.HandlerFunc(jd.Fit)))
 	mux.Handle("GET /api/v1/fits", a.Require(http.HandlerFunc(jd.ListFits)))
+	mux.Handle("GET /api/v1/fields", a.Require(http.HandlerFunc(fd.List)))
+	mux.Handle("POST /api/v1/fields", a.Require(http.HandlerFunc(fd.Create)))
 	mux.Handle("GET /api/v1/contacts", a.Require(http.HandlerFunc(ct.List)))
 	mux.Handle("POST /api/v1/contacts", a.Require(http.HandlerFunc(ct.Create)))
 	mux.Handle("POST /api/v1/contacts/preview", a.Require(http.HandlerFunc(ct.Preview)))

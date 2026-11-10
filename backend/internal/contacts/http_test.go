@@ -29,7 +29,7 @@ func (f *fakeStore) Create(_ context.Context, _ uuid.UUID, in CreateInput) (Cont
 	}
 	return f.c, nil
 }
-func (f *fakeStore) Import(context.Context, uuid.UUID, uuid.UUID, string, string) (ImportResult, error) {
+func (f *fakeStore) Import(context.Context, uuid.UUID, uuid.UUID, string, string, ColumnMap) (ImportResult, error) {
 	if f.err != nil {
 		return ImportResult{}, f.err
 	}

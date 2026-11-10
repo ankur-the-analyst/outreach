@@ -3,6 +3,8 @@ package contacts
 import (
 	"errors"
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func TestApplyImportSkipsBadAndFileDupes(t *testing.T) {
@@ -42,6 +44,15 @@ func TestApplyImportSkipsExisting(t *testing.T) {
 	})
 	if err != nil || created != 1 || skipped != 1 {
 		t.Fatalf("created=%d skipped=%d err=%v", created, skipped, err)
+	}
+}
+
+func TestImportRequiresEmailColumn(t *testing.T) {
+	t.Parallel()
+	p := NewPostgres(nil)
+	_, err := p.Import(t.Context(), uuid.Nil, uuid.Nil, "csv", "Work Email\nada@acme.com\n", nil)
+	if err != ErrMapEmail {
+		t.Fatalf("%v", err)
 	}
 }
 

@@ -122,6 +122,7 @@ type Company struct {
 	CooldownDays           int32
 	CooldownOverrideReason pgtype.Text
 	CreatedAt              pgtype.Timestamptz
+	Custom                 json.RawMessage
 }
 
 type Contact struct {
@@ -198,6 +199,18 @@ type EvidenceItem struct {
 	EmbeddedAt     pgtype.Timestamptz
 	CreatedAt      pgtype.Timestamptz
 	ProfileID      *uuid.UUID
+}
+
+type FieldDef struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Object      string
+	Key         string
+	Label       string
+	Kind        string
+	Required    bool
+	Options     json.RawMessage
+	Position    int32
 }
 
 type Fit struct {
@@ -298,6 +311,7 @@ type Membership struct {
 	WorkspaceID uuid.UUID
 	UserID      uuid.UUID
 	Role        string
+	Attrs       json.RawMessage
 }
 
 type Message struct {
@@ -512,6 +526,7 @@ type Workspace struct {
 	Name        string
 	SendsPaused bool
 	CreatedAt   pgtype.Timestamptz
+	Attrs       json.RawMessage
 }
 
 type WorkspaceAi struct {

@@ -42,6 +42,22 @@ type PreviewRow = {
   generic_mailbox: boolean;
 };
 
+type FieldDef = {
+  key: string;
+  label: string;
+};
+
+const builtinFields: { key: string; label: string }[] = [
+  { key: "email", label: "Email" },
+  { key: "first_name", label: "First name" },
+  { key: "last_name", label: "Last name" },
+  { key: "title", label: "Title" },
+  { key: "company", label: "Company" },
+  { key: "linkedin_url", label: "LinkedIn" },
+  { key: "timezone", label: "Timezone" },
+  { key: "region", label: "Region" },
+];
+
 export function ContactBook({
   contacts,
   nextCursor,
@@ -118,7 +134,7 @@ export function ContactBook({
         {rows.length === 0 ? (
           <EmptyState
             title="No contacts yet"
-            description="Add one person, or import a CSV with email, first_name, and company."
+            description="Add one person, or import a CSV. You will map which column is email."
             action={
               <>
                 <Button
@@ -472,6 +488,26 @@ function isCSVFile(file: File): boolean {
   return name.endsWith(".csv") || file.type === "text/csv" || file.type === "text/plain";
 }
 
+function invertMap(m: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [field, header] of Object.entries(m)) {
+    if (field && header) {
+      out[header] = field;
+    }
+  }
+  return out;
+}
+
+function toColumns(headerToField: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [header, field] of Object.entries(headerToField)) {
+    if (header && field) {
+      out[field] = header;
+    }
+  }
+  return out;
+}
+
 function CSVPreview() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -479,10 +515,31 @@ function CSVPreview() {
   const [fileName, setFileName] = useState("");
   const [source, setSource] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [headers, setHeaders] = useState<string[]>([]);
+  const [samples, setSamples] = useState<string[][]>([]);
+  const [headerToField, setHeaderToField] = useState<Record<string, string>>({});
+  const [defs, setDefs] = useState<FieldDef[]>([]);
+  const [newKey, setNewKey] = useState("");
+  const [newLabel, setNewLabel] = useState("");
   const [rows, setRows] = useState<PreviewRow[]>([]);
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/v1/fields?object=contact", {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        return;
+      }
+      const data = (await res.json()) as { fields?: FieldDef[] };
+      setDefs(data.fields ?? []);
+    })();
+  }, []);
+
+  const targets = [...builtinFields, ...defs.map((d) => ({ key: d.key, label: d.label }))];
 
   async function takeFile(file: File | undefined) {
     if (!file) {
@@ -496,6 +553,9 @@ function CSVPreview() {
     setCsv(text);
     setFileName(file.name);
     setRows([]);
+    setHeaders([]);
+    setSamples([]);
+    setHeaderToField({});
     setError("");
     setDone("");
   }
@@ -509,11 +569,15 @@ function CSVPreview() {
       return;
     }
     setPending(true);
+    const columns = toColumns(headerToField);
     const res = await fetch("/api/v1/contacts/preview", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ csv }),
+      body: JSON.stringify({
+        csv,
+        columns: Object.keys(columns).length > 0 ? columns : undefined,
+      }),
     });
     setPending(false);
     if (!res.ok) {
@@ -523,13 +587,55 @@ function CSVPreview() {
       setError(data?.error?.message ?? "Preview failed");
       return;
     }
-    const data = (await res.json()) as { rows: PreviewRow[] };
+    const data = (await res.json()) as {
+      headers?: string[];
+      samples?: string[][];
+      guessed?: Record<string, string>;
+      rows?: PreviewRow[];
+    };
+    setHeaders(data.headers ?? []);
+    setSamples(data.samples ?? []);
     setRows(data.rows ?? []);
+    if (Object.keys(headerToField).length === 0) {
+      setHeaderToField(invertMap(data.guessed ?? {}));
+    }
+  }
+
+  async function onAddField(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    const res = await fetch("/api/v1/fields", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        object: "contact",
+        key: newKey,
+        label: newLabel,
+        kind: "text",
+      }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as
+        | { error?: { message?: string } }
+        | null;
+      setError(data?.error?.message ?? "Could not add field");
+      return;
+    }
+    const d = (await res.json()) as FieldDef;
+    setDefs((cur) => [...cur, d]);
+    setNewKey("");
+    setNewLabel("");
   }
 
   async function onImport() {
     setError("");
     setDone("");
+    const columns = toColumns(headerToField);
+    if (!columns.email) {
+      setError("Choose which column is email");
+      return;
+    }
     setPending(true);
     const res = await fetch("/api/v1/contacts/import", {
       method: "POST",
@@ -537,6 +643,7 @@ function CSVPreview() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         csv,
+        columns,
         provenance: { source },
       }),
     });
@@ -552,6 +659,9 @@ function CSVPreview() {
     setRows([]);
     setCsv("");
     setFileName("");
+    setHeaders([]);
+    setSamples([]);
+    setHeaderToField({});
     if (inputRef.current) {
       inputRef.current.value = "";
     }
@@ -592,7 +702,7 @@ function CSVPreview() {
           <p className="font-body-md text-muted-foreground">
             {fileName
               ? fileName
-              : "Drop a CSV here, or choose a file. Needs email, first_name, company columns."}
+              : "Drop a CSV here, or choose a file. Map which column is email before importing."}
           </p>
           <Button
             type="button"
@@ -614,6 +724,85 @@ function CSVPreview() {
           onChange={(e) => setSource(e.target.value)}
         />
       </div>
+      {headers.length > 0 ? (
+        <div className="flex flex-col gap-3">
+          <p className="font-body-md text-muted-foreground">
+            Match each column to a contact field. Email is required.
+          </p>
+          {headers.map((header, i) => (
+            <div key={`${header}-${i}`} className="flex flex-col gap-1.5">
+              <Label htmlFor={`map-${i}`}>
+                {header}
+                {samples[0]?.[i] ? (
+                  <span className="font-body-sm text-muted-foreground">
+                    {" "}
+                    · e.g. {samples[0][i]}
+                  </span>
+                ) : null}
+              </Label>
+              <select
+                id={`map-${i}`}
+                className={fieldSelect}
+                value={headerToField[header] ?? ""}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setHeaderToField((cur) => {
+                    const copy = { ...cur };
+                    if (!next) {
+                      delete copy[header];
+                      return copy;
+                    }
+                    for (const [h, field] of Object.entries(copy)) {
+                      if (field === next && h !== header) {
+                        delete copy[h];
+                      }
+                    }
+                    copy[header] = next;
+                    return copy;
+                  });
+                  setRows([]);
+                }}
+              >
+                <option value="">Skip</option>
+                {targets.map((t) => (
+                  <option key={t.key} value={t.key}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex min-w-28 flex-1 flex-col gap-1.5">
+              <Label htmlFor="new-field-label">New field</Label>
+              <Input
+                id="new-field-label"
+                placeholder="Seniority"
+                value={newLabel}
+                onChange={(e) => {
+                  setNewLabel(e.target.value);
+                  setNewKey(
+                    e.target.value
+                      .toLowerCase()
+                      .trim()
+                      .replace(/[^a-z0-9]+/g, "_")
+                      .replace(/^_|_$/g, "")
+                      .slice(0, 40),
+                  );
+                }}
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-md"
+              onClick={(e) => void onAddField(e)}
+            >
+              Add field
+            </Button>
+          </div>
+        </div>
+      ) : null}
       {error ? (
         <p role="alert" className="font-body-md text-destructive">
           {error}
@@ -624,7 +813,7 @@ function CSVPreview() {
         <Button type="submit" className="rounded-md" pending={pending}>
           Preview
         </Button>
-        {rows.length > 0 ? (
+        {headerToField && Object.values(headerToField).includes("email") ? (
           <Button
             type="button"
             variant="outline"

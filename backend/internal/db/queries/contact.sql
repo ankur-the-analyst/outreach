@@ -11,10 +11,10 @@ where workspace_id = $1 and domain = $2;
 -- name: InsertContact :one
 insert into contacts (
   workspace_id, id, email, first_name, last_name, title, company_id,
-  linkedin_url, timezone, region, role_class, provenance, readiness
+  linkedin_url, timezone, region, role_class, provenance, readiness, custom
 ) values (
   $1, $2, $3, $4, $5, $6, $7,
-  $8, $9, $10, $11, $12, $13
+  $8, $9, $10, $11, $12, $13, $14
 )
 returning
   workspace_id, id, email, first_name, last_name, title, company_id,

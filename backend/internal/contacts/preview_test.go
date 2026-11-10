@@ -1,6 +1,10 @@
 package contacts
 
-import "testing"
+import (
+	"testing"
+
+	"outreach/internal/fields"
+)
 
 func TestPreviewCSVMapsHeadersAndFlagsDupes(t *testing.T) {
 	t.Parallel()
@@ -34,5 +38,53 @@ func TestPreviewCSVRequiresEmail(t *testing.T) {
 	rows, err := PreviewCSV("email,first_name\n,Ada")
 	if err != nil || len(rows) != 1 || rows[0].Readiness != "blocked" {
 		t.Fatalf("%+v %v", rows, err)
+	}
+}
+
+func TestParseCSVDoesNotGuessWorkEmail(t *testing.T) {
+	t.Parallel()
+	p, err := ParseCSV("Work Email,First\nada@acme.com,Ada\n", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Guessed["email"] != "" {
+		t.Fatalf("guessed %+v", p.Guessed)
+	}
+	if len(p.Rows) != 0 {
+		t.Fatalf("rows %+v", p.Rows)
+	}
+	if len(p.Headers) != 2 || p.Headers[0] != "Work Email" {
+		t.Fatalf("headers %v", p.Headers)
+	}
+	if len(p.Samples) != 1 || p.Samples[0][0] != "ada@acme.com" {
+		t.Fatalf("samples %v", p.Samples)
+	}
+}
+
+func TestParseCSVMapsWorkEmailWhenTold(t *testing.T) {
+	t.Parallel()
+	p, err := ParseCSV("Work Email,First\nada@acme.com,Ada\n", ColumnMap{
+		"email":      "Work Email",
+		"first_name": "First",
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Rows) != 1 || p.Rows[0].Email != "ada@acme.com" || p.Rows[0].FirstName != "Ada" {
+		t.Fatalf("%+v", p.Rows)
+	}
+}
+
+func TestParseCSVGuessesCustomFieldByLabel(t *testing.T) {
+	t.Parallel()
+	p, err := ParseCSV("email,Seniority\nada@acme.com,Staff\n", nil, []fields.Hint{{Key: "seniority", Label: "Seniority"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Guessed["seniority"] != "Seniority" {
+		t.Fatalf("guessed %+v", p.Guessed)
+	}
+	if p.Rows[0].Custom["seniority"] != "Staff" {
+		t.Fatalf("%+v", p.Rows[0])
 	}
 }

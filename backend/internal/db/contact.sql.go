@@ -57,9 +57,20 @@ type GetCompanyByDomainParams struct {
 	Domain      pgtype.Text
 }
 
-func (q *Queries) GetCompanyByDomain(ctx context.Context, arg GetCompanyByDomainParams) (Company, error) {
+type GetCompanyByDomainRow struct {
+	WorkspaceID            uuid.UUID
+	ID                     uuid.UUID
+	Domain                 pgtype.Text
+	Name                   string
+	LastContactedAt        pgtype.Timestamptz
+	CooldownDays           int32
+	CooldownOverrideReason pgtype.Text
+	CreatedAt              pgtype.Timestamptz
+}
+
+func (q *Queries) GetCompanyByDomain(ctx context.Context, arg GetCompanyByDomainParams) (GetCompanyByDomainRow, error) {
 	row := q.db.QueryRow(ctx, getCompanyByDomain, arg.WorkspaceID, arg.Domain)
-	var i Company
+	var i GetCompanyByDomainRow
 	err := row.Scan(
 		&i.WorkspaceID,
 		&i.ID,
@@ -138,14 +149,25 @@ type InsertCompanyParams struct {
 	Name        string
 }
 
-func (q *Queries) InsertCompany(ctx context.Context, arg InsertCompanyParams) (Company, error) {
+type InsertCompanyRow struct {
+	WorkspaceID            uuid.UUID
+	ID                     uuid.UUID
+	Domain                 pgtype.Text
+	Name                   string
+	LastContactedAt        pgtype.Timestamptz
+	CooldownDays           int32
+	CooldownOverrideReason pgtype.Text
+	CreatedAt              pgtype.Timestamptz
+}
+
+func (q *Queries) InsertCompany(ctx context.Context, arg InsertCompanyParams) (InsertCompanyRow, error) {
 	row := q.db.QueryRow(ctx, insertCompany,
 		arg.WorkspaceID,
 		arg.ID,
 		arg.Domain,
 		arg.Name,
 	)
-	var i Company
+	var i InsertCompanyRow
 	err := row.Scan(
 		&i.WorkspaceID,
 		&i.ID,
@@ -162,10 +184,10 @@ func (q *Queries) InsertCompany(ctx context.Context, arg InsertCompanyParams) (C
 const insertContact = `-- name: InsertContact :one
 insert into contacts (
   workspace_id, id, email, first_name, last_name, title, company_id,
-  linkedin_url, timezone, region, role_class, provenance, readiness
+  linkedin_url, timezone, region, role_class, provenance, readiness, custom
 ) values (
   $1, $2, $3, $4, $5, $6, $7,
-  $8, $9, $10, $11, $12, $13
+  $8, $9, $10, $11, $12, $13, $14
 )
 returning
   workspace_id, id, email, first_name, last_name, title, company_id,
@@ -186,6 +208,7 @@ type InsertContactParams struct {
 	RoleClass   pgtype.Text
 	Provenance  json.RawMessage
 	Readiness   string
+	Custom      json.RawMessage
 }
 
 type InsertContactRow struct {
@@ -220,6 +243,7 @@ func (q *Queries) InsertContact(ctx context.Context, arg InsertContactParams) (I
 		arg.RoleClass,
 		arg.Provenance,
 		arg.Readiness,
+		arg.Custom,
 	)
 	var i InsertContactRow
 	err := row.Scan(

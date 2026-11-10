@@ -142,15 +142,21 @@ from memberships
 where user_id = $1
 `
 
-func (q *Queries) ListMembershipsByUser(ctx context.Context, userID uuid.UUID) ([]Membership, error) {
+type ListMembershipsByUserRow struct {
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
+	Role        string
+}
+
+func (q *Queries) ListMembershipsByUser(ctx context.Context, userID uuid.UUID) ([]ListMembershipsByUserRow, error) {
 	rows, err := q.db.Query(ctx, listMembershipsByUser, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Membership
+	var items []ListMembershipsByUserRow
 	for rows.Next() {
-		var i Membership
+		var i ListMembershipsByUserRow
 		if err := rows.Scan(&i.WorkspaceID, &i.UserID, &i.Role); err != nil {
 			return nil, err
 		}

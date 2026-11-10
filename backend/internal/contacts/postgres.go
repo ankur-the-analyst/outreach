@@ -16,12 +16,14 @@ import (
 )
 
 var (
-	ErrNotFound   = errors.New("not found")
-	ErrForbidden  = errors.New("forbidden")
-	ErrProvenance = errors.New("provenance required")
-	ErrDuplicate  = errors.New("contact already exists")
-	ErrEmail      = errors.New("email required")
-	ErrCSV        = errors.New("csv required")
+	ErrNotFound     = errors.New("not found")
+	ErrForbidden    = errors.New("forbidden")
+	ErrProvenance   = errors.New("provenance required")
+	ErrDuplicate    = errors.New("contact already exists")
+	ErrEmail        = errors.New("email required")
+	ErrCSV          = errors.New("csv required")
+	ErrMapEmail     = errors.New("choose which column is email")
+	ErrUnknownField = errors.New("unknown field")
 )
 
 type Provenance struct {
@@ -57,6 +59,7 @@ type CreateInput struct {
 	Region      string
 	Source      string
 	AddedBy     uuid.UUID
+	Custom      map[string]string
 }
 
 type PatchInput struct {
@@ -69,12 +72,18 @@ type PatchInput struct {
 }
 
 type Postgres struct {
-	pool *db.Pool
-	hmac suppression.Hasher
+	pool    *db.Pool
+	hmac    suppression.Hasher
+	catalog Catalog
 }
 
 func NewPostgres(pool *db.Pool) *Postgres {
 	return &Postgres{pool: pool}
+}
+
+func (p *Postgres) WithCatalog(c Catalog) *Postgres {
+	p.catalog = c
+	return p
 }
 
 func (p *Postgres) Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error) {
@@ -101,6 +110,9 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 	source := strings.TrimSpace(in.Source)
 	if source == "" {
 		return Contact{}, ErrProvenance
+	}
+	if err := p.checkCustom(ctx, workspaceID, in.Custom); err != nil {
+		return Contact{}, err
 	}
 	id, err := uuid.NewV7()
 	if err != nil {
@@ -137,6 +149,7 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 			RoleClass:   text(role),
 			Provenance:  provJSON,
 			Readiness:   ready,
+			Custom:      customJSON(in.Custom),
 		})
 		if err != nil {
 			return err
@@ -271,6 +284,36 @@ func contactFrom(id uuid.UUID, email string, first, last, title pgtype.Text, com
 		RoleClass: role.String, Provenance: prov, Readiness: readiness, CreatedAt: created.Time,
 	}
 	return c
+}
+
+func (p *Postgres) checkCustom(ctx context.Context, workspaceID uuid.UUID, m map[string]string) error {
+	if len(m) == 0 {
+		return nil
+	}
+	if p.catalog == nil {
+		return ErrUnknownField
+	}
+	allowed, err := p.catalog.AllowedCustom(ctx, workspaceID, "contact")
+	if err != nil {
+		return err
+	}
+	for key := range m {
+		if _, ok := allowed[key]; !ok {
+			return ErrUnknownField
+		}
+	}
+	return nil
+}
+
+func customJSON(m map[string]string) json.RawMessage {
+	if len(m) == 0 {
+		return json.RawMessage(`{}`)
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return json.RawMessage(`{}`)
+	}
+	return b
 }
 
 func text(s string) pgtype.Text {

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"outreach/internal/fields"
 )
 
 type ImportResult struct {
@@ -39,24 +40,39 @@ func applyImport(rows []PreviewRow, create func(PreviewRow) error) (created, ski
 	return created, skipped, nil
 }
 
-func (p *Postgres) Import(ctx context.Context, workspaceID, userID uuid.UUID, source, csv string) (ImportResult, error) {
+func (p *Postgres) Import(ctx context.Context, workspaceID, userID uuid.UUID, source, csv string, columns ColumnMap) (ImportResult, error) {
 	source = strings.TrimSpace(source)
 	if source == "" {
 		return ImportResult{}, ErrProvenance
 	}
-	rows, err := PreviewCSV(csv)
+	var extra []fields.Hint
+	if p.catalog != nil {
+		h, err := p.catalog.Hints(ctx, workspaceID, "contact")
+		if err != nil {
+			return ImportResult{}, err
+		}
+		extra = h
+	}
+	parsed, err := ParseCSV(csv, columns, extra)
 	if err != nil {
 		return ImportResult{}, err
 	}
-	created, skipped, err := applyImport(rows, func(row PreviewRow) error {
+	if strings.TrimSpace(parsed.Columns["email"]) == "" {
+		return ImportResult{}, ErrMapEmail
+	}
+	created, skipped, err := applyImport(parsed.Rows, func(row PreviewRow) error {
 		_, err := p.Create(ctx, workspaceID, CreateInput{
-			Email:     row.Email,
-			FirstName: row.FirstName,
-			LastName:  row.LastName,
-			Title:     row.Title,
-			Company:   row.Company,
-			Source:    source,
-			AddedBy:   userID,
+			Email:       row.Email,
+			FirstName:   row.FirstName,
+			LastName:    row.LastName,
+			Title:       row.Title,
+			Company:     row.Company,
+			LinkedInURL: row.LinkedInURL,
+			Timezone:    row.Timezone,
+			Region:      row.Region,
+			Source:      source,
+			AddedBy:     userID,
+			Custom:      row.Custom,
 		})
 		return err
 	})

@@ -75,9 +75,15 @@ type GetMembershipParams struct {
 	UserID      uuid.UUID
 }
 
-func (q *Queries) GetMembership(ctx context.Context, arg GetMembershipParams) (Membership, error) {
+type GetMembershipRow struct {
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
+	Role        string
+}
+
+func (q *Queries) GetMembership(ctx context.Context, arg GetMembershipParams) (GetMembershipRow, error) {
 	row := q.db.QueryRow(ctx, getMembership, arg.WorkspaceID, arg.UserID)
-	var i Membership
+	var i GetMembershipRow
 	err := row.Scan(&i.WorkspaceID, &i.UserID, &i.Role)
 	return i, err
 }
@@ -88,9 +94,16 @@ from workspaces
 where id = $1
 `
 
-func (q *Queries) GetWorkspace(ctx context.Context, id uuid.UUID) (Workspace, error) {
+type GetWorkspaceRow struct {
+	ID          uuid.UUID
+	Name        string
+	SendsPaused bool
+	CreatedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) GetWorkspace(ctx context.Context, id uuid.UUID) (GetWorkspaceRow, error) {
 	row := q.db.QueryRow(ctx, getWorkspace, id)
-	var i Workspace
+	var i GetWorkspaceRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,

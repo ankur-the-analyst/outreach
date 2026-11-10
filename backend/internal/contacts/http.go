@@ -10,12 +10,13 @@ import (
 
 	"github.com/google/uuid"
 	"outreach/internal/auth"
+	"outreach/internal/fields"
 )
 
 type Store interface {
 	Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error)
 	Create(ctx context.Context, workspaceID uuid.UUID, in CreateInput) (Contact, error)
-	Import(ctx context.Context, workspaceID, userID uuid.UUID, source, csv string) (ImportResult, error)
+	Import(ctx context.Context, workspaceID, userID uuid.UUID, source, csv string, columns ColumnMap) (ImportResult, error)
 	List(ctx context.Context, workspaceID uuid.UUID, after *uuid.UUID, limit int) (Page, error)
 	Get(ctx context.Context, workspaceID, id uuid.UUID) (Contact, error)
 	Patch(ctx context.Context, workspaceID, id uuid.UUID, in PatchInput) (Contact, error)
@@ -24,11 +25,17 @@ type Store interface {
 }
 
 type API struct {
-	store Store
+	store   Store
+	catalog Catalog
 }
 
 func New(store Store) *API {
 	return &API{store: store}
+}
+
+func (a *API) WithCatalog(c Catalog) *API {
+	a.catalog = c
+	return a
 }
 
 func (a *API) List(w http.ResponseWriter, r *http.Request) {
@@ -97,12 +104,14 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) Preview(w http.ResponseWriter, r *http.Request) {
-	if _, ok := a.member(w, r); !ok {
+	s, ok := a.member(w, r)
+	if !ok {
 		return
 	}
 	var in struct {
-		CSV  string `json:"csv"`
-		Text string `json:"text"`
+		CSV     string    `json:"csv"`
+		Text    string    `json:"text"`
+		Columns ColumnMap `json:"columns"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
@@ -112,12 +121,21 @@ func (a *API) Preview(w http.ResponseWriter, r *http.Request) {
 	if text == "" {
 		text = in.Text
 	}
-	rows, err := PreviewCSV(text)
+	var extra []fields.Hint
+	if a.catalog != nil {
+		h, err := a.catalog.Hints(r.Context(), s.WorkspaceID, "contact")
+		if err != nil {
+			writeStoreError(w, err)
+			return
+		}
+		extra = h
+	}
+	out, err := ParseCSV(text, in.Columns, extra)
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"rows": rows})
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (a *API) Import(w http.ResponseWriter, r *http.Request) {
@@ -126,9 +144,10 @@ func (a *API) Import(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		CSV        string `json:"csv"`
-		Text       string `json:"text"`
-		Source     string `json:"source"`
+		CSV        string    `json:"csv"`
+		Text       string    `json:"text"`
+		Source     string    `json:"source"`
+		Columns    ColumnMap `json:"columns"`
 		Provenance struct {
 			Source string `json:"source"`
 		} `json:"provenance"`
@@ -145,7 +164,7 @@ func (a *API) Import(w http.ResponseWriter, r *http.Request) {
 	if source == "" {
 		source = in.Source
 	}
-	out, err := a.store.Import(r.Context(), s.WorkspaceID, s.UserID, source, text)
+	out, err := a.store.Import(r.Context(), s.WorkspaceID, s.UserID, source, text, in.Columns)
 	if err != nil {
 		writeStoreError(w, err)
 		return
@@ -264,7 +283,7 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, "forbidden", "owner or member role required")
 	case errors.Is(err, ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "not found")
-	case errors.Is(err, ErrProvenance), errors.Is(err, ErrEmail), errors.Is(err, ErrCSV):
+	case errors.Is(err, ErrProvenance), errors.Is(err, ErrEmail), errors.Is(err, ErrCSV), errors.Is(err, ErrMapEmail), errors.Is(err, ErrUnknownField):
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 	case errors.Is(err, ErrDuplicate):
 		writeError(w, http.StatusConflict, "conflict", err.Error())
