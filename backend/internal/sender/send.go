@@ -24,6 +24,7 @@ type SendInput struct {
 	Subject string
 	Text    string
 	HTML    string
+	Files   []mime.File
 }
 
 func (p *Postgres) WithDialer(d Dialer) *Postgres {
@@ -124,7 +125,7 @@ func (p *Postgres) recordAttempt(ctx context.Context, workspaceID, ledgerID uuid
 func (p *Postgres) buildMIME(ctx context.Context, workspaceID, ledgerID uuid.UUID, from, messageID string, in SendInput) (*mime.Built, error) {
 	msg := mime.Message{
 		From: from, To: in.To, Subject: in.Subject, Text: in.Text, HTML: in.HTML,
-		MessageID: messageID,
+		MessageID: messageID, Files: in.Files,
 	}
 	commercial, inCampaign := p.campaignUnsub(ctx, workspaceID, ledgerID)
 	if inCampaign && commercial {

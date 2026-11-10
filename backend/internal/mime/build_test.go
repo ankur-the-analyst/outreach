@@ -2,6 +2,7 @@ package mime
 
 import (
 	"bytes"
+	"errors"
 	"testing"
 )
 
@@ -47,6 +48,63 @@ func TestBuildRFC8058Headers(t *testing.T) {
 	}
 	if bytes.Contains(built.Bytes, []byte("Precedence:")) {
 		t.Fatal("must not set Precedence")
+	}
+}
+
+func TestBuildAttachmentDisposition(t *testing.T) {
+	t.Parallel()
+	built, err := Build(Message{
+		From: "dev@example.test", To: []string{"sink@outreach.test"},
+		Subject: "cv", Text: "hi", HTML: "<p>hi</p>",
+		Files: []File{{Name: "cv.pdf", ContentType: "application/pdf", Bytes: []byte("%PDF-1.4")}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := built.Bytes
+	if !bytes.Contains(raw, []byte("multipart/mixed")) {
+		t.Fatalf("want mixed:\n%s", raw)
+	}
+	if !bytes.Contains(raw, []byte("multipart/alternative")) {
+		t.Fatalf("want alternative inside mixed:\n%s", raw)
+	}
+	if !bytes.Contains(raw, []byte("Content-Disposition: attachment")) {
+		t.Fatalf("want attachment:\n%s", raw)
+	}
+	if !bytes.Contains(raw, []byte("filename=cv.pdf")) && !bytes.Contains(raw, []byte(`filename="cv.pdf"`)) {
+		t.Fatalf("want filename:\n%s", raw)
+	}
+}
+
+func TestBuildNoFilesStaysAlternative(t *testing.T) {
+	t.Parallel()
+	built, err := Build(Message{
+		From: "dev@example.test", To: []string{"sink@outreach.test"},
+		Text: "hi", HTML: "<p>hi</p>",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(built.Bytes, []byte("multipart/mixed")) {
+		t.Fatalf("unexpected mixed:\n%s", built.Bytes)
+	}
+	if !bytes.Contains(built.Bytes, []byte("multipart/alternative")) {
+		t.Fatalf("want alternative:\n%s", built.Bytes)
+	}
+	if bytes.Contains(built.Bytes, []byte("Content-Disposition: attachment")) {
+		t.Fatal("unexpected attachment")
+	}
+}
+
+func TestBuildTooLarge(t *testing.T) {
+	t.Parallel()
+	_, err := Build(Message{
+		From: "dev@example.test", To: []string{"sink@outreach.test"},
+		Text:  "hi",
+		Files: []File{{Name: "big.bin", Bytes: make([]byte, MaxBytes+1)}},
+	})
+	if !errors.Is(err, ErrTooLarge) {
+		t.Fatalf("err %v", err)
 	}
 }
 
