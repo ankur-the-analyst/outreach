@@ -242,7 +242,7 @@ func main() {
 	mux.Handle("GET /api/v1/tracker", a.Require(http.HandlerFunc(camp.ListTracker)))
 	mux.Handle("PATCH /api/v1/applications/{id}", a.Require(http.HandlerFunc(camp.SetStage)))
 
-	logger.Info("api listening", "addr", cfg.Addr)
+	logger.Info("api listening", "addr", cfg.Addr, "google_oauth", cfg.GoogleOAuthClientID != "")
 	if err := http.ListenAndServe(cfg.Addr, mux); err != nil {
 		logger.Error("server stopped", "err", err)
 		os.Exit(1)

@@ -17,9 +17,9 @@ type Config struct {
 	MailpitAPI              string `split_words:"true" default:"http://127.0.0.1:8025"`
 	PublicBaseURL           string `split_words:"true" default:"http://127.0.0.1:8080"`
 	PublicAppURL            string `split_words:"true" default:"http://localhost:3000"`
-	GoogleOAuthClientID     string `split_words:"true"`
-	GoogleOAuthClientSecret string `split_words:"true"`
-	GoogleOAuthRedirectURI  string `split_words:"true" default:"http://localhost:3000/api/v1/mailboxes/oauth/callback"`
+	GoogleOAuthClientID     string `split_words:"true" envconfig:"GOOGLE_OAUTH_CLIENT_ID"`
+	GoogleOAuthClientSecret string `split_words:"true" envconfig:"GOOGLE_OAUTH_CLIENT_SECRET"`
+	GoogleOAuthRedirectURI  string `split_words:"true" envconfig:"GOOGLE_OAUTH_REDIRECT_URI" default:"http://localhost:3000/api/v1/mailboxes/oauth/callback"`
 }
 
 func Load() (Config, error) {
