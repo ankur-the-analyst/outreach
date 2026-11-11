@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/ai"
 	"outreach/internal/db"
+	"outreach/internal/mime"
 	"outreach/internal/storage"
 )
 
@@ -150,16 +151,35 @@ func (p *Postgres) ListProfiles(ctx context.Context, workspaceID uuid.UUID) ([]P
 	return out, err
 }
 
-func (p *Postgres) UploadResume(ctx context.Context, workspaceID, profileID uuid.UUID, fileName, mime, text string) (Resume, error) {
+func (p *Postgres) UploadResume(ctx context.Context, workspaceID, profileID uuid.UUID, fileName, mimeType string, text string, data []byte) (Resume, error) {
 	text = strings.TrimSpace(text)
+	if len(data) == 0 && text != "" {
+		data = []byte(text)
+		if fileName == "" {
+			fileName = "resume.txt"
+		}
+		if mimeType == "" {
+			mimeType = "text/plain"
+		}
+	}
+	if len(data) == 0 {
+		return Resume{}, ErrFile
+	}
+	if len(data) > mime.MaxBytes {
+		return Resume{}, mime.ErrTooLarge
+	}
 	if text == "" {
-		return Resume{}, fmt.Errorf("jobsjd: resume text required")
+		got, err := Extract(mimeType, fileName, data)
+		if err != nil {
+			return Resume{}, err
+		}
+		text = got
 	}
 	if fileName == "" {
-		fileName = "resume.txt"
+		fileName = "resume.bin"
 	}
-	if mime == "" {
-		mime = "text/plain"
+	if mimeType == "" {
+		mimeType = sniff(fileName, data)
 	}
 	id, err := uuid.NewV7()
 	if err != nil {
@@ -169,7 +189,7 @@ func (p *Postgres) UploadResume(ctx context.Context, workspaceID, profileID uuid
 	if p.blobs == nil {
 		return Resume{}, fmt.Errorf("jobsjd: storage required")
 	}
-	if err := p.blobs.Put(ctx, key, mime, []byte(text)); err != nil {
+	if err := p.blobs.Put(ctx, key, mimeType, data); err != nil {
 		return Resume{}, err
 	}
 	var out Resume
@@ -186,7 +206,7 @@ func (p *Postgres) UploadResume(ctx context.Context, workspaceID, profileID uuid
 		}
 		row, err := q.InsertResume(ctx, db.InsertResumeParams{
 			WorkspaceID: workspaceID, ID: id, ProfileID: profileID, Version: ver,
-			FileKey: key, FileName: fileName, Mime: mime, TextContent: text,
+			FileKey: key, FileName: fileName, Mime: mimeType, TextContent: text,
 		})
 		if err != nil {
 			return err

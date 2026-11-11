@@ -35,7 +35,7 @@ export function ProfileBook({ profiles }: { profiles: Profile[] }) {
         {profiles.length === 0 ? (
           <EmptyState
             title="No profiles yet"
-            description="A profile is who you are writing as, plus resume text for job fit."
+            description="A profile is who you are writing as. Upload a PDF for the file on the mail."
             action={
               <Button
                 type="button"
@@ -146,6 +146,7 @@ function CreateProfile({ onDone }: { onDone?: () => void }) {
 function ResumePaste({ profileID }: { profileID: string }) {
   const router = useRouter();
   const [text, setText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
 
@@ -153,16 +154,30 @@ function ResumePaste({ profileID }: { profileID: string }) {
     e.preventDefault();
     setError("");
     setPending(true);
-    const res = await fetch(`/api/v1/profiles/${profileID}/resumes`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        file_name: "resume.txt",
-        mime: "text/plain",
-        text,
-      }),
-    });
+    let res: Response;
+    if (file) {
+      const body = new FormData();
+      body.append("file", file);
+      if (text.trim()) {
+        body.append("text", text);
+      }
+      res = await fetch(`/api/v1/profiles/${profileID}/resumes`, {
+        method: "POST",
+        credentials: "include",
+        body,
+      });
+    } else {
+      res = await fetch(`/api/v1/profiles/${profileID}/resumes`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          file_name: "resume.txt",
+          mime: "text/plain",
+          text,
+        }),
+      });
+    }
     setPending(false);
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as
@@ -172,6 +187,7 @@ function ResumePaste({ profileID }: { profileID: string }) {
       return;
     }
     setText("");
+    setFile(null);
     router.refresh();
   }
 
@@ -180,17 +196,29 @@ function ResumePaste({ profileID }: { profileID: string }) {
       onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
       className="mt-4 flex flex-col gap-2"
     >
-      <Label htmlFor={`resume-${profileID}`}>Paste resume text</Label>
+      <Label htmlFor={`resume-file-${profileID}`}>Resume file</Label>
+      <Input
+        id={`resume-file-${profileID}`}
+        type="file"
+        accept=".pdf,.docx,.txt,application/pdf"
+        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+      />
+      <Label htmlFor={`resume-${profileID}`}>Or paste resume text</Label>
       <textarea
         id={`resume-${profileID}`}
-        required
         rows={4}
         value={text}
         onChange={(e) => setText(e.target.value)}
         className={fieldTextarea}
       />
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}
-      <Button type="submit" variant="outline" className="w-fit rounded-md" pending={pending}>
+      <Button
+        type="submit"
+        variant="outline"
+        className="w-fit rounded-md"
+        pending={pending}
+        disabled={!file && !text.trim()}
+      >
         Save resume
       </Button>
     </form>

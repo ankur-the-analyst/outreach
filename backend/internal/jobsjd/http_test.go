@@ -25,7 +25,7 @@ func (f *fakeStore) CreateProfile(context.Context, uuid.UUID, string, string) (P
 func (f *fakeStore) ListProfiles(context.Context, uuid.UUID) ([]Profile, error) {
 	return []Profile{f.p}, nil
 }
-func (f *fakeStore) UploadResume(context.Context, uuid.UUID, uuid.UUID, string, string, string) (Resume, error) {
+func (f *fakeStore) UploadResume(context.Context, uuid.UUID, uuid.UUID, string, string, string, []byte) (Resume, error) {
 	return Resume{}, nil
 }
 func (f *fakeStore) CreateJob(context.Context, uuid.UUID, string, string, string) (Job, error) {

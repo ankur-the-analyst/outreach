@@ -53,7 +53,7 @@ func TestProfileResumeJobFit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := store.UploadResume(ctx, wsID, prof.ID, "cv.txt", "text/plain", "Closed 12 deals last year.")
+	res, err := store.UploadResume(ctx, wsID, prof.ID, "cv.txt", "text/plain", "Closed 12 deals last year.", nil)
 	if err != nil || res.Version != 1 {
 		t.Fatalf("%+v %v", res, err)
 	}
