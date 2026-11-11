@@ -37,7 +37,39 @@ import {
   fieldSelect,
   fieldTextarea,
   intentLabel,
+  mailboxIdle,
+  mailboxSendLabel,
 } from "@/lib/labels";
+
+function campaignBoxes(
+  campaign: Campaign,
+  mailboxes: Mailbox[],
+  pools: MailboxPool[],
+): Mailbox[] {
+  const ids = new Set(campaign.senders.map((s) => s.mailbox_id));
+  if (campaign.pool_id) {
+    const group = pools.find((p) => p.id === campaign.pool_id);
+    for (const m of group?.mailboxes ?? []) {
+      ids.add(m.id);
+    }
+  }
+  return mailboxes.filter((m) => ids.has(m.id));
+}
+
+function campaignIdleLabel(boxes: Mailbox[]): string {
+  if (boxes.length === 0 || boxes.some((m) => !mailboxIdle(m))) {
+    return "";
+  }
+  const next = boxes
+    .map((m) => m.next_open)
+    .filter(Boolean)
+    .sort()[0];
+  return mailboxSendLabel({
+    sending_now: false,
+    next_open: next,
+    open_today: false,
+  });
+}
 
 function operatorError(message: string): string {
   switch (message) {
@@ -306,9 +338,11 @@ function CampaignCard({
   const [pending, setPending] = useState(false);
   const [stopOpen, setStopOpen] = useState(false);
   const emails = campaign.steps.filter((s) => s.kind === "email").length;
-  const box = mailboxes.find((m) => m.id === campaign.senders[0]?.mailbox_id);
+  const boxes = campaignBoxes(campaign, mailboxes, pools);
+  const box = boxes[0] ?? mailboxes.find((m) => m.id === campaign.senders[0]?.mailbox_id);
   const group = pools.find((p) => p.id === campaign.pool_id);
   const profile = profiles.find((p) => p.id === campaign.profile_id);
+  const idle = campaign.status === "running" ? campaignIdleLabel(boxes) : "";
 
   async function post(path: string) {
     setMsg("");
@@ -348,6 +382,7 @@ function CampaignCard({
               ? " · add a mailbox to start"
               : ""}
             {profile ? ` · ${profile.name}` : ""}
+            {idle ? ` · ${idle}` : ""}
           </p>
         </div>
       </div>
@@ -409,7 +444,9 @@ function CampaignCard({
                     ) : null}
                   </div>
                   <p className="font-body-sm text-muted-foreground">
-                    {campaignPersonStatus[p.status] ?? p.status}
+                    {p.status === "pending" && idle
+                      ? idle
+                      : (campaignPersonStatus[p.status] ?? p.status)}
                   </p>
                 </li>
               );

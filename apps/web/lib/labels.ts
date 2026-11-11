@@ -69,6 +69,61 @@ export function mailboxUsageLabel(used: number, cap: number): string {
   return `${used} of ${cap} · last 24h`;
 }
 
+export function formatNextSend(iso?: string): string {
+  if (!iso) {
+    return "later";
+  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return "later";
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(d);
+}
+
+export function mailboxIdle(mailbox?: Pick<
+  Mailbox,
+  "sending_now" | "open_today"
+>): boolean {
+  if (!mailbox) {
+    return false;
+  }
+  if (mailbox.sending_now === false) {
+    return true;
+  }
+  if (mailbox.sending_now === undefined && mailbox.open_today === false) {
+    return true;
+  }
+  return false;
+}
+
+export function mailboxSendLabel(
+  mailbox?: Pick<Mailbox, "sending_now" | "open_today" | "next_open">,
+): string {
+  if (!mailboxIdle(mailbox)) {
+    return "";
+  }
+  if (mailbox?.next_open) {
+    return `Not sending until ${formatNextSend(mailbox.next_open)}`;
+  }
+  return "Not sending today";
+}
+
+export function mailboxSendsAtLabel(
+  mailbox?: Pick<Mailbox, "sending_now" | "open_today" | "next_open">,
+): string {
+  if (!mailboxIdle(mailbox)) {
+    return "";
+  }
+  if (mailbox?.next_open) {
+    return `Sends ${formatNextSend(mailbox.next_open)}`;
+  }
+  return "Sends later";
+}
+
 export function mailboxStatus(status: string): string {
   switch (status) {
     case "warming":
@@ -133,10 +188,10 @@ export type ReviewFilter = "pending" | "tomorrow" | "undo" | "checking" | "sent"
 
 export function reviewBucket(
   draft: Draft,
-  mailbox?: Pick<Mailbox, "open_today">,
+  mailbox?: Pick<Mailbox, "open_today" | "sending_now">,
 ): ReviewFilter | "other" {
   if (draft.status === "pending") {
-    if (mailbox && mailbox.open_today === false) {
+    if (mailboxIdle(mailbox)) {
       return "tomorrow";
     }
     return "pending";
@@ -157,11 +212,12 @@ export function reviewBucket(
 
 export function sendStatus(
   draft: Draft,
-  mailbox?: Pick<Mailbox, "open_today">,
+  mailbox?: Pick<Mailbox, "open_today" | "sending_now" | "next_open">,
 ): string {
   if (draft.status === "pending") {
-    if (mailbox && mailbox.open_today === false) {
-      return "Sends next window";
+    const when = mailboxSendsAtLabel(mailbox);
+    if (when) {
+      return when;
     }
     return "Needs approval";
   }

@@ -99,6 +99,8 @@ export type Mailbox = {
   domain?: string;
   domain_daily_limit?: number;
   open_today?: boolean;
+  sending_now?: boolean;
+  next_open?: string;
 };
 
 export function getMailboxes() {

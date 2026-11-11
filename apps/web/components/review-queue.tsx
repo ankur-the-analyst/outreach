@@ -18,6 +18,7 @@ import { EmptyState, PageBody, PageHeader, Pill } from "@/components/page-header
 import type { Draft, Mailbox, Profile } from "@/lib/api";
 import {
   fieldTextarea,
+  mailboxIdle,
   reviewBucket,
   sendStatus,
   type ReviewFilter,
@@ -123,7 +124,9 @@ export function ReviewQueue({
           rows.length === 0
             ? mailboxes.length === 0
               ? "Connect a mailbox, then compose or run a campaign."
-              : "Approve, undo, and one-off sends show up here."
+              : mailboxes.every((m) => mailboxIdle(m))
+                ? "People stay queued until the mailbox is sending. Then drafts show up here."
+                : "Approve, undo, and one-off sends show up here."
             : "Try another filter, or compose a one-off."
         }
         action={
@@ -180,7 +183,7 @@ export function ReviewQueue({
         {(
           [
             ["pending", "Needs approval"],
-            ["tomorrow", "Sends next window"],
+            ["tomorrow", "Waiting to send"],
             ["undo", "You can still undo"],
             ["checking", "Checking if it sent"],
             ["sent", "Sent"],

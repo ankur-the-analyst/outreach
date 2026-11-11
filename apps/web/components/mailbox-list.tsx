@@ -8,6 +8,7 @@ import type { Mailbox, SendingDomain } from "@/lib/api";
 import {
   authKindLabel,
   fieldSelect,
+  mailboxSendLabel,
   mailboxStatus,
   mailboxUsageLabel,
   replyModeLabel,
@@ -169,6 +170,11 @@ function MailboxRow({
             {mailboxStatus(mailbox.status)}
           </Pill>
         </div>
+        {mailboxSendLabel(mailbox) ? (
+          <p className="mt-1 font-body-sm text-muted-foreground">
+            {mailboxSendLabel(mailbox)}
+          </p>
+        ) : null}
         <p className="mt-1 font-body-sm tabular-nums text-muted-foreground">
           {authKindLabel(mailbox.auth_kind)}
           {mailbox.domain ? ` · ${mailbox.domain}` : ""}

@@ -40,6 +40,8 @@ type Mailbox struct {
 	Domain              string    `json:"domain,omitempty"`
 	DomainDailyLimit    int32     `json:"domain_daily_limit,omitempty"`
 	OpenToday           bool      `json:"open_today"`
+	SendingNow          bool      `json:"sending_now"`
+	NextOpen            time.Time `json:"next_open"`
 }
 
 type SendingDomain struct {
@@ -473,7 +475,7 @@ func mailboxFromInsert(row db.InsertMailboxRow) Mailbox {
 
 func mailboxFromList(row db.ListMailboxesRow) Mailbox {
 	w := pacing.WindowFrom(row.WindowDays, row.WindowStart, row.WindowEnd, pacing.LoadZone(row.Timezone))
-	return Mailbox{
+	m := Mailbox{
 		ID: row.ID, Email: row.Email, DisplayName: row.DisplayName.String,
 		AuthKind: row.AuthKind, Provider: row.Provider, Status: row.Status,
 		Timezone: row.Timezone, SMTPHost: row.SmtpHost.String, SMTPPort: row.SmtpPort.Int32,
@@ -481,8 +483,15 @@ func mailboxFromList(row db.ListMailboxesRow) Mailbox {
 		WarmupProfileID: row.WarmupProfileID, EffectiveDailyLimit: row.EffectiveDailyLimit,
 		ReplyMode: row.ReplyMode, WarmupKind: row.WarmupKind,
 		Domain: row.Domain, DomainDailyLimit: row.DomainDailyLimit,
-		OpenToday: pacing.OpenToday(time.Now(), w),
 	}
+	applyWindow(time.Now(), w, &m)
+	return m
+}
+
+func applyWindow(now time.Time, w pacing.Window, m *Mailbox) {
+	m.OpenToday = pacing.OpenToday(now, w)
+	m.SendingNow = pacing.InWindow(now, w)
+	m.NextOpen = pacing.NextOpen(now, w)
 }
 
 func (p *Postgres) SMTPEndpoint(ctx context.Context, workspaceID, id uuid.UUID) (string, int, error) {
