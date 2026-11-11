@@ -17,6 +17,15 @@ var (
 	ErrEmbedModel   = errors.New("embed model required")
 )
 
+type SettingsView struct {
+	Settings
+	Providers []ProviderSpec `json:"providers"`
+}
+
+func View(s Settings) SettingsView {
+	return SettingsView{Settings: s, Providers: Registry()}
+}
+
 type Settings struct {
 	Kind         Kind   `json:"kind,omitempty"`
 	HasKey       bool   `json:"has_key"`
@@ -45,15 +54,6 @@ type storedProvider struct {
 type storedFallback struct {
 	Kind  Kind   `json:"kind"`
 	Model string `json:"model"`
-}
-
-func kindOK(k Kind) bool {
-	switch k {
-	case KindOpenAI, KindGoogle, KindAnthropic, KindCompat:
-		return true
-	default:
-		return false
-	}
 }
 
 func keyHint(key string) string {
@@ -107,20 +107,21 @@ func settingsFromJSON(providers, models json.RawMessage) Settings {
 }
 
 func validatePut(in PutInput, existing Settings) error {
-	if !kindOK(in.Kind) {
+	spec, ok := Lookup(in.Kind)
+	if !ok {
 		return ErrUnknownKind
 	}
-	if strings.TrimSpace(in.ComposeModel) == "" {
-		return ErrComposeModel
+	if spec.NeedsBaseURL && strings.TrimSpace(in.BaseURL) == "" {
+		return ErrBaseURL
 	}
-	if strings.TrimSpace(in.EmbedModel) == "" {
-		return ErrEmbedModel
-	}
-	if in.Kind == KindAnthropic {
+	if !spec.Embed {
 		return ErrAnthropicEmbed
 	}
-	if in.Kind == KindCompat && strings.TrimSpace(in.BaseURL) == "" {
-		return ErrBaseURL
+	if err := checkModel(spec, RoleCompose, in.ComposeModel); err != nil {
+		return err
+	}
+	if err := checkModel(spec, RoleEmbed, in.EmbedModel); err != nil {
+		return err
 	}
 	if strings.TrimSpace(in.APIKey) == "" && !existing.HasKey {
 		return ErrKeyRequired

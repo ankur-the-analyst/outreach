@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"outreach/internal/ai"
 	"outreach/internal/auth"
 )
 
@@ -225,6 +226,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusForbidden, "forbidden", "owner or member role required")
 	case errors.Is(err, ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "not found")
+	case errors.Is(err, ai.ErrNoBinding), errors.Is(err, ai.ErrNoKey), errors.Is(err, ai.ErrNotFound):
+		writeError(w, http.StatusBadRequest, "ai_not_configured", "Set a model and API key in Settings")
 	default:
 		if strings.Contains(err.Error(), "required") {
 			writeError(w, http.StatusBadRequest, "invalid_input", err.Error())

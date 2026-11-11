@@ -140,11 +140,11 @@ func main() {
 		Text: "You closed 12 deals last year. Open to a short chat?",
 		JSON: json.RawMessage(`{"score":82,"summary":"deals overlap"}`),
 	}
-	cvStore.WithJSON(writer)
 	evStore := evidence.NewPostgres(pool, writer)
 	ev := evidence.New(evStore)
 	aiStore := ai.NewPostgres(pool, keys)
 	aiHTTP := ai.NewAPI(aiStore)
+	cvStore.WithBinder(aiStore)
 	cmp := compose.New(compose.NewPostgres(pool, led).WithBinder(aiStore).WithCite(evStore).WithRetrieve(evStore))
 	proc := inbound.New(pool, suppStore, classifyJobs{client: jobs})
 	sy := mailsync.New(mailsync.NewPostgres(pool, mailsync.Mailpit{Base: cfg.MailpitAPI}).WithInbound(proc).WithOpener(dialer))

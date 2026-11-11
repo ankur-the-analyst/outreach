@@ -61,6 +61,13 @@ func TestGetSettingsHTTPEmpty(t *testing.T) {
 	if strings.Contains(rec.Body.String(), "api_key") {
 		t.Fatalf("leaked key field: %s", rec.Body.String())
 	}
+	var view SettingsView
+	if err := json.Unmarshal(rec.Body.Bytes(), &view); err != nil {
+		t.Fatal(err)
+	}
+	if len(view.Providers) == 0 || view.Providers[0].Kind != KindOpenAI {
+		t.Fatalf("%+v", view.Providers)
+	}
 }
 
 func TestPutSettingsHTTP(t *testing.T) {
@@ -77,12 +84,15 @@ func TestPutSettingsHTTP(t *testing.T) {
 	if store.in.APIKey != "sk-live-secret" {
 		t.Fatalf("put %+v", store.in)
 	}
-	var out Settings
+	var out SettingsView
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
 	if !out.HasKey || out.Hint != "…cret" || out.Kind != KindOpenAI {
 		t.Fatalf("%+v", out)
+	}
+	if len(out.Providers) == 0 {
+		t.Fatal("missing providers")
 	}
 	if strings.Contains(rec.Body.String(), "sk-live-secret") {
 		t.Fatalf("leaked key: %s", rec.Body.String())

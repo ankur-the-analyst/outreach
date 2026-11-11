@@ -89,8 +89,8 @@ func main() {
 		Text: "You closed 12 deals last year. Open to a short chat?",
 		JSON: json.RawMessage(`{"score":82,"summary":"deals overlap"}`),
 	}
-	cvStore.WithJSON(writer)
 	aiStore := ai.NewPostgres(pool, keys)
+	cvStore.WithBinder(aiStore)
 	camp := campaign.NewPostgres(pool, packs).
 		WithRetrieve(evidence.NewPostgres(pool, writer)).
 		WithBinder(aiStore).

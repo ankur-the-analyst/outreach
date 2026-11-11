@@ -18,6 +18,16 @@ func TestValidatePutRejectsAnthropic(t *testing.T) {
 	}
 }
 
+func TestValidatePutRejectsUnknownModel(t *testing.T) {
+	t.Parallel()
+	err := validatePut(PutInput{
+		Kind: KindOpenAI, APIKey: "sk", ComposeModel: "mystery", EmbedModel: "text-embedding-3-small",
+	}, Settings{})
+	if !errors.Is(err, ErrUnknownModel) {
+		t.Fatalf("%v", err)
+	}
+}
+
 func TestValidatePutRequiresKeyUntilSaved(t *testing.T) {
 	t.Parallel()
 	in := PutInput{Kind: KindOpenAI, ComposeModel: "gpt-4o-mini", EmbedModel: "text-embedding-3-small"}

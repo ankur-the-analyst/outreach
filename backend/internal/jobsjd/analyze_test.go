@@ -10,12 +10,23 @@ import (
 	"outreach/internal/ai"
 )
 
-func TestJSONWriterFallsBackWithoutBinding(t *testing.T) {
+func TestJSONWriterRequiresBinding(t *testing.T) {
 	t.Parallel()
 	fb := &ai.Fake{JSON: json.RawMessage(`{"summary":"ok"}`)}
 	p := NewPostgres(nil, nil, fb).WithBinder(stubBind{err: ai.ErrNoBinding})
+	_, err := p.jsonWriter(context.Background(), uuid.Nil)
+	if !errors.Is(err, ai.ErrNoBinding) {
+		t.Fatalf("%v", err)
+	}
+}
+
+func TestJSONWriterUsesBinder(t *testing.T) {
+	t.Parallel()
+	got := &ai.Fake{JSON: json.RawMessage(`{"summary":"bound"}`)}
+	p := NewPostgres(nil, nil, &ai.Fake{JSON: json.RawMessage(`{"summary":"ok"}`)}).
+		WithBinder(stubBind{p: got})
 	w, err := p.jsonWriter(context.Background(), uuid.Nil)
-	if err != nil || w != fb {
+	if err != nil || w != got {
 		t.Fatalf("%T %v", w, err)
 	}
 }

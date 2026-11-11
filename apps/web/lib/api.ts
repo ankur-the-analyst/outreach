@@ -59,6 +59,16 @@ export function getMembers() {
   return apiGet<{ members: Member[] }>("/api/v1/workspace/members");
 }
 
+export type AIProvider = {
+  kind: string;
+  label: string;
+  needs_base_url: boolean;
+  embed: boolean;
+  custom_models?: boolean;
+  compose_models: string[];
+  embed_models: string[];
+};
+
 export type ModelSettings = {
   kind?: string;
   has_key: boolean;
@@ -66,6 +76,7 @@ export type ModelSettings = {
   base_url?: string;
   compose_model?: string;
   embed_model?: string;
+  providers?: AIProvider[];
 };
 
 export function getModelSettings() {

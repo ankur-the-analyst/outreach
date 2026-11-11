@@ -34,7 +34,7 @@ func (a *API) Get(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, out)
+	writeJSON(w, http.StatusOK, View(out))
 }
 
 func (a *API) Put(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +64,7 @@ func (a *API) Put(w http.ResponseWriter, r *http.Request) {
 		writeStoreError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, out)
+	writeJSON(w, http.StatusOK, View(out))
 }
 
 func (a *API) member(w http.ResponseWriter, r *http.Request) (auth.Session, bool) {
@@ -113,6 +113,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, "invalid_input", "Base URL is required for an OpenAI-compatible provider")
 	case errors.Is(err, ErrComposeModel), errors.Is(err, ErrEmbedModel):
 		writeError(w, http.StatusBadRequest, "invalid_input", "Compose and embed models are required")
+	case errors.Is(err, ErrUnknownModel):
+		writeError(w, http.StatusBadRequest, "invalid_input", "Pick a model from the list")
 	default:
 		writeError(w, http.StatusInternalServerError, "internal", "internal error")
 	}

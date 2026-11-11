@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"outreach/internal/ai"
 	"outreach/internal/db"
 	"outreach/internal/evidence"
 	"outreach/internal/mime"
@@ -38,10 +39,15 @@ type Render struct {
 	Size      int32     `json:"size"`
 }
 
+type Binder interface {
+	Provider(ctx context.Context, workspaceID uuid.UUID, role ai.Role) (ai.Provider, error)
+}
+
 type Postgres struct {
 	pool  *db.Pool
 	blobs storage.Store
 	json  JSONCompleter
+	bind  Binder
 }
 
 func NewPostgres(pool *db.Pool, blobs storage.Store) *Postgres {
@@ -51,6 +57,25 @@ func NewPostgres(pool *db.Pool, blobs storage.Store) *Postgres {
 func (p *Postgres) WithJSON(c JSONCompleter) *Postgres {
 	p.json = c
 	return p
+}
+
+func (p *Postgres) WithBinder(b Binder) *Postgres {
+	p.bind = b
+	return p
+}
+
+func (p *Postgres) jsonFor(ctx context.Context, workspaceID uuid.UUID) (JSONCompleter, error) {
+	if p.bind == nil {
+		return p.json, nil
+	}
+	got, err := p.bind.Provider(ctx, workspaceID, ai.RoleAnalyze)
+	if errors.Is(err, ai.ErrNoBinding) || errors.Is(err, ai.ErrNoKey) || errors.Is(err, ai.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return got, nil
 }
 
 func (p *Postgres) Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error) {
@@ -172,7 +197,11 @@ func (p *Postgres) Stamp(ctx context.Context, q *db.Queries, workspaceID, profil
 }
 
 func (p *Postgres) Attach(ctx context.Context, q *db.Queries, workspaceID, profileID, mailboxID uuid.UUID, jobID *uuid.UUID, cited []evidence.Item, jd string) (Render, error) {
-	if jobID == nil || *jobID == uuid.Nil || p.json == nil {
+	w, err := p.jsonFor(ctx, workspaceID)
+	if err != nil {
+		return Render{}, err
+	}
+	if jobID == nil || *jobID == uuid.Nil || w == nil {
 		return p.Stamp(ctx, q, workspaceID, profileID, mailboxID)
 	}
 	cvRow, err := q.LatestCvByProfile(ctx, db.LatestCvByProfileParams{WorkspaceID: workspaceID, ProfileID: profileID})
@@ -186,7 +215,7 @@ func (p *Postgres) Attach(ctx context.Context, q *db.Queries, workspaceID, profi
 	if err := json.Unmarshal(cvRow.Spec, &base); err != nil {
 		return Render{}, err
 	}
-	spec, _, err := Propose(ctx, p.json, base, jd, cited)
+	spec, _, err := Propose(ctx, w, base, jd, cited)
 	if err != nil {
 		return Render{}, err
 	}

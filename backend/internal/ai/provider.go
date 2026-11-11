@@ -14,6 +14,7 @@ var (
 	ErrNoKey          = errors.New("ai: api key required")
 	ErrUnknownKind    = errors.New("ai: unknown provider kind")
 	ErrAnthropicEmbed = errors.New("ai: embed cannot use anthropic")
+	ErrUnknownModel   = errors.New("ai: unknown model")
 )
 
 type Role string

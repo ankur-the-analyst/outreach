@@ -1,27 +1,63 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Panel } from "@/components/page-header";
-import type { ModelSettings } from "@/lib/api";
+import type { AIProvider, ModelSettings } from "@/lib/api";
 import { fieldSelect } from "@/lib/labels";
+
+function pick(settings?: ModelSettings | null): AIProvider | undefined {
+  const list = settings?.providers ?? [];
+  return (
+    list.find((p) => p.kind === settings?.kind) ??
+    list[0]
+  );
+}
+
+function withCurrent(list: string[] | undefined, current: string): string[] {
+  const out = [...(list ?? [])];
+  if (current && !out.includes(current)) {
+    out.unshift(current);
+  }
+  return out;
+}
 
 export function AISettingsForm({
   settings,
 }: {
   settings?: ModelSettings | null;
 }) {
-  const [kind, setKind] = useState(settings?.kind ?? "openai");
+  const providers = settings?.providers ?? [];
+  const initial = pick(settings);
+  const [kind, setKind] = useState(settings?.kind ?? initial?.kind ?? "openai");
   const [apiKey, setAPIKey] = useState("");
   const [baseURL, setBaseURL] = useState(settings?.base_url ?? "");
   const [composeModel, setComposeModel] = useState(
-    settings?.compose_model ?? "",
+    settings?.compose_model || initial?.compose_models[0] || "",
   );
-  const [embedModel, setEmbedModel] = useState(settings?.embed_model ?? "");
+  const [embedModel, setEmbedModel] = useState(
+    settings?.embed_model || initial?.embed_models[0] || "",
+  );
   const [msg, setMsg] = useState("");
   const [pending, setPending] = useState(false);
+
+  const spec = useMemo(
+    () => providers.find((p) => p.kind === kind) ?? initial,
+    [providers, kind, initial],
+  );
+  const composeOptions = withCurrent(spec?.compose_models, composeModel);
+  const embedOptions = withCurrent(spec?.embed_models, embedModel);
+
+  function onKind(next: string) {
+    setKind(next);
+    const p = providers.find((x) => x.kind === next);
+    if (!p?.custom_models) {
+      setComposeModel(p?.compose_models[0] ?? "");
+      setEmbedModel(p?.embed_models[0] ?? "");
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -65,13 +101,14 @@ export function AISettingsForm({
         <select
           id="ai-kind"
           value={kind}
-          onChange={(e) => setKind(e.target.value)}
+          onChange={(e) => onKind(e.target.value)}
           className={fieldSelect}
         >
-          <option value="openai">OpenAI</option>
-          <option value="google">Google</option>
-          <option value="anthropic">Anthropic</option>
-          <option value="openai_compat">OpenAI-compatible</option>
+          {providers.map((p) => (
+            <option key={p.kind} value={p.kind}>
+              {p.label}
+            </option>
+          ))}
         </select>
       </div>
       <div className="flex flex-col gap-1.5">
@@ -90,7 +127,7 @@ export function AISettingsForm({
           }
         />
       </div>
-      {kind === "openai_compat" ? (
+      {spec?.needs_base_url ? (
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="ai-base">Base URL</Label>
           <Input
@@ -103,28 +140,72 @@ export function AISettingsForm({
       ) : null}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="ai-compose">Compose model</Label>
-        <Input
-          id="ai-compose"
-          required
-          value={composeModel}
-          onChange={(e) => setComposeModel(e.target.value)}
-        />
+        {spec?.custom_models ? (
+          <Input
+            id="ai-compose"
+            required
+            value={composeModel}
+            onChange={(e) => setComposeModel(e.target.value)}
+          />
+        ) : (
+          <select
+            id="ai-compose"
+            required
+            value={composeModel}
+            onChange={(e) => setComposeModel(e.target.value)}
+            className={fieldSelect}
+          >
+            {composeOptions.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="ai-embed">Embed model</Label>
-        <Input
-          id="ai-embed"
-          required
-          value={embedModel}
-          onChange={(e) => setEmbedModel(e.target.value)}
-        />
-      </div>
+      {spec?.embed ? (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="ai-embed">Embed model</Label>
+          {spec.custom_models ? (
+            <Input
+              id="ai-embed"
+              required
+              value={embedModel}
+              onChange={(e) => setEmbedModel(e.target.value)}
+            />
+          ) : (
+            <select
+              id="ai-embed"
+              required
+              value={embedModel}
+              onChange={(e) => setEmbedModel(e.target.value)}
+              className={fieldSelect}
+            >
+              {embedOptions.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      ) : (
+        <p className="font-body-sm text-muted-foreground">
+          This provider cannot embed. Pick OpenAI or Google, or an
+          OpenAI-compatible endpoint.
+        </p>
+      )}
       {msg ? (
         <p role="status" className="font-body-md text-muted-foreground">
           {msg}
         </p>
       ) : null}
-      <Button type="submit" className="rounded-md" pending={pending}>
+      <Button
+        type="submit"
+        className="rounded-md"
+        pending={pending}
+        disabled={!spec?.embed}
+      >
         Save
       </Button>
     </form>

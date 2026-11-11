@@ -88,9 +88,6 @@ func (p *Postgres) jsonWriter(ctx context.Context, workspaceID uuid.UUID) (Compl
 		return p.fit, nil
 	}
 	got, err := p.bind.Provider(ctx, workspaceID, ai.RoleAnalyze)
-	if errors.Is(err, ai.ErrNoBinding) || errors.Is(err, ai.ErrNoKey) || errors.Is(err, ai.ErrNotFound) {
-		return p.fit, nil
-	}
 	if err != nil {
 		return nil, err
 	}
