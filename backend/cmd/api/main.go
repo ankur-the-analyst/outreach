@@ -140,6 +140,7 @@ func main() {
 		Text: "You closed 12 deals last year. Open to a short chat?",
 		JSON: json.RawMessage(`{"score":82,"summary":"deals overlap"}`),
 	}
+	cvStore.WithJSON(writer)
 	evStore := evidence.NewPostgres(pool, writer)
 	ev := evidence.New(evStore)
 	aiStore := ai.NewPostgres(pool, keys)

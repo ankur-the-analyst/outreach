@@ -258,7 +258,7 @@ func writeStoreError(w http.ResponseWriter, err error) {
 	default:
 		if err != nil {
 			switch err.Error() {
-			case "add a CV to this profile", "this file's From does not match the mailbox":
+			case "add a CV to this profile", "this file's From does not match the mailbox", "this CV adds a role that is not on the profile":
 				writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 				return
 			}

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"outreach/internal/db"
+	"outreach/internal/evidence"
 	"outreach/internal/mime"
 	"outreach/internal/storage"
 )
@@ -40,10 +41,16 @@ type Render struct {
 type Postgres struct {
 	pool  *db.Pool
 	blobs storage.Store
+	json  JSONCompleter
 }
 
 func NewPostgres(pool *db.Pool, blobs storage.Store) *Postgres {
 	return &Postgres{pool: pool, blobs: blobs}
+}
+
+func (p *Postgres) WithJSON(c JSONCompleter) *Postgres {
+	p.json = c
+	return p
 }
 
 func (p *Postgres) Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error) {
@@ -164,6 +171,83 @@ func (p *Postgres) Stamp(ctx context.Context, q *db.Queries, workspaceID, profil
 	return renderFrom(row.ID, row.FileKey, row.FileName, row.FromEmail, row.Size), nil
 }
 
+func (p *Postgres) Attach(ctx context.Context, q *db.Queries, workspaceID, profileID, mailboxID uuid.UUID, jobID *uuid.UUID, cited []evidence.Item, jd string) (Render, error) {
+	if jobID == nil || *jobID == uuid.Nil || p.json == nil {
+		return p.Stamp(ctx, q, workspaceID, profileID, mailboxID)
+	}
+	cvRow, err := q.LatestCvByProfile(ctx, db.LatestCvByProfileParams{WorkspaceID: workspaceID, ProfileID: profileID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Render{}, ErrNoCV
+	}
+	if err != nil {
+		return Render{}, err
+	}
+	var base Spec
+	if err := json.Unmarshal(cvRow.Spec, &base); err != nil {
+		return Render{}, err
+	}
+	spec, _, err := Propose(ctx, p.json, base, jd, cited)
+	if err != nil {
+		return Render{}, err
+	}
+	return p.stampSpec(ctx, q, workspaceID, cvRow.ID, mailboxID, jobID, spec)
+}
+
+func (p *Postgres) stampSpec(ctx context.Context, q *db.Queries, workspaceID, cvID, mailboxID uuid.UUID, jobID *uuid.UUID, spec Spec) (Render, error) {
+	mb, err := q.GetMailbox(ctx, db.GetMailboxParams{WorkspaceID: workspaceID, ID: mailboxID})
+	if err != nil {
+		return Render{}, err
+	}
+	from := mb.Email
+	existing, err := q.GetTailoredRender(ctx, db.GetTailoredRenderParams{
+		WorkspaceID: workspaceID, CvID: cvID, MailboxID: mailboxID, JobID: jobID,
+	})
+	if err == nil {
+		if _, err := p.bytes(ctx, existing.FileKey, spec, from); err != nil {
+			return Render{}, err
+		}
+		return renderFrom(existing.ID, existing.FileKey, existing.FileName, existing.FromEmail, existing.Size), nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return Render{}, err
+	}
+	rid, err := uuid.NewV7()
+	if err != nil {
+		return Render{}, err
+	}
+	key := workspaceID.String() + "/cv/" + rid.String() + ".pdf"
+	name := FileName(spec)
+	pdf, err := p.bytes(ctx, key, spec, from)
+	if err != nil {
+		return Render{}, err
+	}
+	row, err := q.InsertCvRender(ctx, db.InsertCvRenderParams{
+		WorkspaceID: workspaceID,
+		ID:          rid,
+		CvID:        cvID,
+		MailboxID:   mailboxID,
+		JobID:       jobID,
+		FileKey:     key,
+		FileName:    name,
+		Mime:        "application/pdf",
+		Size:        int32(len(pdf)),
+		FromEmail:   from,
+	})
+	if isUnique(err) {
+		got, err := q.GetTailoredRender(ctx, db.GetTailoredRenderParams{
+			WorkspaceID: workspaceID, CvID: cvID, MailboxID: mailboxID, JobID: jobID,
+		})
+		if err != nil {
+			return Render{}, err
+		}
+		return renderFrom(got.ID, got.FileKey, got.FileName, got.FromEmail, got.Size), nil
+	}
+	if err != nil {
+		return Render{}, err
+	}
+	return renderFrom(row.ID, row.FileKey, row.FileName, row.FromEmail, row.Size), nil
+}
+
 func (p *Postgres) StampFor(ctx context.Context, workspaceID, profileID, mailboxID uuid.UUID) (Render, error) {
 	var out Render
 	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
@@ -201,6 +285,22 @@ func (p *Postgres) Files(ctx context.Context, workspaceID, ledgerID, mailboxID u
 		if en.Intent != "job" {
 			return nil
 		}
+		if d.AttachmentRenderID != nil {
+			row, err := q.GetCvRender(ctx, db.GetCvRenderParams{WorkspaceID: workspaceID, ID: *d.AttachmentRenderID})
+			if err == nil && row.MailboxID == mailboxID {
+				if !strings.EqualFold(row.FromEmail, from) {
+					return ErrFrom
+				}
+				b, err := p.blobs.Get(ctx, row.FileKey)
+				if err == nil {
+					out = []mime.File{{Name: row.FileName, ContentType: "application/pdf", Bytes: b}}
+					return nil
+				}
+				if !errors.Is(err, storage.ErrNotFound) {
+					return err
+				}
+			}
+		}
 		profileID := en.ProfileID
 		if profileID == nil {
 			camp, err := q.GetCampaign(ctx, db.GetCampaignParams{WorkspaceID: workspaceID, ID: en.CampaignID})
@@ -212,7 +312,14 @@ func (p *Postgres) Files(ctx context.Context, workspaceID, ledgerID, mailboxID u
 		if profileID == nil {
 			return ErrNoCV
 		}
-		r, err := p.Stamp(ctx, q, workspaceID, *profileID, mailboxID)
+		jd := ""
+		if en.JobID != nil {
+			job, err := q.GetJob(ctx, db.GetJobParams{WorkspaceID: workspaceID, ID: *en.JobID})
+			if err == nil {
+				jd = job.RawText
+			}
+		}
+		r, err := p.Attach(ctx, q, workspaceID, *profileID, mailboxID, en.JobID, nil, jd)
 		if err != nil {
 			return err
 		}

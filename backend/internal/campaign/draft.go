@@ -260,8 +260,15 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 			return err
 		}
 		if p.stamp != nil && camp.Intent == "job" && profileID != nil {
-			r, err := p.stamp.Stamp(ctx, q, workspaceID, *profileID, *mailboxID)
-			if err != nil && !errors.Is(err, cv.ErrNoCV) {
+			jd := ""
+			if en.JobID != nil {
+				job, err := q.GetJob(ctx, db.GetJobParams{WorkspaceID: workspaceID, ID: *en.JobID})
+				if err == nil {
+					jd = job.RawText
+				}
+			}
+			r, err := p.stamp.Attach(ctx, q, workspaceID, *profileID, *mailboxID, en.JobID, cited, jd)
+			if err != nil && !errors.Is(err, cv.ErrNoCV) && !errors.Is(err, cv.ErrInvented) && !errors.Is(err, evidence.ErrClaim) {
 				return err
 			}
 			if err == nil {

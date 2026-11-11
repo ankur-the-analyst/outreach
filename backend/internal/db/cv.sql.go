@@ -30,6 +30,36 @@ func (q *Queries) DeleteCvRendersForWorkspace(ctx context.Context, workspaceID u
 	return err
 }
 
+const getCvRender = `-- name: GetCvRender :one
+select workspace_id, id, cv_id, mailbox_id, job_id, file_key, file_name, mime, size, from_email, created_at
+from cv_renders
+where workspace_id = $1 and id = $2
+`
+
+type GetCvRenderParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) GetCvRender(ctx context.Context, arg GetCvRenderParams) (CvRender, error) {
+	row := q.db.QueryRow(ctx, getCvRender, arg.WorkspaceID, arg.ID)
+	var i CvRender
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.CvID,
+		&i.MailboxID,
+		&i.JobID,
+		&i.FileKey,
+		&i.FileName,
+		&i.Mime,
+		&i.Size,
+		&i.FromEmail,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getDraftAttach = `-- name: GetDraftAttach :one
 select id, mailbox_id, enrolment_id, attachment_render_id
 from drafts
@@ -56,6 +86,46 @@ func (q *Queries) GetDraftAttach(ctx context.Context, arg GetDraftAttachParams) 
 		&i.MailboxID,
 		&i.EnrolmentID,
 		&i.AttachmentRenderID,
+	)
+	return i, err
+}
+
+const getTailoredRender = `-- name: GetTailoredRender :one
+select workspace_id, id, cv_id, mailbox_id, job_id, file_key, file_name, mime, size, from_email, created_at
+from cv_renders
+where workspace_id = $1
+  and cv_id = $2
+  and mailbox_id = $3
+  and job_id = $4
+`
+
+type GetTailoredRenderParams struct {
+	WorkspaceID uuid.UUID
+	CvID        uuid.UUID
+	MailboxID   uuid.UUID
+	JobID       *uuid.UUID
+}
+
+func (q *Queries) GetTailoredRender(ctx context.Context, arg GetTailoredRenderParams) (CvRender, error) {
+	row := q.db.QueryRow(ctx, getTailoredRender,
+		arg.WorkspaceID,
+		arg.CvID,
+		arg.MailboxID,
+		arg.JobID,
+	)
+	var i CvRender
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.CvID,
+		&i.MailboxID,
+		&i.JobID,
+		&i.FileKey,
+		&i.FileName,
+		&i.Mime,
+		&i.Size,
+		&i.FromEmail,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -130,9 +200,11 @@ func (q *Queries) InsertCvDocument(ctx context.Context, arg InsertCvDocumentPara
 
 const insertCvRender = `-- name: InsertCvRender :one
 insert into cv_renders (
-  workspace_id, id, cv_id, mailbox_id, file_key, file_name, mime, size, from_email
+  workspace_id, id, cv_id, mailbox_id, job_id, file_key, file_name, mime, size, from_email
 ) values (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9
+  $1, $2, $3, $4,
+  $5, $6, $7, $8,
+  $9, $10
 )
 returning workspace_id, id, cv_id, mailbox_id, job_id, file_key, file_name, mime, size, from_email, created_at
 `
@@ -142,6 +214,7 @@ type InsertCvRenderParams struct {
 	ID          uuid.UUID
 	CvID        uuid.UUID
 	MailboxID   uuid.UUID
+	JobID       *uuid.UUID
 	FileKey     string
 	FileName    string
 	Mime        string
@@ -155,6 +228,7 @@ func (q *Queries) InsertCvRender(ctx context.Context, arg InsertCvRenderParams) 
 		arg.ID,
 		arg.CvID,
 		arg.MailboxID,
+		arg.JobID,
 		arg.FileKey,
 		arg.FileName,
 		arg.Mime,

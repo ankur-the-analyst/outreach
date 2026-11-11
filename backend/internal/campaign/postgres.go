@@ -15,6 +15,7 @@ import (
 	"outreach/internal/compose"
 	"outreach/internal/cv"
 	"outreach/internal/db"
+	"outreach/internal/evidence"
 )
 
 var (
@@ -107,7 +108,7 @@ type Binder interface {
 }
 
 type Stamper interface {
-	Stamp(ctx context.Context, q *db.Queries, workspaceID, profileID, mailboxID uuid.UUID) (cv.Render, error)
+	Attach(ctx context.Context, q *db.Queries, workspaceID, profileID, mailboxID uuid.UUID, jobID *uuid.UUID, cited []evidence.Item, jd string) (cv.Render, error)
 }
 
 type Postgres struct {

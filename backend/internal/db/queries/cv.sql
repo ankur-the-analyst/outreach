@@ -23,11 +23,26 @@ where workspace_id = $1
   and mailbox_id = $3
   and job_id is null;
 
+-- name: GetTailoredRender :one
+select workspace_id, id, cv_id, mailbox_id, job_id, file_key, file_name, mime, size, from_email, created_at
+from cv_renders
+where workspace_id = $1
+  and cv_id = $2
+  and mailbox_id = $3
+  and job_id = $4;
+
+-- name: GetCvRender :one
+select workspace_id, id, cv_id, mailbox_id, job_id, file_key, file_name, mime, size, from_email, created_at
+from cv_renders
+where workspace_id = $1 and id = $2;
+
 -- name: InsertCvRender :one
 insert into cv_renders (
-  workspace_id, id, cv_id, mailbox_id, file_key, file_name, mime, size, from_email
+  workspace_id, id, cv_id, mailbox_id, job_id, file_key, file_name, mime, size, from_email
 ) values (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9
+  sqlc.arg('workspace_id'), sqlc.arg('id'), sqlc.arg('cv_id'), sqlc.arg('mailbox_id'),
+  sqlc.narg('job_id'), sqlc.arg('file_key'), sqlc.arg('file_name'), sqlc.arg('mime'),
+  sqlc.arg('size'), sqlc.arg('from_email')
 )
 returning workspace_id, id, cv_id, mailbox_id, job_id, file_key, file_name, mime, size, from_email, created_at;
 
