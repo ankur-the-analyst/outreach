@@ -1,6 +1,6 @@
 # Action plan
 
-Authority: PRD/HLD/LLD **v0.5** (frozen for M7–M8). DDL: `docs/SCHEMA.md`. Theme: `docs/design/theme.css`. Cadence: one **slice** at a time (learn Go on each), then stop.
+Authority: PRD/HLD/LLD **v0.6** (frozen for M9–M11). DDL: `docs/SCHEMA.md`. Theme: `docs/design/theme.css`. Cadence: one **slice** at a time (learn Go on each), then stop. M7–M8 shipped.
 
 Not in this plan: auto-reply, Outlook, MCP, region-rules, document KB, `quality.review`, peer warmup, scraping, ATS crawl, billing, dark mode. Gmail **user** OAuth send/read is shipped. Workspace SA send is still out.
 
@@ -169,12 +169,53 @@ A **milestone** is not done until its “Done when” holds **and** its tests ar
 
 ---
 
+## M9 — Original resume on the mail
+
+**Goal:** The PDF the operator uploaded is the file on the mail. Disk behind `storage.Store`. HLD §15.1, LLD §15.1.
+
+| Slice | Build | Go to notice | Done when |
+|---|---|---|---|
+| **M9.1** Disk store | `storage.Disk` (`STORAGE_PATH`); api + worker same dir; Memory remains tests | `os.Open` / `MkdirAll`; interface already `Put`/`Get` | Put in one process, Get in another against a temp dir |
+| **M9.2** Upload bytes | Profile upload stores **file bytes** at `file_key`; `text_content` is extract | `multipart.Reader` or existing JSON+bytes | Mailpit/Get returns PDF magic, not UTF-8 of the text |
+| **M9.3** Attach original | `campaigns.attach`; job default `original`; `drafts.attachment_resume_id`; Review filename; start 400 if no bytes | sqlc narg; MIME `Files` already | Job send attachment filename = upload; missing blob does not Send |
+
+**Out:** Rewrite email inside the PDF; S3 (same interface later).
+
+---
+
+## M10 — Template canvas
+
+**Goal:** Drag-drop HTML email; `{{vars}}` still fail on save. HLD §15.2. Reference: `leads_crm_1/partner-frontend/components/email-builder/`.
+
+| Slice | Build | Go to notice | Done when |
+|---|---|---|---|
+| **M10.1** `design_json` | Column; PUT validates vars in JSON strings; compile html/text in the web, API stores | `encoding/json` walk | `{{contact.nope}}` in a button URL → 400 |
+| **M10.2** Canvas UI | Port CRM canvas onto theme tokens; saved emails page | — | Drag heading + `{{contact.first_name}}`, save, reopen |
+| **M10.3** Draft HTML | Template step renders html+text into the draft | existing template render | Review shows HTML; leftover `{{` still gated |
+
+**Out:** Media library, Unlayer, Word/DOCX import.
+
+---
+
+## M11 — Open and click
+
+**Goal:** Tracker shows Opened / Clicked. Pixel + link wrap. HLD §15.3.
+
+| Slice | Build | Go to notice | Done when |
+|---|---|---|---|
+| **M11.1** Events | `mail_events`; `opened_at` / `clicked_at`; HMAC token | same token idea as `/u/` | RLS: other workspace GUC → 0 rows |
+| **M11.2** Inject + public `/t/o` `/t/c` | GIF; 302; skip `/u/`; `PUBLIC_TRACK_HOST` required if flags on | `html` rewrite tests, no regex-on-the-whole-MIME | Second open keeps first `opened_at`; unsub href unchanged |
+
+**Out:** Attachment download tracking; heatmaps.
+
+---
+
 ## After this cut (not scheduled)
 
-JD URL / catalogue as a **source**, Workspace SA send, erasure-vs-evidence, public OAuth verification, DNS monitor, angles, `quality.review`, KB/RRF.
+JD URL / catalogue as a **source**, Workspace SA send, erasure-vs-evidence, public OAuth verification, DNS monitor, angles, `quality.review`, KB/RRF, S3.
 
 ---
 
 ## Next
 
-**M7.1** — Compose bind: real key or a hard error, never silent Fake.
+**M9.1** — Disk `storage.Store` so original PDFs survive api vs worker.

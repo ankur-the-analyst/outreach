@@ -1,8 +1,8 @@
 # Outreach: Product Requirements (PRD)
 
-Version 0.5 · 10 Nov 2026 · Owner: Anmol Madan · Pairs with HLD.md v0.5, LLD.md v0.5, SCHEMA.md
+Version 0.6 · 12 Nov 2026 · Owner: Anmol Madan · Pairs with HLD.md v0.6, LLD.md v0.6, SCHEMA.md
 
-Frozen for **M7–M8** (operator loop). HLD is behavior; LLD is tradeoffs; SCHEMA.md is additive DDL.
+Frozen for **M9–M11** (original resume attach, HTML canvas, open/click). M7–M8 shipped. HLD is behavior; LLD is tradeoffs; SCHEMA.md is additive DDL.
 
 The **release cut** (section 0) is the authority for what we build first. Later sections describe the product; they do not expand Now.
 
@@ -18,7 +18,8 @@ First release: a send path, a read path, and a small writing path. It prevents f
 | Health / warmup | Warmup profiles; health-gated ramp; idle days do not count | Complaint-like trend; domain score slowdown | Seed tests; Postmaster |
 | Transports | SMTP/IMAP; **Gmail user OAuth** send + inbox poll; Workspace SA send still unwired; `AppendSent` / `FindSent` | — | Outlook; public OAuth verification / CASA |
 | Inbound | Cursor sync; rules; classify; policy in code; **reply drafts always to review** | Interview prep tasks | Calendar |
-| Writing | Evidence library; compose cites evidence IDs; BYOK or fail (no silent fake); field catalog (contact + member required); job pack attaches structured-CV PDF with **mailbox From**; tailor per JD from confirmed evidence only | `quality.review`; voice from edits; document KB | — |
+| Writing | Evidence library; compose cites evidence IDs; BYOK or fail (no silent fake); field catalog (contact + member required); job pack attaches **uploaded resume bytes** (or stamped CV if `attach=render`); tailor still for render path; HTML template canvas | `quality.review`; voice from edits; document KB | — |
+| Tracking | Open pixel + click wrap; unique opened/clicked on the person; unsubscribe never rewritten | — | Attachment download (not available from Gmail) |
 | Scheduling | Recipient timezone windows | Tasks engine | — |
 | Compliance | Sender identity for commercial intents; RFC 8058 on commercial mail; provenance on contacts; erasure job | — | Region-rules engine; LIA records |
 | Tenancy | Workspace per user (or invited team); composite FKs; RLS; server master key + disclosure that the host can decrypt | — | Extra DB roles; passphrase custody |
@@ -158,7 +159,7 @@ Every approved send enters the undo hold, then the ledger. Kill switch cancels q
 
 ## 9. Build order
 
-1–6 shipped (spine + Gmail user OAuth). Remaining Now: ACTION_PLAN **M7 then M8** (`docs/ACTION_PLAN.md`). First slice **M7.1**.
+1–8 shipped (spine + Gmail + writing loop + stamped CV). Remaining Now: ACTION_PLAN **M9 then M10 then M11**. First slice **M9.1**.
 
 ## 10. Non-goals
 

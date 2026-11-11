@@ -1,8 +1,8 @@
 # Outreach: Low-Level Design (LLD)
 
-Version 0.5 · 10 Nov 2026 · Builds on PRD.md v0.5 and HLD.md v0.5
+Version 0.6 · 12 Nov 2026 · Builds on PRD.md v0.6 and HLD.md v0.6
 
-**Frozen for M7–M8.** Additive SQL: `docs/SCHEMA.md`. §14 is the closed tradeoff record (do not reopen without a version bump).
+**Frozen for M9–M11.** Additive SQL: `docs/SCHEMA.md`. §14 (v0.5) stays closed. §15 is this cut.
 
 Specifies **Now** plus the operator-loop tables (fields, templates, structured CV). Does not specify catalogue crawl or ATS apply.
 
@@ -47,7 +47,7 @@ Specifies **Now** plus the operator-loop tables (fields, templates, structured C
 | `agent` | task runners |
 | `ai` | `Provider` (`Complete`, `CompleteJSON`, `Embed`) |
 | `health` | samples, pause, warmup day |
-| `tracking` | unsubscribe Now; pixel Later |
+| `tracking` | unsubscribe Now; pixel + click wrap M11 |
 | `ssrf` | JD fetch |
 | `events` | SSE from Postgres NOTIFY on a small set of tables (optional); not a generic bus |
 | `audit` | log |
@@ -720,3 +720,82 @@ Start: 400 if no `campaign_senders` and pool empty — empty group is already a 
 - Start empty From → 400.
 - Two mailboxes → two renders, same spec, different `from_email`; second untailored insert for same `(cv, mailbox)` conflicts.
 - Tailor bullet with a number not in confirmed evidence fails; Fake string never used when no key.
+
+## 15. Original file, canvas, tracking (v0.6)
+
+HLD §15. Packages: `storage` (disk), `jobsjd` upload bytes, `cv`/`sender` Files, `templates` design_json, `tracking` (new) inject + public handlers. Operator copy: filename, “Opened”, “Clicked”; never “pixel”, “ledger”, “enrolment.”
+
+### 15.1 M9 original attach
+
+**Choice:** attach `resumes` bytes. Keep `cv_renders` as `attach=render`. Do not pdf-stamp the upload.
+
+| Alternative | Why not |
+|---|---|
+| Only stamped JSON PDF | Operator asked to send the file they uploaded. |
+| Stamp email onto the upload | Layout-fragile (v0.5 already rejected). |
+| bytea on drafts | WAL; `file_key` already on resumes. |
+| Keep Memory store | Original cannot be rebuilt; api/worker split 404s. |
+
+`campaigns.attach text not null default 'none' check (attach in ('none','original','render'))`. Job pack create sets `original`. Start with `original` and no resume bytes → 400 “Upload a PDF on this profile.”
+
+`drafts.attachment_resume_id` nullable, composite FK to `resumes`. App: at most one of `attachment_resume_id` / `attachment_render_id`.
+
+Disk: `STORAGE_DRIVER=disk` (default Now), `STORAGE_PATH` (both binaries). Keys stay `{workspace_id}/resumes/{id}`. Put **multipart bytes**; extract text into `text_content` as today. Empty text still allowed if PDF extract fails? **No:** evidence path needs text; upload without extractable text is 400 “Could not read this file” unless they paste. Prefer: bytes required for attach; text required for propose.
+
+`Files`: if draft has resume id, Get those bytes, name `file_name`, pdf/docx mime. `ErrTooLarge` → Review fail closed.
+
+### 15.2 M10 canvas
+
+**Choice:** `design_json jsonb not null default '{}'` on existing `templates`. Compile to `body_html` / `body_text` on PUT. Empty `{}` means text-only template (today’s editor still valid).
+
+Walk `design_json` strings for `{{` on save (same parser as M7.3). Images: `file_key` in element data, bytes in disk under `{workspace_id}/templates/{id}/…`; HTML gets `cid:` or absolute `PUBLIC_APP_URL` — **Now: inline cid** if small, else reject. Keep it thin: image blocks store https URL the operator pasted, no media library in M10.1.
+
+Reference implementation: `leads_crm_1/partner-frontend/components/email-builder/` (`design_json` `{settings,elements}`, `generateHTML.js`). Port generateHTML into `apps/web` (TS) **or** Go; **pick web compile, API stores the three columns** so Go does not own dnd types. API still re-validates vars.
+
+### 15.3 M11 tracking
+
+Columns `track_opens` / `track_clicks` already on `campaigns` (default false). New campaigns: default **true** in the app when creating (migration does not rewrite old rows).
+
+```sql
+create table mail_events (
+  workspace_id uuid not null references workspaces (id),
+  id uuid not null,
+  enrolment_id uuid not null,
+  draft_id uuid not null,
+  kind text not null check (kind in ('open', 'click')),
+  url text,
+  at timestamptz not null default now(),
+  primary key (workspace_id, id),
+  foreign key (workspace_id, enrolment_id) references enrolments (workspace_id, id),
+  foreign key (workspace_id, draft_id) references drafts (workspace_id, id)
+);
+create index mail_events_enrolment on mail_events (workspace_id, enrolment_id, kind, at);
+alter table enrolments add column opened_at timestamptz;
+alter table enrolments add column clicked_at timestamptz;
+```
+
+Token: HMAC over `workspace_id|draft_id|kind|url`, public `GET /t/o/{token}` and `GET /t/c/{token}` on **api** (no session). Handler uses a **bypass that still sets GUC** from the token’s workspace (same pattern as `/u/{token}`). Invalid token → 204 GIF / 404, no leak.
+
+Inject in `mime` or `sender` after HTML exists. `PUBLIC_TRACK_HOST` empty + flags true → do not send, operator error.
+
+No `download` kind.
+
+### 15.4 Slice ↔ DDL
+
+| Slice | DDL |
+|---|---|
+| M9.1 | none (disk driver) |
+| M9.2 | none if `file_key` already stores bytes |
+| M9.3 | `campaigns.attach`; `drafts.attachment_resume_id` |
+| M10.1 | `templates.design_json` |
+| M10.2 | none (UI) |
+| M11.1 | `mail_events`; `enrolments.opened_at/clicked_at` |
+| M11.2 | none (inject + public routes) |
+
+### 15.5 Tests
+
+- Disk Put in api process, Get in a second process (or new Memory-incompatible test: temp dir).
+- Job start `attach=original` without resume bytes → 400.
+- Mailpit shows the uploaded PDF filename, not a stamped `ada-lovelace.pdf`, when `original`.
+- Template save with `{{contact.nope}}` in a button href → 400.
+- Open pixel: second fetch does not clear `opened_at`; click records url; `/u/` href unchanged.

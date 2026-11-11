@@ -1,10 +1,10 @@
 # Outreach: High-Level Design (HLD)
 
-Version 0.5 · 10 Nov 2026 · Builds on PRD v0.5 · Supersedes HLD v0.4
+Version 0.6 · 12 Nov 2026 · Builds on PRD v0.6 · Supersedes HLD v0.5
 
-**Frozen for M7–M8.** Scope: PRD v0.5. Behavior: this file. Tables: `docs/SCHEMA.md`. Tradeoffs: LLD v0.5 §14.
+**Frozen for M9–M11** (file on the mail, HTML templates, open/click). M7–M8 shipped. Behavior: this file. Tables: `docs/SCHEMA.md`. Tradeoffs: LLD v0.6 §15.
 
-v0.5 is the **operator loop** on top of the shipped spine (tenancy, Gmail user OAuth send/read, ledger, review, campaigns). It does not add a job crawler, ATS form-fill, or auto-apply.
+v0.5 remains the operator loop (tenancy, Gmail user OAuth, ledger, review, campaigns, structured CV). v0.6 does not add a job crawler, ATS form-fill, or auto-apply.
 
 The **PRD release cut** is the authority for scope. This document is the technical design for **Now**, plus the interfaces Next/Later plug into. It does not require MCP, region-rules tables, extra DB roles, document KB, or reply auto-send in the first build.
 
@@ -261,4 +261,50 @@ Same JSON, different **emphasis**: reorder/drop bullets that are in confirmed ev
 
 ## 14. Out of this cut
 
-JD URL fetch / catalogue API, Workspace SA send, erasure-vs-evidence polish, public OAuth verification, column-mapping saved on the workspace, HTML/DOCX templates from Word. Freehire is a possible **JD source later**, not a dependency.
+JD URL fetch / catalogue API, Workspace SA send, erasure-vs-evidence polish, public OAuth verification, column-mapping saved on the workspace, HTML/DOCX **from Word**. Freehire is a possible **JD source later**, not a dependency. Attachment **download** receipts (clients do not report them).
+
+## 15. Files, HTML templates, tracking (v0.6)
+
+Build **in this order**. Campaigns as the daily loop wait until M9 can put a real file on the mail.
+
+```
+M9  upload PDF bytes → durable store → MIME attach (original)
+M10 design_json canvas → body_html ({{vars}} still gated)
+M11 inject pixel + click wraps on HTML → public /t/* → tracker
+```
+
+M10 HTML is what M11 rewrites. M9 does not need HTML. Do not start M11 before M10 saves `body_html`.
+
+### 15.1 M9 — Original resume on the mail
+
+**Operator:** upload a PDF (or DOCX) on the profile; job campaigns attach **that file**. Review shows the filename. We still **do not rewrite** the PDF (HLD 13.5). If the file lists another email, that is visible to the operator; it is not a silent stamp.
+
+**Not:** replace structured CV. `cv_renders` stay for `attach=render` (mailbox From on the file). New campaign field `attach`: `none` | `original` | `render`. Job create defaults to `original`. Other types default `none` (opt in).
+
+**Storage:** `Memory` cannot serve original bytes across api/worker. Disk (both processes, same `STORAGE_PATH`) is Now; S3 later behind the same `storage.Store`. Upload stores **file bytes** at `resumes.file_key`, not UTF-8 of the extracted text. Text stays in `text_content` for evidence.
+
+**Send:** after mailbox is known, `Files` loads original by `drafts.attachment_resume_id` (latest profile resume with bytes). Missing blob → no send (fail closed). Size still `mime.MaxBytes`. Tailor/gates apply to the **body**, not to rewriting the attached PDF.
+
+**Breaks:** worker 404 on the PDF because it lived in api RAM. **Fix:** disk before attach. **Breaks:** paste-only resume has no bytes. **Fix:** operator copy “upload a PDF to attach”; `attach=original` without bytes is 400 on start / skip file with Review warning — prefer 400 on start.
+
+### 15.2 M10 — Template canvas
+
+**Operator:** drag blocks (heading, text, button, image, row, footer) into a canvas; save a named email; campaign step “saved email” uses it. Merge tags stay `{{contact.first_name}}` etc. Unknown tags fail **on save**.
+
+**Source of truth:** `templates.design_json` `{settings, elements}` (same shape as `leads_crm_1` email-builder). `body_html` is compiled on save (`generateHTML`). `body_text` is a plain-text fallback generated from the same tree (or operator-edited). Theme: `docs/design/theme.css` on the **app chrome**; email HTML uses inline styles from the canvas, not our CSS file.
+
+**Web:** port the CRM canvas (dnd-kit), not Unlayer. Do not take SweetAlert / Phosphor as a new system; use existing shadcn + tokens.
+
+**Draft:** render vars into html+text at draft-create; leftover `{{` still gated. AI compose unchanged (may still emit simple HTML).
+
+**Breaks:** canvas saves `{{nope}}` inside a button URL. **Fix:** walk all string fields in `design_json` with the same var parser as body.
+
+### 15.3 M11 — Open and click
+
+**Operator:** on Tracker / Review, this person **opened** or **clicked** (time). Campaign can turn tracking off. Unsubscribe links are never rewritten. We do **not** claim “they downloaded the CV.”
+
+**How:** if the campaign has `track_opens` / `track_clicks` and the message has HTML: HMAC token (same family as `/u/{token}`), `PUBLIC_TRACK_HOST`. `GET /t/o/{token}` → 1×1 GIF, insert `mail_events` kind `open`. `GET /t/c/{token}` → 302 to original URL, kind `click`. Unique first open/click denorm on the person in this campaign (`opened_at` / `clicked_at`). Prefetch and privacy proxies may inflate opens — show as “Opened”, not “read.”
+
+**Inject** at MIME build (worker), after template/AI HTML exists, never at first compose. Skip `mailto`, `#`, `/u/`, existing `/t/`.
+
+**Breaks:** tracking host is localhost in production mail. **Fix:** `PUBLIC_TRACK_HOST` required when flags on; fail closed at send, operator error. **Breaks:** Gmail image proxy. **Fix:** still record the proxy fetch as opened; do not invent a second signal.
