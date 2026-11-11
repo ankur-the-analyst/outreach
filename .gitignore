@@ -23,5 +23,9 @@ apps/web/out/
 .vscode/
 *.swp
 
+# Object store (M9.1 disk)
+data/
+backend/data/
+
 # Compose volume leftovers
 pgdata/

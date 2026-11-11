@@ -125,7 +125,11 @@ func main() {
 	unknown := time.Duration(cfg.UnknownTimeoutS) * time.Second
 	suppStore := suppression.NewPostgres(pool, keys)
 	supp := suppression.New(suppStore, keys)
-	blobs := storage.NewMemory()
+	blobs, err := storage.Open(cfg.StorageDriver, cfg.StoragePath)
+	if err != nil {
+		logger.Error("open storage", "err", err)
+		os.Exit(1)
+	}
 	cvStore := cv.NewPostgres(pool, blobs)
 	led := sender.NewPostgres(pool, time.Now, hold).
 		WithDialer(dialer).

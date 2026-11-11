@@ -65,7 +65,12 @@ func main() {
 		ClientSecret: cfg.GoogleOAuthClientSecret,
 	}))
 	dialer := mailbox.NewDialer(pool, keys, reg)
-	cvStore := cv.NewPostgres(pool, storage.NewMemory())
+	blobs, err := storage.Open(cfg.StorageDriver, cfg.StoragePath)
+	if err != nil {
+		logger.Error("open storage", "err", err)
+		os.Exit(1)
+	}
+	cvStore := cv.NewPostgres(pool, blobs)
 	led := sender.NewPostgres(pool, time.Now, hold).
 		WithDialer(dialer).
 		WithUnknownTimeout(unknown).

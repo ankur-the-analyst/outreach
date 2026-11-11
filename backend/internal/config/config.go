@@ -20,6 +20,8 @@ type Config struct {
 	GoogleOAuthClientID     string `split_words:"true" envconfig:"GOOGLE_OAUTH_CLIENT_ID"`
 	GoogleOAuthClientSecret string `split_words:"true" envconfig:"GOOGLE_OAUTH_CLIENT_SECRET"`
 	GoogleOAuthRedirectURI  string `split_words:"true" envconfig:"GOOGLE_OAUTH_REDIRECT_URI" default:"http://localhost:3000/api/v1/mailboxes/oauth/callback"`
+	StorageDriver           string `split_words:"true" default:"disk"`
+	StoragePath             string `split_words:"true" default:"data/blobs"`
 }
 
 func Load() (Config, error) {
