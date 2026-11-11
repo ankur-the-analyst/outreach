@@ -61,7 +61,7 @@ func (q *Queries) GetCvRender(ctx context.Context, arg GetCvRenderParams) (CvRen
 }
 
 const getDraftAttach = `-- name: GetDraftAttach :one
-select id, mailbox_id, enrolment_id, attachment_render_id
+select id, mailbox_id, enrolment_id, attachment_render_id, attachment_resume_id
 from drafts
 where workspace_id = $1 and id = $2
 `
@@ -76,6 +76,7 @@ type GetDraftAttachRow struct {
 	MailboxID          uuid.UUID
 	EnrolmentID        *uuid.UUID
 	AttachmentRenderID *uuid.UUID
+	AttachmentResumeID *uuid.UUID
 }
 
 func (q *Queries) GetDraftAttach(ctx context.Context, arg GetDraftAttachParams) (GetDraftAttachRow, error) {
@@ -86,6 +87,7 @@ func (q *Queries) GetDraftAttach(ctx context.Context, arg GetDraftAttachParams) 
 		&i.MailboxID,
 		&i.EnrolmentID,
 		&i.AttachmentRenderID,
+		&i.AttachmentResumeID,
 	)
 	return i, err
 }
@@ -299,17 +301,24 @@ func (q *Queries) NextCvVersion(ctx context.Context, arg NextCvVersionParams) (i
 
 const updateDraftAttachment = `-- name: UpdateDraftAttachment :exec
 update drafts
-set attachment_render_id = $3
-where workspace_id = $1 and id = $2
+set attachment_render_id = $1,
+    attachment_resume_id = $2
+where workspace_id = $3 and id = $4
 `
 
 type UpdateDraftAttachmentParams struct {
+	AttachmentRenderID *uuid.UUID
+	AttachmentResumeID *uuid.UUID
 	WorkspaceID        uuid.UUID
 	ID                 uuid.UUID
-	AttachmentRenderID *uuid.UUID
 }
 
 func (q *Queries) UpdateDraftAttachment(ctx context.Context, arg UpdateDraftAttachmentParams) error {
-	_, err := q.db.Exec(ctx, updateDraftAttachment, arg.WorkspaceID, arg.ID, arg.AttachmentRenderID)
+	_, err := q.db.Exec(ctx, updateDraftAttachment,
+		arg.AttachmentRenderID,
+		arg.AttachmentResumeID,
+		arg.WorkspaceID,
+		arg.ID,
+	)
 	return err
 }

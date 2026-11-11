@@ -45,6 +45,8 @@ func TestCommercialStartRequiresIdentity(t *testing.T) {
 			_ = q.DeleteCampaignSendersForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignStepsForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignsForWorkspace(ctx, wsID)
+			_ = q.DeleteResumesForWorkspace(ctx, wsID)
+			_ = q.DeleteProfilesForWorkspace(ctx, wsID)
 			_ = q.DeleteSenderIdentityForWorkspace(ctx, wsID)
 			_ = q.DeleteContactsForWorkspace(ctx, wsID)
 			_ = q.DeleteCompaniesForWorkspace(ctx, wsID)
@@ -84,8 +86,9 @@ func TestCommercialStartRequiresIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := NewPostgres(pool, packs)
-	job, err := store.Create(ctx, wsID, CreateInput{Name: "AE", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID}})
-	if err != nil || len(job.Steps) != 3 || job.Commercial {
+	pid := mustResume(t, ctx, pool, wsID)
+	job, err := store.Create(ctx, wsID, CreateInput{Name: "AE", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID}, ProfileID: &pid})
+	if err != nil || len(job.Steps) != 3 || job.Commercial || job.Attach != "original" {
 		t.Fatalf("%+v %v", job, err)
 	}
 	if _, err := store.Enrol(ctx, wsID, job.ID, EnrolInput{ContactID: ct.ID}); err != ErrContext {
@@ -98,8 +101,15 @@ func TestCommercialStartRequiresIdentity(t *testing.T) {
 	if _, err := store.Start(ctx, wsID, job.ID); err != nil {
 		t.Fatalf("job start %v", err)
 	}
+	bare, err := store.Create(ctx, wsID, CreateInput{Name: "Bare", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Start(ctx, wsID, bare.ID); err != ErrResume {
+		t.Fatalf("want resume %v", err)
+	}
 	cold, err := store.Create(ctx, wsID, CreateInput{Name: "Cold", Intent: "cold", MailboxIDs: []uuid.UUID{mb.ID}})
-	if err != nil || !cold.Commercial || !cold.ListUnsubscribe {
+	if err != nil || !cold.Commercial || !cold.ListUnsubscribe || cold.Attach != "none" {
 		t.Fatalf("%+v %v", cold, err)
 	}
 	if _, err := store.Start(ctx, wsID, cold.ID); err != ErrIdentity {
@@ -142,6 +152,8 @@ func TestStartEmptyGroupCannotStartUntilMailboxAdded(t *testing.T) {
 			_ = q.DeleteCampaignSendersForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignStepsForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignsForWorkspace(ctx, wsID)
+			_ = q.DeleteResumesForWorkspace(ctx, wsID)
+			_ = q.DeleteProfilesForWorkspace(ctx, wsID)
 			_ = q.DeleteMailboxPoolMembersForWorkspace(ctx, wsID)
 			_ = q.DeleteMailboxPoolsForWorkspace(ctx, wsID)
 			_ = q.DeleteMailboxesForWorkspace(ctx, wsID)
@@ -172,7 +184,8 @@ func TestStartEmptyGroupCannotStartUntilMailboxAdded(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := NewPostgres(pool, packs)
-	camp, err := store.Create(ctx, wsID, CreateInput{Name: "Job", Intent: "job", PoolID: &empty.ID})
+	pid := mustResume(t, ctx, pool, wsID)
+	camp, err := store.Create(ctx, wsID, CreateInput{Name: "Job", Intent: "job", PoolID: &empty.ID, ProfileID: &pid})
 	if err != nil || len(camp.Senders) != 0 {
 		t.Fatalf("%+v %v", camp, err)
 	}

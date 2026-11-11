@@ -146,6 +146,26 @@ func TestStartWithoutFrom(t *testing.T) {
 	}
 }
 
+func TestStartWithoutResume(t *testing.T) {
+	t.Parallel()
+	id := uuid.MustParse("01700000-0000-7000-8000-000000000003")
+	api := New(&fakeStore{role: "owner", err: ErrResume})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/campaigns/"+id.String()+"/start", nil)
+	req.SetPathValue("id", id.String())
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Start(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("Upload a PDF on this profile.")) {
+		t.Fatalf("%s", rec.Body.String())
+	}
+}
+
 func TestStartCommercialWithoutIdentity(t *testing.T) {
 	t.Parallel()
 	id := uuid.MustParse("01700000-0000-7000-8000-000000000003")

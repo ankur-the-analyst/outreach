@@ -91,6 +91,7 @@ type Campaign struct {
 	UndoHoldS           int32
 	CreatedAt           pgtype.Timestamptz
 	PoolID              *uuid.UUID
+	Attach              string
 }
 
 type CampaignSender struct {
@@ -188,6 +189,7 @@ type Draft struct {
 	ApprovedBy              *uuid.UUID
 	CreatedAt               pgtype.Timestamptz
 	AttachmentRenderID      *uuid.UUID
+	AttachmentResumeID      *uuid.UUID
 }
 
 type Enrolment struct {

@@ -72,6 +72,8 @@ func TestListTrackerMovesDraftedSentReplied(t *testing.T) {
 			_ = q.DeleteCampaignSendersForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignStepsForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignsForWorkspace(ctx, wsID)
+			_ = q.DeleteResumesForWorkspace(ctx, wsID)
+			_ = q.DeleteProfilesForWorkspace(ctx, wsID)
 			_ = q.DeleteContactsForWorkspace(ctx, wsID)
 			_ = q.DeleteCompaniesForWorkspace(ctx, wsID)
 			_ = q.DeleteMailboxesForWorkspace(ctx, wsID)
@@ -110,7 +112,8 @@ func TestListTrackerMovesDraftedSentReplied(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := NewPostgres(pool, packs)
-	camp, err := store.Create(ctx, wsID, CreateInput{Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID}})
+	pid := mustResume(t, ctx, pool, wsID)
+	camp, err := store.Create(ctx, wsID, CreateInput{Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID}, ProfileID: &pid})
 	if err != nil {
 		t.Fatal(err)
 	}

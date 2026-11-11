@@ -48,11 +48,12 @@ returning workspace_id, id, cv_id, mailbox_id, job_id, file_key, file_name, mime
 
 -- name: UpdateDraftAttachment :exec
 update drafts
-set attachment_render_id = $3
-where workspace_id = $1 and id = $2;
+set attachment_render_id = sqlc.narg('attachment_render_id'),
+    attachment_resume_id = sqlc.narg('attachment_resume_id')
+where workspace_id = sqlc.arg('workspace_id') and id = sqlc.arg('id');
 
 -- name: GetDraftAttach :one
-select id, mailbox_id, enrolment_id, attachment_render_id
+select id, mailbox_id, enrolment_id, attachment_render_id, attachment_resume_id
 from drafts
 where workspace_id = $1 and id = $2;
 

@@ -12,6 +12,7 @@ import (
 	"outreach/internal/contacts"
 	"outreach/internal/crypto"
 	"outreach/internal/db"
+	"outreach/internal/jobsjd"
 	"outreach/internal/mailbox"
 	"outreach/internal/mime"
 	"outreach/internal/pacing"
@@ -73,6 +74,8 @@ func TestCommercialSendSetsRFC8058(t *testing.T) {
 			_ = q.DeleteCampaignSendersForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignStepsForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignsForWorkspace(ctx, wsID)
+			_ = q.DeleteResumesForWorkspace(ctx, wsID)
+			_ = q.DeleteProfilesForWorkspace(ctx, wsID)
 			_ = q.DeleteSenderIdentityForWorkspace(ctx, wsID)
 			_ = q.DeleteSuppressionForWorkspace(ctx, wsID)
 			_ = q.DeleteContactsForWorkspace(ctx, wsID)
@@ -221,6 +224,8 @@ func TestJobSendHasOptOutLine(t *testing.T) {
 			_ = q.DeleteCampaignSendersForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignStepsForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignsForWorkspace(ctx, wsID)
+			_ = q.DeleteResumesForWorkspace(ctx, wsID)
+			_ = q.DeleteProfilesForWorkspace(ctx, wsID)
 			_ = q.DeleteContactsForWorkspace(ctx, wsID)
 			_ = q.DeleteCompaniesForWorkspace(ctx, wsID)
 			_ = q.DeleteMailboxesForWorkspace(ctx, wsID)
@@ -259,8 +264,12 @@ func TestJobSendHasOptOutLine(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := campaign.NewPostgres(pool, packs)
+	pid, err := jobsjd.PutProfileResume(ctx, pool, wsID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	camp, err := store.Create(ctx, wsID, campaign.CreateInput{
-		Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID},
+		Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID}, ProfileID: &pid,
 	})
 	if err != nil {
 		t.Fatal(err)

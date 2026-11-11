@@ -34,6 +34,11 @@ where workspace_id = $1 and profile_id = $2
 order by version desc
 limit 1;
 
+-- name: GetResume :one
+select workspace_id, id, profile_id, version, file_key, file_name, mime, text_content, created_at
+from resumes
+where workspace_id = $1 and id = $2;
+
 -- name: InsertJob :one
 insert into jobs (workspace_id, id, source_url, raw_text, title)
 values ($1, $2, $3, $4, $5)

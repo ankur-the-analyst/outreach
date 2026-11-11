@@ -259,23 +259,40 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 		}); err != nil {
 			return err
 		}
-		if p.stamp != nil && camp.Intent == "job" && profileID != nil {
-			jd := ""
-			if en.JobID != nil {
-				job, err := q.GetJob(ctx, db.GetJobParams{WorkspaceID: workspaceID, ID: *en.JobID})
+		switch camp.Attach {
+		case "original":
+			if profileID != nil {
+				res, err := q.LatestResume(ctx, db.LatestResumeParams{WorkspaceID: workspaceID, ProfileID: *profileID})
+				if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+					return err
+				}
 				if err == nil {
-					jd = job.RawText
+					if err := q.UpdateDraftAttachment(ctx, db.UpdateDraftAttachmentParams{
+						WorkspaceID: workspaceID, ID: row.ID, AttachmentResumeID: &res.ID,
+					}); err != nil {
+						return err
+					}
 				}
 			}
-			r, err := p.stamp.Attach(ctx, q, workspaceID, *profileID, *mailboxID, en.JobID, cited, jd)
-			if err != nil && !errors.Is(err, cv.ErrNoCV) && !errors.Is(err, cv.ErrInvented) && !errors.Is(err, evidence.ErrClaim) {
-				return err
-			}
-			if err == nil {
-				if err := q.UpdateDraftAttachment(ctx, db.UpdateDraftAttachmentParams{
-					WorkspaceID: workspaceID, ID: row.ID, AttachmentRenderID: &r.ID,
-				}); err != nil {
+		case "render":
+			if p.stamp != nil && profileID != nil {
+				jd := ""
+				if en.JobID != nil {
+					job, err := q.GetJob(ctx, db.GetJobParams{WorkspaceID: workspaceID, ID: *en.JobID})
+					if err == nil {
+						jd = job.RawText
+					}
+				}
+				r, err := p.stamp.Attach(ctx, q, workspaceID, *profileID, *mailboxID, en.JobID, cited, jd)
+				if err != nil && !errors.Is(err, cv.ErrNoCV) && !errors.Is(err, cv.ErrInvented) && !errors.Is(err, evidence.ErrClaim) {
 					return err
+				}
+				if err == nil {
+					if err := q.UpdateDraftAttachment(ctx, db.UpdateDraftAttachmentParams{
+						WorkspaceID: workspaceID, ID: row.ID, AttachmentRenderID: &r.ID,
+					}); err != nil {
+						return err
+					}
 				}
 			}
 		}

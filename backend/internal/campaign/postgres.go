@@ -31,6 +31,7 @@ var (
 	ErrFrom      = errors.New("add a mailbox to this campaign or group")
 	ErrStage     = errors.New("pick a valid stage")
 	ErrTemplate  = errors.New("pick a saved email")
+	ErrResume    = errors.New("Upload a PDF on this profile.")
 )
 
 type Identity struct {
@@ -69,6 +70,7 @@ type Campaign struct {
 	Steps             []Step     `json:"steps"`
 	Senders           []Sender   `json:"senders"`
 	PoolID            *uuid.UUID `json:"pool_id,omitempty"`
+	Attach            string     `json:"attach"`
 	CreatedAt         time.Time  `json:"created_at"`
 }
 
@@ -260,6 +262,10 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 		} else if len(ids) == 0 {
 			return ErrMailbox
 		}
+		attach := "none"
+		if pack.Intent == "job" {
+			attach = "original"
+		}
 		row, err := q.InsertCampaign(ctx, db.InsertCampaignParams{
 			WorkspaceID:       workspaceID,
 			ID:                id,
@@ -273,6 +279,7 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 			AiInstructions:    text(in.AIInstructions),
 			UndoHoldS:         300,
 			PoolID:            in.PoolID,
+			Attach:            attach,
 		})
 		if err != nil {
 			if isFK(err) {
@@ -382,6 +389,9 @@ func (p *Postgres) Start(ctx context.Context, workspaceID, id uuid.UUID) (Campai
 	if err := p.ensureFrom(ctx, workspaceID, &c); err != nil {
 		return Campaign{}, err
 	}
+	if err := p.ensureAttach(ctx, workspaceID, c); err != nil {
+		return Campaign{}, err
+	}
 	if c.Commercial {
 		if _, err := p.GetIdentity(ctx, workspaceID); err != nil {
 			if errors.Is(err, ErrNotFound) {
@@ -434,6 +444,23 @@ func (p *Postgres) ensureFrom(ctx context.Context, workspaceID uuid.UUID, c *Cam
 	}
 	*c = loaded
 	return nil
+}
+
+func (p *Postgres) ensureAttach(ctx context.Context, workspaceID uuid.UUID, c Campaign) error {
+	if c.Attach != "original" {
+		return nil
+	}
+	if c.ProfileID == nil {
+		return ErrResume
+	}
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.LatestResume(ctx, db.LatestResumeParams{WorkspaceID: workspaceID, ProfileID: *c.ProfileID})
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && strings.TrimSpace(row.FileKey) == "") {
+			return ErrResume
+		}
+		return err
+	})
+	return err
 }
 
 func (p *Postgres) Pause(ctx context.Context, workspaceID, id uuid.UUID) (Campaign, error) {
@@ -576,8 +603,9 @@ func loadCampaign(ctx context.Context, q *db.Queries, workspaceID, id uuid.UUID,
 	c := Campaign{
 		ID: row.ID, Name: row.Name, ProfileID: row.ProfileID, Intent: row.Intent, SenderStrategy: row.SenderStrategy,
 		Status: row.Status, ListUnsubscribe: row.ListUnsubscribe, NewContactsPerDay: row.NewContactsPerDay,
-		AIInstructions: row.AiInstructions.String, UndoHoldS: row.UndoHoldS, PoolID: row.PoolID, CreatedAt: row.CreatedAt.Time,
-		Steps: make([]Step, 0, len(steps)), Senders: make([]Sender, 0, len(senders)),
+		AIInstructions: row.AiInstructions.String, UndoHoldS: row.UndoHoldS, PoolID: row.PoolID, Attach: row.Attach,
+		CreatedAt: row.CreatedAt.Time,
+		Steps:     make([]Step, 0, len(steps)), Senders: make([]Sender, 0, len(senders)),
 	}
 	if pack, ok := packs[row.Intent]; ok {
 		c.Commercial = pack.CommercialStart()

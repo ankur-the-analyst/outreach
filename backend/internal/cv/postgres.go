@@ -22,6 +22,7 @@ var (
 	ErrForbidden = errors.New("forbidden")
 	ErrNoCV      = errors.New("add a CV to this profile")
 	ErrFrom      = errors.New("this file's From does not match the mailbox")
+	ErrResume    = errors.New("Upload a PDF on this profile.")
 )
 
 type Document struct {
@@ -311,7 +312,16 @@ func (p *Postgres) Files(ctx context.Context, workspaceID, ledgerID, mailboxID u
 		if err != nil {
 			return err
 		}
-		if en.Intent != "job" {
+		camp, err := q.GetCampaign(ctx, db.GetCampaignParams{WorkspaceID: workspaceID, ID: en.CampaignID})
+		if err != nil {
+			return err
+		}
+		if d.AttachmentResumeID != nil || camp.Attach == "original" {
+			files, err := originalFile(ctx, q, p.blobs, workspaceID, led.DraftID, d.AttachmentResumeID, en, camp)
+			out = files
+			return err
+		}
+		if camp.Attach != "render" {
 			return nil
 		}
 		if d.AttachmentRenderID != nil {
@@ -332,10 +342,6 @@ func (p *Postgres) Files(ctx context.Context, workspaceID, ledgerID, mailboxID u
 		}
 		profileID := en.ProfileID
 		if profileID == nil {
-			camp, err := q.GetCampaign(ctx, db.GetCampaignParams{WorkspaceID: workspaceID, ID: en.CampaignID})
-			if err != nil {
-				return err
-			}
 			profileID = camp.ProfileID
 		}
 		if profileID == nil {
@@ -368,6 +374,47 @@ func (p *Postgres) Files(ctx context.Context, workspaceID, ledgerID, mailboxID u
 		return nil
 	})
 	return out, err
+}
+
+func originalFile(ctx context.Context, q *db.Queries, blobs storage.Store, workspaceID, draftID uuid.UUID, resumeID *uuid.UUID, en db.GetEnrolmentRow, camp db.GetCampaignRow) ([]mime.File, error) {
+	if resumeID == nil {
+		profileID := en.ProfileID
+		if profileID == nil {
+			profileID = camp.ProfileID
+		}
+		if profileID == nil {
+			return nil, ErrResume
+		}
+		row, err := q.LatestResume(ctx, db.LatestResumeParams{WorkspaceID: workspaceID, ProfileID: *profileID})
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && strings.TrimSpace(row.FileKey) == "") {
+			return nil, ErrResume
+		}
+		if err != nil {
+			return nil, err
+		}
+		if err := q.UpdateDraftAttachment(ctx, db.UpdateDraftAttachmentParams{
+			WorkspaceID: workspaceID, ID: draftID, AttachmentResumeID: &row.ID,
+		}); err != nil {
+			return nil, err
+		}
+		resumeID = &row.ID
+	}
+	row, err := q.GetResume(ctx, db.GetResumeParams{WorkspaceID: workspaceID, ID: *resumeID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrResume
+	}
+	if err != nil {
+		return nil, err
+	}
+	b, err := blobs.Get(ctx, row.FileKey)
+	if err != nil {
+		return nil, err
+	}
+	ct := row.Mime
+	if ct == "" {
+		ct = "application/pdf"
+	}
+	return []mime.File{{Name: row.FileName, ContentType: ct, Bytes: b}}, nil
 }
 
 func (p *Postgres) bytes(ctx context.Context, key string, spec Spec, from string) ([]byte, error) {

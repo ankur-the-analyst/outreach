@@ -314,8 +314,8 @@ func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID, after *uuid.
 		rows = make([]Draft, 0, len(got))
 		for _, row := range got {
 			d := draftFrom(row.ID, row.MailboxID, row.ToAddr, row.RfcMessageID, row.Kind, row.Subject, row.BodyHtml, row.BodyText, row.Status, row.LedgerID, row.LedgerState.String, row.ReleaseAt)
-			if row.AttachmentName.Valid {
-				d.AttachmentName = row.AttachmentName.String
+			if row.AttachmentName != "" {
+				d.AttachmentName = row.AttachmentName
 			}
 			if row.AttachmentFrom.Valid {
 				d.AttachmentFrom = row.AttachmentFrom.String

@@ -267,6 +267,7 @@ export type Campaign = {
   }[];
   senders: { mailbox_id: string }[];
   pool_id?: string;
+  attach?: string;
   created_at: string;
 };
 

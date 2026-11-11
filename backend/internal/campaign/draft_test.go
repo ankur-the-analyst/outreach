@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 	"outreach/internal/contacts"
 	"outreach/internal/crypto"
 	"outreach/internal/db"
@@ -50,6 +49,8 @@ func TestDraftDueStepWritesReviewDraftOnce(t *testing.T) {
 			_ = q.DeleteCampaignSendersForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignStepsForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignsForWorkspace(ctx, wsID)
+			_ = q.DeleteResumesForWorkspace(ctx, wsID)
+			_ = q.DeleteProfilesForWorkspace(ctx, wsID)
 			_ = q.DeleteContactsForWorkspace(ctx, wsID)
 			_ = q.DeleteCompaniesForWorkspace(ctx, wsID)
 			_ = q.DeleteMailboxesForWorkspace(ctx, wsID)
@@ -88,7 +89,8 @@ func TestDraftDueStepWritesReviewDraftOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := NewPostgres(pool, packs)
-	camp, err := store.Create(ctx, wsID, CreateInput{Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID}})
+	pid := mustResume(t, ctx, pool, wsID)
+	camp, err := store.Create(ctx, wsID, CreateInput{Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID}, ProfileID: &pid})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,6 +112,7 @@ func TestDraftDueStepWritesReviewDraftOnce(t *testing.T) {
 	}
 	var n int
 	var status string
+	var attach string
 	err = pool.WithGUC(ctx, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, q *db.Queries) error {
 		row, err := q.GetEnrolment(ctx, db.GetEnrolmentParams{WorkspaceID: wsID, ID: en.ID})
 		if err != nil {
@@ -121,13 +124,16 @@ func TestDraftDueStepWritesReviewDraftOnce(t *testing.T) {
 			return err
 		}
 		n = len(drafts)
+		if n == 1 {
+			attach = drafts[0].AttachmentName
+		}
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status != "waiting_review" || n != 1 {
-		t.Fatalf("status %s drafts %d", status, n)
+	if status != "waiting_review" || n != 1 || attach != "Ada.pdf" {
+		t.Fatalf("status %s drafts %d attach %q", status, n, attach)
 	}
 }
 
@@ -163,6 +169,8 @@ func TestDraftDueStepSkipsOutsideWindow(t *testing.T) {
 			_ = q.DeleteCampaignSendersForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignStepsForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignsForWorkspace(ctx, wsID)
+			_ = q.DeleteResumesForWorkspace(ctx, wsID)
+			_ = q.DeleteProfilesForWorkspace(ctx, wsID)
 			_ = q.DeleteContactsForWorkspace(ctx, wsID)
 			_ = q.DeleteCompaniesForWorkspace(ctx, wsID)
 			_ = q.DeleteMailboxesForWorkspace(ctx, wsID)
@@ -201,7 +209,8 @@ func TestDraftDueStepSkipsOutsideWindow(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := NewPostgres(pool, packs)
-	camp, err := store.Create(ctx, wsID, CreateInput{Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID}})
+	pid := mustResume(t, ctx, pool, wsID)
+	camp, err := store.Create(ctx, wsID, CreateInput{Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID}, ProfileID: &pid})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,6 +270,8 @@ func TestDraftDueStepRespectsNewContactsPerDay(t *testing.T) {
 			_ = q.DeleteCampaignSendersForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignStepsForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignsForWorkspace(ctx, wsID)
+			_ = q.DeleteResumesForWorkspace(ctx, wsID)
+			_ = q.DeleteProfilesForWorkspace(ctx, wsID)
 			_ = q.DeleteContactsForWorkspace(ctx, wsID)
 			_ = q.DeleteCompaniesForWorkspace(ctx, wsID)
 			_ = q.DeleteMailboxesForWorkspace(ctx, wsID)
@@ -305,8 +316,9 @@ func TestDraftDueStepRespectsNewContactsPerDay(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := NewPostgres(pool, packs)
+	pid := mustResume(t, ctx, pool, wsID)
 	camp, err := store.Create(ctx, wsID, CreateInput{
-		Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID}, NewContactsPerDay: 1,
+		Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID}, NewContactsPerDay: 1, ProfileID: &pid,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -369,6 +381,8 @@ func TestDraftDueStepFollowUpStaysOnStickyMailbox(t *testing.T) {
 			_ = q.DeleteCampaignSendersForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignStepsForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignsForWorkspace(ctx, wsID)
+			_ = q.DeleteResumesForWorkspace(ctx, wsID)
+			_ = q.DeleteProfilesForWorkspace(ctx, wsID)
 			_ = q.DeleteContactsForWorkspace(ctx, wsID)
 			_ = q.DeleteCompaniesForWorkspace(ctx, wsID)
 			_ = q.DeleteMailboxesForWorkspace(ctx, wsID)
@@ -415,8 +429,9 @@ func TestDraftDueStepFollowUpStaysOnStickyMailbox(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := NewPostgres(pool, packs)
+	pid := mustResume(t, ctx, pool, wsID)
 	camp, err := store.Create(ctx, wsID, CreateInput{
-		Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb1.ID, mb2.ID},
+		Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb1.ID, mb2.ID}, ProfileID: &pid,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -488,6 +503,7 @@ func TestDraftDueStepStoresRetrievedFacts(t *testing.T) {
 			_ = q.DeleteCampaignSendersForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignStepsForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignsForWorkspace(ctx, wsID)
+			_ = q.DeleteResumesForWorkspace(ctx, wsID)
 			_ = q.DeleteProfilesForWorkspace(ctx, wsID)
 			_ = q.DeleteContactsForWorkspace(ctx, wsID)
 			_ = q.DeleteCompaniesForWorkspace(ctx, wsID)
@@ -500,23 +516,16 @@ func TestDraftDueStepStoresRetrievedFacts(t *testing.T) {
 		})
 		pool.Close()
 	})
-	profile, err := uuid.NewV7()
-	if err != nil {
-		t.Fatal(err)
-	}
 	err = pool.WithGUC(ctx, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, q *db.Queries) error {
 		if err := q.InsertWorkspace(ctx, db.InsertWorkspaceParams{ID: wsID, Name: "m63-facts"}); err != nil {
 			return err
 		}
-		if err := pacing.SeedPresets(ctx, q, wsID); err != nil {
-			return err
-		}
-		_, err := q.InsertProfile(ctx, db.InsertProfileParams{WorkspaceID: wsID, ID: profile, Name: "Ada", About: pgtype.Text{}})
-		return err
+		return pacing.SeedPresets(ctx, q, wsID)
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	profile := mustResume(t, ctx, pool, wsID)
 	mb, err := mailbox.NewPostgres(pool, keys).Connect(ctx, wsID, mailbox.ConnectInput{
 		Email: "dev@example.test", AuthKind: "smtp_imap", Timezone: "UTC",
 		SMTPHost: "127.0.0.1", SMTPPort: 1025,

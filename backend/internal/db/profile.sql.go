@@ -100,6 +100,34 @@ func (q *Queries) GetProfile(ctx context.Context, arg GetProfileParams) (Profile
 	return i, err
 }
 
+const getResume = `-- name: GetResume :one
+select workspace_id, id, profile_id, version, file_key, file_name, mime, text_content, created_at
+from resumes
+where workspace_id = $1 and id = $2
+`
+
+type GetResumeParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) GetResume(ctx context.Context, arg GetResumeParams) (Resume, error) {
+	row := q.db.QueryRow(ctx, getResume, arg.WorkspaceID, arg.ID)
+	var i Resume
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.ProfileID,
+		&i.Version,
+		&i.FileKey,
+		&i.FileName,
+		&i.Mime,
+		&i.TextContent,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const insertJob = `-- name: InsertJob :one
 insert into jobs (workspace_id, id, source_url, raw_text, title)
 values ($1, $2, $3, $4, $5)

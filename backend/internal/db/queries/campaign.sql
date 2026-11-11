@@ -13,19 +13,19 @@ where workspace_id = $1;
 -- name: InsertCampaign :one
 insert into campaigns (
   workspace_id, id, name, profile_id, intent, sender_strategy, status,
-  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, pool_id
+  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, pool_id, attach
 ) values (
   $1, $2, $3, $4, $5, $6, $7,
-  $8, $9, $10, $11, $12
+  $8, $9, $10, $11, $12, $13
 )
 returning
   workspace_id, id, name, profile_id, intent, sender_strategy, status,
-  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at, pool_id;
+  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at, pool_id, attach;
 
 -- name: ListCampaigns :many
 select
   workspace_id, id, name, profile_id, intent, sender_strategy, status,
-  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at, pool_id
+  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at, pool_id, attach
 from campaigns
 where workspace_id = $1
   and (sqlc.narg('after')::uuid is null or id < sqlc.narg('after'))
@@ -35,7 +35,7 @@ limit sqlc.arg('n');
 -- name: GetCampaign :one
 select
   workspace_id, id, name, profile_id, intent, sender_strategy, status,
-  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at, pool_id
+  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at, pool_id, attach
 from campaigns
 where workspace_id = $1 and id = $2;
 
@@ -63,7 +63,7 @@ set status = $3, list_unsubscribe = $4, starts_at = coalesce(starts_at, $5)
 where workspace_id = $1 and id = $2
 returning
   workspace_id, id, name, profile_id, intent, sender_strategy, status,
-  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at, pool_id;
+  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at, pool_id, attach;
 
 -- name: InsertCampaignSender :exec
 insert into campaign_senders (workspace_id, campaign_id, mailbox_id, position, weight)
