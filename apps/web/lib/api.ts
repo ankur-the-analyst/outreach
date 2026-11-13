@@ -268,6 +268,8 @@ export type Campaign = {
   senders: { mailbox_id: string }[];
   pool_id?: string;
   attach?: string;
+  track_opens?: boolean;
+  track_clicks?: boolean;
   created_at: string;
 };
 

@@ -37,7 +37,8 @@ limit sqlc.arg('n');
 -- name: GetCampaign :one
 select
   workspace_id, id, name, profile_id, intent, sender_strategy, status,
-  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at, pool_id, attach
+  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at, pool_id, attach,
+  track_opens, track_clicks
 from campaigns
 where workspace_id = $1 and id = $2;
 
@@ -58,6 +59,11 @@ where d.workspace_id = $1
   and d.status in ('pending', 'approved', 'sent')
   and d.created_at >= sqlc.arg('from_at')::timestamptz
   and d.created_at < sqlc.arg('to_at')::timestamptz;
+
+-- name: UpdateCampaignTracking :exec
+update campaigns
+set track_opens = $3, track_clicks = $4
+where workspace_id = $1 and id = $2;
 
 -- name: UpdateCampaignStatus :one
 update campaigns

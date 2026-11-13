@@ -21,6 +21,7 @@ type Store interface {
 	Create(ctx context.Context, workspaceID uuid.UUID, in CreateInput) (Campaign, error)
 	List(ctx context.Context, workspaceID uuid.UUID, after *uuid.UUID, limit int) (Page, error)
 	Get(ctx context.Context, workspaceID, id uuid.UUID) (Campaign, error)
+	SetTracking(ctx context.Context, workspaceID, id uuid.UUID, opens, clicks bool) (Campaign, error)
 	Start(ctx context.Context, workspaceID, id uuid.UUID) (Campaign, error)
 	Pause(ctx context.Context, workspaceID, id uuid.UUID) (Campaign, error)
 	Stop(ctx context.Context, workspaceID, id uuid.UUID) (Campaign, error)
@@ -185,6 +186,47 @@ func (a *API) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, c)
+}
+
+func (a *API) Patch(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.edit(w, r)
+	if !ok {
+		return
+	}
+	id, ok := parseID(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		TrackOpens  *bool `json:"track_opens"`
+		TrackClicks *bool `json:"track_clicks"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
+		return
+	}
+	if in.TrackOpens == nil && in.TrackClicks == nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", "nothing to update")
+		return
+	}
+	c, err := a.store.Get(r.Context(), s.WorkspaceID, id)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	opens, clicks := c.TrackOpens, c.TrackClicks
+	if in.TrackOpens != nil {
+		opens = *in.TrackOpens
+	}
+	if in.TrackClicks != nil {
+		clicks = *in.TrackClicks
+	}
+	out, err := a.store.SetTracking(r.Context(), s.WorkspaceID, id, opens, clicks)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (a *API) Start(w http.ResponseWriter, r *http.Request) {

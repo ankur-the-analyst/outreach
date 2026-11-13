@@ -260,6 +260,7 @@ func main() {
 	mux.Handle("GET /api/v1/campaigns", a.Require(http.HandlerFunc(camp.List)))
 	mux.Handle("POST /api/v1/campaigns", a.Require(http.HandlerFunc(camp.Create)))
 	mux.Handle("GET /api/v1/campaigns/{id}", a.Require(http.HandlerFunc(camp.Get)))
+	mux.Handle("PATCH /api/v1/campaigns/{id}", a.Require(http.HandlerFunc(camp.Patch)))
 	mux.Handle("POST /api/v1/campaigns/{id}/start", a.Require(http.HandlerFunc(camp.Start)))
 	mux.Handle("POST /api/v1/campaigns/{id}/pause", a.Require(http.HandlerFunc(camp.Pause)))
 	mux.Handle("POST /api/v1/campaigns/{id}/stop", a.Require(http.HandlerFunc(camp.Stop)))

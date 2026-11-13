@@ -383,6 +383,9 @@ function CampaignCard({
               : ""}
             {profile ? ` · ${profile.name}` : ""}
             {idle ? ` · ${idle}` : ""}
+            {campaign.track_opens || campaign.track_clicks
+              ? " · records opens and clicks"
+              : " · not recording opens"}
           </p>
         </div>
       </div>
@@ -495,6 +498,38 @@ function CampaignCard({
         >
           Add person
         </Button>
+        <label className="flex items-center gap-2 font-body-md text-foreground">
+          <input
+            type="checkbox"
+            checked={!!(campaign.track_opens || campaign.track_clicks)}
+            disabled={pending}
+            onChange={(e) => {
+              const on = e.target.checked;
+              void (async () => {
+                setMsg("");
+                setPending(true);
+                const res = await fetch(`/api/v1/campaigns/${campaign.id}`, {
+                  method: "PATCH",
+                  credentials: "include",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ track_opens: on, track_clicks: on }),
+                });
+                setPending(false);
+                if (!res.ok) {
+                  const data = (await res.json().catch(() => null)) as
+                    | { error?: { message?: string } }
+                    | null;
+                  setMsg(
+                    operatorError(data?.error?.message ?? "Could not update"),
+                  );
+                  return;
+                }
+                router.refresh();
+              })();
+            }}
+          />
+          Record opens and clicks
+        </label>
         {msg ? <p className="font-body-md text-muted-foreground">{msg}</p> : null}
       </div>
       <ConfirmDialog

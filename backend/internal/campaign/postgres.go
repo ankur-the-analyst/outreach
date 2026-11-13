@@ -71,6 +71,8 @@ type Campaign struct {
 	Senders           []Sender   `json:"senders"`
 	PoolID            *uuid.UUID `json:"pool_id,omitempty"`
 	Attach            string     `json:"attach"`
+	TrackOpens        bool       `json:"track_opens"`
+	TrackClicks       bool       `json:"track_clicks"`
 	CreatedAt         time.Time  `json:"created_at"`
 }
 
@@ -380,6 +382,24 @@ func (p *Postgres) Get(ctx context.Context, workspaceID, id uuid.UUID) (Campaign
 	return out, err
 }
 
+func (p *Postgres) SetTracking(ctx context.Context, workspaceID, id uuid.UUID, opens, clicks bool) (Campaign, error) {
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		if _, err := q.GetCampaign(ctx, db.GetCampaignParams{WorkspaceID: workspaceID, ID: id}); err != nil {
+			return err
+		}
+		return q.UpdateCampaignTracking(ctx, db.UpdateCampaignTrackingParams{
+			WorkspaceID: workspaceID, ID: id, TrackOpens: opens, TrackClicks: clicks,
+		})
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Campaign{}, ErrNotFound
+	}
+	if err != nil {
+		return Campaign{}, err
+	}
+	return p.Get(ctx, workspaceID, id)
+}
+
 func (p *Postgres) Start(ctx context.Context, workspaceID, id uuid.UUID) (Campaign, error) {
 	c, err := p.Get(ctx, workspaceID, id)
 	if err != nil {
@@ -606,6 +626,7 @@ func loadCampaign(ctx context.Context, q *db.Queries, workspaceID, id uuid.UUID,
 		ID: row.ID, Name: row.Name, ProfileID: row.ProfileID, Intent: row.Intent, SenderStrategy: row.SenderStrategy,
 		Status: row.Status, ListUnsubscribe: row.ListUnsubscribe, NewContactsPerDay: row.NewContactsPerDay,
 		AIInstructions: row.AiInstructions.String, UndoHoldS: row.UndoHoldS, PoolID: row.PoolID, Attach: row.Attach,
+		TrackOpens: row.TrackOpens, TrackClicks: row.TrackClicks,
 		CreatedAt: row.CreatedAt.Time,
 		Steps:     make([]Step, 0, len(steps)), Senders: make([]Sender, 0, len(senders)),
 	}

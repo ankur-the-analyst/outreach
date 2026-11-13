@@ -88,8 +88,12 @@ func TestCommercialStartRequiresIdentity(t *testing.T) {
 	store := NewPostgres(pool, packs)
 	pid := mustResume(t, ctx, pool, wsID)
 	job, err := store.Create(ctx, wsID, CreateInput{Name: "AE", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID}, ProfileID: &pid})
-	if err != nil || len(job.Steps) != 3 || job.Commercial || job.Attach != "original" {
+	if err != nil || len(job.Steps) != 3 || job.Commercial || job.Attach != "original" || !job.TrackOpens || !job.TrackClicks {
 		t.Fatalf("%+v %v", job, err)
+	}
+	off, err := store.SetTracking(ctx, wsID, job.ID, false, false)
+	if err != nil || off.TrackOpens || off.TrackClicks {
+		t.Fatalf("track off %+v %v", off, err)
 	}
 	if _, err := store.Enrol(ctx, wsID, job.ID, EnrolInput{ContactID: ct.ID}); err != ErrContext {
 		t.Fatalf("context %v", err)

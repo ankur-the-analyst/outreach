@@ -162,7 +162,8 @@ func (q *Queries) DeleteSenderIdentityForWorkspace(ctx context.Context, workspac
 const getCampaign = `-- name: GetCampaign :one
 select
   workspace_id, id, name, profile_id, intent, sender_strategy, status,
-  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at, pool_id, attach
+  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, created_at, pool_id, attach,
+  track_opens, track_clicks
 from campaigns
 where workspace_id = $1 and id = $2
 `
@@ -187,6 +188,8 @@ type GetCampaignRow struct {
 	CreatedAt         pgtype.Timestamptz
 	PoolID            *uuid.UUID
 	Attach            string
+	TrackOpens        bool
+	TrackClicks       bool
 }
 
 func (q *Queries) GetCampaign(ctx context.Context, arg GetCampaignParams) (GetCampaignRow, error) {
@@ -207,6 +210,8 @@ func (q *Queries) GetCampaign(ctx context.Context, arg GetCampaignParams) (GetCa
 		&i.CreatedAt,
 		&i.PoolID,
 		&i.Attach,
+		&i.TrackOpens,
+		&i.TrackClicks,
 	)
 	return i, err
 }
@@ -1064,6 +1069,29 @@ func (q *Queries) UpdateCampaignStatus(ctx context.Context, arg UpdateCampaignSt
 		&i.Attach,
 	)
 	return i, err
+}
+
+const updateCampaignTracking = `-- name: UpdateCampaignTracking :exec
+update campaigns
+set track_opens = $3, track_clicks = $4
+where workspace_id = $1 and id = $2
+`
+
+type UpdateCampaignTrackingParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	TrackOpens  bool
+	TrackClicks bool
+}
+
+func (q *Queries) UpdateCampaignTracking(ctx context.Context, arg UpdateCampaignTrackingParams) error {
+	_, err := q.db.Exec(ctx, updateCampaignTracking,
+		arg.WorkspaceID,
+		arg.ID,
+		arg.TrackOpens,
+		arg.TrackClicks,
+	)
+	return err
 }
 
 const updateEnrolmentMailbox = `-- name: UpdateEnrolmentMailbox :exec

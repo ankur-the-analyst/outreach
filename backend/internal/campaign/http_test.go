@@ -38,6 +38,14 @@ func (f *fakeStore) List(context.Context, uuid.UUID, *uuid.UUID, int) (Page, err
 func (f *fakeStore) Get(context.Context, uuid.UUID, uuid.UUID) (Campaign, error) {
 	return f.c, nil
 }
+func (f *fakeStore) SetTracking(_ context.Context, _ uuid.UUID, _ uuid.UUID, opens, clicks bool) (Campaign, error) {
+	if f.err != nil {
+		return Campaign{}, f.err
+	}
+	f.c.TrackOpens = opens
+	f.c.TrackClicks = clicks
+	return f.c, nil
+}
 func (f *fakeStore) Start(context.Context, uuid.UUID, uuid.UUID) (Campaign, error) {
 	if f.err != nil {
 		return Campaign{}, f.err
@@ -182,6 +190,26 @@ func TestStartCommercialWithoutIdentity(t *testing.T) {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 	if !bytes.Contains(rec.Body.Bytes(), []byte("sender identity required")) {
+		t.Fatalf("%s", rec.Body.String())
+	}
+}
+
+func TestPatchTrackingHTTP(t *testing.T) {
+	t.Parallel()
+	id := uuid.MustParse("01700000-0000-7000-8000-000000000003")
+	api := New(&fakeStore{role: "owner", c: Campaign{ID: id, TrackOpens: true, TrackClicks: true}})
+	req := httptest.NewRequest(http.MethodPatch, "/api/v1/campaigns/"+id.String(), bytes.NewBufferString(`{"track_opens":false,"track_clicks":false}`))
+	req.SetPathValue("id", id.String())
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Patch(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"track_opens":false`)) {
 		t.Fatalf("%s", rec.Body.String())
 	}
 }
