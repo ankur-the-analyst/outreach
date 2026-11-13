@@ -193,6 +193,8 @@ export type Draft = {
   facts_used?: { claim: string; evidence_id: string }[];
   attachment_name?: string;
   attachment_from?: string;
+  opened_at?: string;
+  clicked_at?: string;
 };
 
 export function getDrafts() {

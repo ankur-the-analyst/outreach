@@ -298,7 +298,8 @@ select
   d.workspace_id, d.id, d.mailbox_id, d.to_addr, d.rfc_message_id,
   d.kind, d.subject, d.body_html, d.body_text, d.facts_used, d.status, d.approved_by, d.created_at,
   l.id as ledger_id, l.state as ledger_state, l.release_at,
-  coalesce(rs.file_name, r.file_name, '') as attachment_name, r.from_email as attachment_from
+  coalesce(rs.file_name, r.file_name, '') as attachment_name, r.from_email as attachment_from,
+  e.opened_at, e.clicked_at
 from drafts d
 left join send_ledger l
   on l.workspace_id = d.workspace_id
@@ -310,6 +311,9 @@ left join cv_renders r
 left join resumes rs
   on rs.workspace_id = d.workspace_id
  and rs.id = d.attachment_resume_id
+left join enrolments e
+  on e.workspace_id = d.workspace_id
+ and e.id = d.enrolment_id
 where d.workspace_id = $1
   and d.status in ('pending', 'approved')
   and ($2::uuid is null or d.id < $2)
@@ -342,6 +346,8 @@ type ListReviewDraftsRow struct {
 	ReleaseAt      pgtype.Timestamptz
 	AttachmentName string
 	AttachmentFrom pgtype.Text
+	OpenedAt       pgtype.Timestamptz
+	ClickedAt      pgtype.Timestamptz
 }
 
 func (q *Queries) ListReviewDrafts(ctx context.Context, arg ListReviewDraftsParams) ([]ListReviewDraftsRow, error) {
@@ -372,6 +378,8 @@ func (q *Queries) ListReviewDrafts(ctx context.Context, arg ListReviewDraftsPara
 			&i.ReleaseAt,
 			&i.AttachmentName,
 			&i.AttachmentFrom,
+			&i.OpenedAt,
+			&i.ClickedAt,
 		); err != nil {
 			return nil, err
 		}

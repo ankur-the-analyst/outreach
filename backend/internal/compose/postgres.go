@@ -43,6 +43,8 @@ type Draft struct {
 	ReleaseAt      *time.Time   `json:"release_at,omitempty"`
 	AttachmentName string       `json:"attachment_name,omitempty"`
 	AttachmentFrom string       `json:"attachment_from,omitempty"`
+	OpenedAt       *time.Time   `json:"opened_at,omitempty"`
+	ClickedAt      *time.Time   `json:"clicked_at,omitempty"`
 }
 
 type CreateInput struct {
@@ -319,6 +321,8 @@ func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID, after *uuid.
 		rows = make([]Draft, 0, len(got))
 		for _, row := range got {
 			d := draftFrom(row.ID, row.MailboxID, row.ToAddr, row.RfcMessageID, row.Kind, row.Subject, row.BodyHtml, row.BodyText, row.Status, row.LedgerID, row.LedgerState.String, row.ReleaseAt)
+			d.OpenedAt = timestamptzPtr(row.OpenedAt)
+			d.ClickedAt = timestamptzPtr(row.ClickedAt)
 			if row.AttachmentName != "" {
 				d.AttachmentName = row.AttachmentName
 			}
@@ -527,4 +531,12 @@ func draftFrom(id, mailboxID uuid.UUID, to, rfc, kind, subject, html, text, stat
 		d.ReleaseAt = &t
 	}
 	return d
+}
+
+func timestamptzPtr(t pgtype.Timestamptz) *time.Time {
+	if !t.Valid {
+		return nil
+	}
+	u := t.Time.UTC()
+	return &u
 }

@@ -18,6 +18,7 @@ import { EmptyState, PageBody, PageHeader, Pill } from "@/components/page-header
 import type { Draft, Mailbox, Profile } from "@/lib/api";
 import {
   fieldTextarea,
+  formatVisitTime,
   mailboxIdle,
   reviewBucket,
   sendStatus,
@@ -355,6 +356,13 @@ function ReviewRow({
             To {draft.to}
             {mailbox ? ` · via ${mailbox.email}` : ""}
           </p>
+          {draft.opened_at || draft.clicked_at ? (
+            <p className="mt-1 font-body-sm tabular-nums text-muted-foreground">
+              {draft.opened_at ? `Opened ${formatVisitTime(draft.opened_at)}` : ""}
+              {draft.opened_at && draft.clicked_at ? " · " : ""}
+              {draft.clicked_at ? `Clicked ${formatVisitTime(draft.clicked_at)}` : ""}
+            </p>
+          ) : null}
           {draft.attachment_name ? (
             <p className="mt-1 font-body-sm text-muted-foreground">
               File {draft.attachment_name}
