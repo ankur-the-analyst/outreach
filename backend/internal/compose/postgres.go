@@ -24,6 +24,7 @@ var (
 	ErrForbidden = errors.New("forbidden")
 	ErrConflict  = errors.New("invalid draft transition")
 	ErrNoClaims  = errors.New("no confirmed claims")
+	ErrLeftover  = errors.New("Fix leftover placeholders before sending")
 )
 
 type Draft struct {
@@ -283,10 +284,14 @@ func (p *Postgres) Patch(ctx context.Context, workspaceID, draftID uuid.UUID, in
 	if text == "" {
 		return Draft{}, fmt.Errorf("compose: body required")
 	}
+	html := in.HTML
+	if strings.TrimSpace(html) == "" {
+		html = d.BodyHTML
+	}
 	var out Draft
 	err = p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
 		row, err := q.UpdateDraftBody(ctx, db.UpdateDraftBodyParams{
-			WorkspaceID: workspaceID, ID: draftID, Subject: subject, BodyText: text, BodyHtml: in.HTML,
+			WorkspaceID: workspaceID, ID: draftID, Subject: subject, BodyText: text, BodyHtml: html,
 		})
 		if err != nil {
 			return err
@@ -348,6 +353,9 @@ func (p *Postgres) Approve(ctx context.Context, workspaceID, userID, draftID uui
 	}
 	if d.Status != "pending" {
 		return Draft{}, ErrConflict
+	}
+	if Leftover(d.Subject, d.BodyHTML, d.BodyText) {
+		return Draft{}, ErrLeftover
 	}
 	ent, err := p.hold.Hold(ctx, workspaceID, sender.HoldInput{
 		MailboxID: d.MailboxID, RFCMessageID: d.RFCMessageID, DraftID: d.ID,

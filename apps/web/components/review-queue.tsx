@@ -28,9 +28,15 @@ function reviewActionError(message: string): string {
   switch (message) {
     case "invalid draft transition":
       return "This draft is no longer waiting for approval";
+    case "Fix leftover placeholders before sending":
+      return "This email still has placeholders. Fix them before sending.";
     default:
       return message;
   }
+}
+
+function hasLeftover(draft: Draft, subject: string, body: string): boolean {
+  return [subject, body, draft.body_html ?? ""].some((s) => s.includes("{{"));
 }
 
 export function ReviewQueue({
@@ -52,10 +58,14 @@ export function ReviewQueue({
   const [rows, setRows] = useState(drafts);
   const [cursor, setCursor] = useState(nextCursor);
   const [morePending, setMorePending] = useState(false);
+  const [nowMs, setNowMs] = useState<number>();
   useEffect(() => {
     setRows(drafts);
     setCursor(nextCursor);
   }, [drafts, nextCursor]);
+  useEffect(() => {
+    setNowMs(Date.now());
+  }, []);
   const byMailbox = useMemo(
     () => new Map(mailboxes.map((m) => [m.id, m])),
     [mailboxes],
@@ -152,7 +162,7 @@ export function ReviewQueue({
     ) : (
       <ul className="flex flex-col gap-3">
         {shown.map((d) => (
-          <ReviewRow key={d.id} draft={d} mailboxes={mailboxes} />
+          <ReviewRow key={d.id} draft={d} mailboxes={mailboxes} nowMs={nowMs} />
         ))}
       </ul>
     );
@@ -237,9 +247,11 @@ export function ReviewQueue({
 function ReviewRow({
   draft,
   mailboxes,
+  nowMs,
 }: {
   draft: Draft;
   mailboxes: Mailbox[];
+  nowMs?: number;
 }) {
   const router = useRouter();
   const [msg, setMsg] = useState("");
@@ -353,7 +365,7 @@ function ReviewRow({
         <Pill
           tone={bucket === "undo" || bucket === "pending" ? "primary" : "muted"}
         >
-          {sendStatus(draft, mailbox)}
+          {sendStatus(draft, mailbox, nowMs)}
         </Pill>
       </div>
       {(draft.facts_used ?? []).length > 0 ? (
@@ -361,15 +373,28 @@ function ReviewRow({
           Claims: {(draft.facts_used ?? []).map((f) => f.claim).join(" · ")}
         </p>
       ) : null}
+      {hasLeftover(draft, subject, body) ? (
+        <p className="mt-2 font-body-sm text-muted-foreground">
+          This email still has placeholders. Fix them before sending.
+        </p>
+      ) : null}
+      {draft.body_html ? (
+        <iframe
+          title="Email preview"
+          sandbox=""
+          srcDoc={draft.body_html}
+          className="mt-3 h-[280px] w-full max-w-[68ch] rounded-md border border-border bg-card"
+        />
+      ) : null}
       {draft.status === "pending" ? (
         <textarea
-          aria-label="Body"
-          rows={8}
+          aria-label={draft.body_html ? "Plain text" : "Body"}
+          rows={draft.body_html ? 4 : 8}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           className={`mt-3 max-w-[68ch] ${fieldTextarea}`}
         />
-      ) : (
+      ) : draft.body_html ? null : (
         <p className="mt-3 max-w-[68ch] whitespace-pre-wrap font-body-md text-foreground">
           {body}
         </p>

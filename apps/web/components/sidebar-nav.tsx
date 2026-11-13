@@ -1,11 +1,16 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { navGroups } from "@/lib/nav";
 
 export function SidebarNav() {
   const pathname = usePathname();
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    setReady(true);
+  }, []);
   return (
     <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-2 py-3">
       {navGroups.map((group) => (
@@ -16,9 +21,10 @@ export function SidebarNav() {
           {group.items.map((item) => {
             const Icon = item.icon;
             const active =
-              item.href === "/"
+              ready &&
+              (item.href === "/"
                 ? pathname === "/"
-                : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                : pathname === item.href || pathname.startsWith(`${item.href}/`));
             return (
               <Link
                 key={item.href}

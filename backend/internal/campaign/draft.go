@@ -74,6 +74,7 @@ type Draft struct {
 	To        string      `json:"to"`
 	Subject   string      `json:"subject"`
 	Body      string      `json:"body_text"`
+	BodyHTML  string      `json:"body_html,omitempty"`
 	Status    string      `json:"status"`
 	FactsUsed []draftFact `json:"facts_used,omitempty"`
 }
@@ -106,7 +107,10 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 			StepPosition: pgtype.Int4{Int32: stepPosition, Valid: true},
 		})
 		if err == nil {
-			out = Draft{ID: existing.ID, MailboxID: existing.MailboxID, To: existing.ToAddr, Subject: existing.Subject, Body: existing.BodyText, Status: existing.Status}
+			out = Draft{
+				ID: existing.ID, MailboxID: existing.MailboxID, To: existing.ToAddr,
+				Subject: existing.Subject, Body: existing.BodyText, BodyHTML: existing.BodyHtml, Status: existing.Status,
+			}
 			return nil
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
@@ -202,6 +206,7 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 		}
 		subject := camp.Name
 		body := ""
+		html := ""
 		var step *Step
 		for i := range camp.Steps {
 			if camp.Steps[i].Position == stepPosition {
@@ -217,6 +222,9 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 			vals := fillVars(ctx, q, workspaceID, ct, en, camp)
 			subject = templates.Render(tpl.Subject, vals)
 			body = templates.Render(tpl.BodyText, vals)
+			if tpl.BodyHtml.Valid {
+				html = templates.Render(tpl.BodyHtml.String, vals)
+			}
 			if strings.TrimSpace(subject) == "" {
 				subject = camp.Name
 			}
@@ -240,7 +248,7 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 			RfcMessageID: msgid,
 			Kind:         "outbound",
 			Subject:      subject,
-			BodyHtml:     "",
+			BodyHtml:     html,
 			BodyText:     body,
 			FactsUsed:    factsJSON,
 			Status:       "pending",
@@ -296,7 +304,10 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 				}
 			}
 		}
-		out = Draft{ID: row.ID, MailboxID: row.MailboxID, To: row.ToAddr, Subject: row.Subject, Body: row.BodyText, Status: row.Status, FactsUsed: facts}
+		out = Draft{
+			ID: row.ID, MailboxID: row.MailboxID, To: row.ToAddr, Subject: row.Subject,
+			Body: row.BodyText, BodyHTML: row.BodyHtml, Status: row.Status, FactsUsed: facts,
+		}
 		return nil
 	})
 	return out, err

@@ -213,6 +213,7 @@ export function reviewBucket(
 export function sendStatus(
   draft: Draft,
   mailbox?: Pick<Mailbox, "open_today" | "sending_now" | "next_open">,
+  nowMs?: number,
 ): string {
   if (draft.status === "pending") {
     const when = mailboxSendsAtLabel(mailbox);
@@ -223,7 +224,7 @@ export function sendStatus(
   }
   switch (draft.ledger_state) {
     case "held":
-      return undoLabel(draft.release_at);
+      return undoLabel(draft.release_at, nowMs);
     case "reserved":
     case "sending":
       return "Sending";
@@ -242,11 +243,11 @@ export function sendStatus(
   }
 }
 
-export function undoLabel(releaseAt?: string): string {
-  if (!releaseAt) {
+export function undoLabel(releaseAt?: string, nowMs?: number): string {
+  if (!releaseAt || nowMs == null) {
     return "You can still undo";
   }
-  const ms = new Date(releaseAt).getTime() - Date.now();
+  const ms = new Date(releaseAt).getTime() - nowMs;
   if (ms <= 0) {
     return "You can still undo";
   }

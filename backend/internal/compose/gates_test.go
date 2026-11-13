@@ -27,6 +27,9 @@ func TestCheckGates(t *testing.T) {
 	if fails := Check("You closed 99 deals.", []Fact{{EvidenceID: other}}, cited); !hasCode(fails, "uncited") || !hasCode(fails, "claim") {
 		t.Fatalf("%+v", fails)
 	}
+	if !Leftover("ok", "<p>Hi {{contact.first_name}}</p>") || Leftover("Hi Ada", "<p>Hi Ada</p>") {
+		t.Fatal("leftover html")
+	}
 }
 
 func hasCode(fails []Failure, code string) bool {

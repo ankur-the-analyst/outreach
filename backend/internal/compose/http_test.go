@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -149,6 +150,23 @@ func TestComposeHTTPNeedsSettings(t *testing.T) {
 	rec := httptest.NewRecorder()
 	api.Compose(rec, req)
 	if rec.Code != http.StatusBadRequest || !bytes.Contains(rec.Body.Bytes(), []byte("ai_not_configured")) {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestApproveLeftoverHTTP(t *testing.T) {
+	t.Parallel()
+	id := uuid.MustParse("01700000-0000-7000-8000-000000000003")
+	api := New(&fakeStore{role: "owner", err: ErrLeftover})
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/drafts/"+id.String()+"/approve", nil)
+	req.SetPathValue("id", id.String())
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.Approve(rec, req)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "leftover") {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
 	}
 }

@@ -29,9 +29,18 @@ var (
 	linkRe = regexp.MustCompile(`(?i)https?://[^\s]+`)
 )
 
+func Leftover(parts ...string) bool {
+	for _, p := range parts {
+		if strings.Contains(p, "{{") {
+			return true
+		}
+	}
+	return false
+}
+
 func Check(body string, facts []Fact, cited []evidence.Item) []Failure {
 	var out []Failure
-	if strings.Contains(body, "{{") {
+	if Leftover(body) {
 		out = append(out, Failure{Code: "template", Message: "leftover {{ in body"})
 	}
 	if n := wordCount(body); n > MaxWords {

@@ -296,6 +296,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, "unconfirmed", err.Error())
 	case errors.Is(err, ErrNoClaims):
 		writeError(w, http.StatusBadRequest, "no_claims", "No confirmed claims for this profile")
+	case errors.Is(err, ErrLeftover):
+		writeError(w, http.StatusBadRequest, "leftover", ErrLeftover.Error())
 	case errors.Is(err, ai.ErrNoBinding), errors.Is(err, ai.ErrNoKey), errors.Is(err, ai.ErrNotFound):
 		writeError(w, http.StatusBadRequest, "ai_not_configured", "Set a model and API key in Settings")
 	default:

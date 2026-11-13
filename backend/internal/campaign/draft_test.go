@@ -15,6 +15,7 @@ import (
 	"outreach/internal/evidence"
 	"outreach/internal/mailbox"
 	"outreach/internal/pacing"
+	"outreach/internal/templates"
 )
 
 func TestDraftDueStepWritesReviewDraftOnce(t *testing.T) {
@@ -569,5 +570,110 @@ func TestDraftDueStepStoresRetrievedFacts(t *testing.T) {
 	}
 	if d.Body != "met at a meetup" || len(d.FactsUsed) != 1 || d.FactsUsed[0].Claim != "closed 12 deals" || d.FactsUsed[0].EvidenceID != eid {
 		t.Fatalf("draft %+v", d)
+	}
+}
+
+func TestDraftDueStepRendersTemplateHTML(t *testing.T) {
+	url := os.Getenv("DATABASE_APP_URL")
+	if url == "" {
+		t.Skip("DATABASE_APP_URL not set")
+	}
+	keys, err := crypto.NewKeyring("1:0000000000000000000000000000000000000000000000000000000000000001", 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	pool, err := db.Open(ctx, url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wsID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	userID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		c, done := context.WithTimeout(context.Background(), 5*time.Second)
+		defer done()
+		_ = pool.WithGUC(c, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, q *db.Queries) error {
+			_ = q.DeleteDraftsForWorkspace(ctx, wsID)
+			_ = q.DeleteEnrolmentsForWorkspace(ctx, wsID)
+			_ = q.DeleteCampaignSendersForWorkspace(ctx, wsID)
+			_ = q.DeleteCampaignStepsForWorkspace(ctx, wsID)
+			_ = q.DeleteCampaignsForWorkspace(ctx, wsID)
+			_ = q.DeleteTemplatesForWorkspace(ctx, wsID)
+			_ = q.DeleteResumesForWorkspace(ctx, wsID)
+			_ = q.DeleteProfilesForWorkspace(ctx, wsID)
+			_ = q.DeleteContactsForWorkspace(ctx, wsID)
+			_ = q.DeleteCompaniesForWorkspace(ctx, wsID)
+			_ = q.DeleteMailboxesForWorkspace(ctx, wsID)
+			_ = q.DeleteSecretsForWorkspace(ctx, wsID)
+			_ = q.DeleteWarmupProfilesForWorkspace(ctx, wsID)
+			_ = q.DeleteSendingDomainsForWorkspace(ctx, wsID)
+			_ = q.DeleteWorkspace(ctx, wsID)
+			return nil
+		})
+		pool.Close()
+	})
+	err = pool.WithGUC(ctx, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, q *db.Queries) error {
+		if err := q.InsertWorkspace(ctx, db.InsertWorkspaceParams{ID: wsID, Name: "m103-tpl"}); err != nil {
+			return err
+		}
+		return pacing.SeedPresets(ctx, q, wsID)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mb, err := mailbox.NewPostgres(pool, keys).Connect(ctx, wsID, mailbox.ConnectInput{
+		Email: "dev@example.test", AuthKind: "smtp_imap", Timezone: "UTC",
+		SMTPHost: "127.0.0.1", SMTPPort: 1025,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ct, err := contacts.NewPostgres(pool).Create(ctx, wsID, contacts.CreateInput{
+		Email: "ada@acme.com", FirstName: "Ada", Source: "typed", AddedBy: userID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tpl, err := templates.NewPostgres(pool).Create(ctx, wsID, templates.CreateInput{
+		Name: "intro", Subject: "Hi {{contact.first_name}}",
+		BodyText: "Hello {{contact.first_name}}",
+		BodyHTML: "<p>Hello {{contact.first_name}}</p>",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	packs, err := LoadPacks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := NewPostgres(pool, packs)
+	pid := mustResume(t, ctx, pool, wsID)
+	camp, err := store.Create(ctx, wsID, CreateInput{
+		Name: "AE intro", Intent: "job", MailboxIDs: []uuid.UUID{mb.ID}, ProfileID: &pid, TemplateID: &tpl.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	en, err := store.Enrol(ctx, wsID, camp.ID, EnrolInput{ContactID: ct.ID, Notes: "met at a meetup"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Start(ctx, wsID, camp.ID); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 11, 9, 10, 0, 0, 0, time.UTC)
+	d, err := store.DraftDueStep(ctx, wsID, en.ID, 0, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.Subject != "Hi Ada" || d.Body != "Hello Ada" || d.BodyHTML != "<p>Hello Ada</p>" {
+		t.Fatalf("render %+v", d)
 	}
 }
