@@ -75,6 +75,7 @@ func main() {
 		WithDialer(dialer).
 		WithUnknownTimeout(unknown).
 		WithUnsub(cfg.PublicBaseURL, keys).
+		WithTrack(cfg.PublicTrackHost).
 		WithAttach(cvStore)
 	jobs, err := worker.NewInsertClient(pool)
 	if err != nil {

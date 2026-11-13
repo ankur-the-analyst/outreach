@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { PageLoading } from "@/components/page-header";
 import { ReviewQueue } from "@/components/review-queue";
 import { getDrafts, getMailboxes, getProfiles } from "@/lib/api";
@@ -6,6 +7,7 @@ import { getDrafts, getMailboxes, getProfiles } from "@/lib/api";
 export const instant = false;
 
 async function ReviewBody() {
+  await connection();
   const [drafts, mailboxes, profiles] = await Promise.all([
     getDrafts(),
     getMailboxes(),

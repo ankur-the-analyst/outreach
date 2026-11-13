@@ -57,6 +57,7 @@ type Postgres struct {
 	queue      ReconcileEnqueuer
 	block      Blocker
 	publicBase string
+	trackHost  string
 	hmac       suppression.Hasher
 }
 
@@ -88,6 +89,11 @@ func (p *Postgres) WithBlocker(b Blocker) *Postgres {
 func (p *Postgres) WithUnsub(base string, h suppression.Hasher) *Postgres {
 	p.publicBase = strings.TrimRight(strings.TrimSpace(base), "/")
 	p.hmac = h
+	return p
+}
+
+func (p *Postgres) WithTrack(host string) *Postgres {
+	p.trackHost = strings.TrimRight(strings.TrimSpace(host), "/")
 	return p
 }
 

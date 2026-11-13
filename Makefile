@@ -17,11 +17,13 @@ down:
 logs:
 	docker compose logs -f postgres
 
+PUBLIC_TRACK_HOST ?= http://127.0.0.1:8080
+
 api:
-	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" MASTER_KEYS="$(MASTER_KEYS)" MASTER_KEY_ACTIVE="$(MASTER_KEY_ACTIVE)" MAILPIT_API="$(MAILPIT_API)" ADDR="$(or $(ADDR),:8080)" go run ./cmd/api
+	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" MASTER_KEYS="$(MASTER_KEYS)" MASTER_KEY_ACTIVE="$(MASTER_KEY_ACTIVE)" MAILPIT_API="$(MAILPIT_API)" ADDR="$(or $(ADDR),:8080)" PUBLIC_TRACK_HOST="$(PUBLIC_TRACK_HOST)" go run ./cmd/api
 
 worker:
-	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" MASTER_KEYS="$(MASTER_KEYS)" MASTER_KEY_ACTIVE="$(MASTER_KEY_ACTIVE)" MAILPIT_API="$(MAILPIT_API)" go run ./cmd/worker
+	cd backend && DATABASE_APP_URL="$(DATABASE_APP_URL)" MASTER_KEYS="$(MASTER_KEYS)" MASTER_KEY_ACTIVE="$(MASTER_KEY_ACTIVE)" MAILPIT_API="$(MAILPIT_API)" PUBLIC_TRACK_HOST="$(PUBLIC_TRACK_HOST)" go run ./cmd/worker
 
 sqlc:
 	cd backend && go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0 generate

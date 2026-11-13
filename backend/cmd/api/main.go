@@ -35,6 +35,7 @@ import (
 	"outreach/internal/suppression"
 	mailsync "outreach/internal/sync"
 	"outreach/internal/templates"
+	"outreach/internal/tracking"
 	"outreach/internal/worker"
 	"outreach/internal/workspace"
 )
@@ -137,6 +138,7 @@ func main() {
 		WithQueue(reconcileJobs{client: jobs}).
 		WithBlocker(suppStore).
 		WithUnsub(cfg.PublicBaseURL, keys).
+		WithTrack(cfg.PublicTrackHost).
 		WithAttach(cvStore)
 	snd := sender.New(led)
 	writer := &ai.Fake{
@@ -168,6 +170,9 @@ func main() {
 	mux := http.NewServeMux()
 	hs := health.New(health.NewPostgres(pool))
 	mux.HandleFunc("GET /health", health.Handler(pool))
+	tr := tracking.New(tracking.NewPostgres(pool, time.Now), keys)
+	mux.HandleFunc("GET /t/o/{token}", tr.Open)
+	mux.HandleFunc("GET /t/c/{token}", tr.Click)
 	mux.HandleFunc("POST /u/{token}", supp.OneClick)
 	mux.HandleFunc("GET /u/{token}", supp.OneClick)
 	mux.HandleFunc("POST /api/v1/unsubscribe/{token}", supp.OneClick)

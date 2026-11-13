@@ -13,10 +13,12 @@ where workspace_id = $1;
 -- name: InsertCampaign :one
 insert into campaigns (
   workspace_id, id, name, profile_id, intent, sender_strategy, status,
-  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, pool_id, attach
+  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, pool_id, attach,
+  track_opens, track_clicks
 ) values (
   $1, $2, $3, $4, $5, $6, $7,
-  $8, $9, $10, $11, $12, $13
+  $8, $9, $10, $11, $12, $13,
+  $14, $15
 )
 returning
   workspace_id, id, name, profile_id, intent, sender_strategy, status,
@@ -194,6 +196,17 @@ left join lateral (
 ) l on true
 where e.workspace_id = $1
 order by coalesce(d.created_at, e.created_at) desc;
+
+-- name: CampaignTracking :one
+select c.track_opens, c.track_clicks, d.id as draft_id
+from send_ledger l
+join drafts d
+  on d.workspace_id = l.workspace_id and d.id = l.draft_id
+join enrolments e
+  on e.workspace_id = d.workspace_id and e.id = d.enrolment_id
+join campaigns c
+  on c.workspace_id = e.workspace_id and c.id = e.campaign_id
+where l.workspace_id = $1 and l.id = $2;
 
 -- name: CampaignWantsListUnsubscribe :one
 select c.list_unsubscribe

@@ -13,6 +13,7 @@ import (
 	"outreach/internal/mime"
 	"outreach/internal/pacing"
 	"outreach/internal/suppression"
+	"outreach/internal/tracking"
 )
 
 type Dialer interface {
@@ -167,7 +168,41 @@ func (p *Postgres) buildMIME(ctx context.Context, workspaceID, ledgerID uuid.UUI
 	if inCampaign && !commercial {
 		msg.Text, msg.HTML = mime.WithFooter(msg.Text, msg.HTML, mime.OptOutLine)
 	}
+	html, err := p.injectTrack(ctx, workspaceID, ledgerID, msg.HTML)
+	if err != nil {
+		return nil, err
+	}
+	msg.HTML = html
 	return mime.Build(msg)
+}
+
+func (p *Postgres) injectTrack(ctx context.Context, workspaceID, ledgerID uuid.UUID, html string) (string, error) {
+	var opens, clicks bool
+	var draftID uuid.UUID
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.CampaignTracking(ctx, db.CampaignTrackingParams{WorkspaceID: workspaceID, ID: ledgerID})
+		if err != nil {
+			return err
+		}
+		opens, clicks, draftID = row.TrackOpens, row.TrackClicks, row.DraftID
+		return nil
+	})
+	if err != nil {
+		return html, nil
+	}
+	return tracking.Inject(tracking.InjectInput{
+		HTML: html, Host: p.trackHost, HMAC: trackHMAC{p.hmac},
+		WorkspaceID: workspaceID, DraftID: draftID, Opens: opens, Clicks: clicks,
+	})
+}
+
+type trackHMAC struct{ h suppression.Hasher }
+
+func (t trackHMAC) HMAC(msg []byte) []byte {
+	if t.h == nil {
+		return nil
+	}
+	return t.h.HMAC(msg)
 }
 
 func (p *Postgres) campaignUnsub(ctx context.Context, workspaceID, ledgerID uuid.UUID) (commercial, inCampaign bool) {

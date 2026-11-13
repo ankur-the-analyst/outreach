@@ -280,6 +280,8 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 			UndoHoldS:         300,
 			PoolID:            in.PoolID,
 			Attach:            attach,
+			TrackOpens:        true,
+			TrackClicks:       true,
 		})
 		if err != nil {
 			if isFK(err) {

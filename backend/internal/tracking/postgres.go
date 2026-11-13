@@ -124,3 +124,25 @@ func (p *Postgres) Times(ctx context.Context, workspaceID, enrolmentID uuid.UUID
 	})
 	return opened, clicked, err
 }
+
+func (p *Postgres) RecordFromDraft(ctx context.Context, workspaceID, draftID uuid.UUID, kind, url string) error {
+	var enID uuid.UUID
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		got, err := q.GetDraftEnrolment(ctx, db.GetDraftEnrolmentParams{WorkspaceID: workspaceID, ID: draftID})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+		if got == nil {
+			return ErrNotFound
+		}
+		enID = *got
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	return p.Record(ctx, workspaceID, Event{EnrolmentID: enID, DraftID: draftID, Kind: kind, URL: url})
+}

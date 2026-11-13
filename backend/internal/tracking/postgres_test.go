@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"outreach/internal/campaign"
 	"outreach/internal/contacts"
 	"outreach/internal/crypto"
 	"outreach/internal/db"
@@ -51,8 +50,6 @@ func TestRecordRespectsRLSAndKeepsFirstOpen(t *testing.T) {
 				_ = q.DeleteMailEventsForWorkspace(ctx, id)
 				_ = q.DeleteDraftsForWorkspace(ctx, id)
 				_ = q.DeleteEnrolmentsForWorkspace(ctx, id)
-				_ = q.DeleteCampaignSendersForWorkspace(ctx, id)
-				_ = q.DeleteCampaignStepsForWorkspace(ctx, id)
 				_ = q.DeleteCampaignsForWorkspace(ctx, id)
 				_ = q.DeleteContactsForWorkspace(ctx, id)
 				_ = q.DeleteMailboxesForWorkspace(ctx, id)
@@ -93,19 +90,11 @@ func TestRecordRespectsRLSAndKeepsFirstOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	packs, err := campaign.LoadPacks()
+	campID, err := uuid.NewV7()
 	if err != nil {
 		t.Fatal(err)
 	}
-	camp, err := campaign.NewPostgres(pool, packs).Create(ctx, wsA, campaign.CreateInput{
-		Name: "Cold", Intent: "cold", MailboxIDs: []uuid.UUID{mb.ID},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	en, err := campaign.NewPostgres(pool, packs).Enrol(ctx, wsA, camp.ID, campaign.EnrolInput{
-		ContactID: ct.ID, Notes: "met at a meetup",
-	})
+	enID, err := uuid.NewV7()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,20 +103,24 @@ func TestRecordRespectsRLSAndKeepsFirstOpen(t *testing.T) {
 		t.Fatal(err)
 	}
 	err = pool.WithGUC(ctx, db.GUC{WorkspaceID: wsA}, func(ctx context.Context, q *db.Queries) error {
+		if _, err := q.InsertCampaign(ctx, db.InsertCampaignParams{
+			WorkspaceID: wsA, ID: campID, Name: "Cold", Intent: "cold",
+			SenderStrategy: "round_robin", Status: "draft", NewContactsPerDay: 5,
+			UndoHoldS: 300, Attach: "none", TrackOpens: true, TrackClicks: true,
+		}); err != nil {
+			return err
+		}
+		if _, err := q.InsertEnrolment(ctx, db.InsertEnrolmentParams{
+			WorkspaceID: wsA, ID: enID, CampaignID: campID, ContactID: ct.ID,
+			Intent: "cold", Context: []byte(`{}`), Status: "waiting_review",
+		}); err != nil {
+			return err
+		}
 		_, err := q.InsertDraft(ctx, db.InsertDraftParams{
-			WorkspaceID:  wsA,
-			ID:           draftID,
-			EnrolmentID:  &en.ID,
-			MailboxID:    mb.ID,
-			ToAddr:       ct.Email,
-			RfcMessageID: "<m111@outreach.test>",
-			Kind:         "outbound",
-			Subject:      "Hi",
-			BodyHtml:     "<p>Hi</p>",
-			BodyText:     "Hi",
-			FactsUsed:    []byte("[]"),
-			Status:       "pending",
-			CreatedAt:    pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+			WorkspaceID: wsA, ID: draftID, EnrolmentID: &enID, MailboxID: mb.ID,
+			ToAddr: ct.Email, RfcMessageID: "<m111@outreach.test>", Kind: "outbound",
+			Subject: "Hi", BodyHtml: "<p>Hi</p>", BodyText: "Hi", FactsUsed: []byte("[]"),
+			Status: "pending", CreatedAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
 		})
 		return err
 	})
@@ -138,27 +131,27 @@ func TestRecordRespectsRLSAndKeepsFirstOpen(t *testing.T) {
 	t1 := t0.Add(time.Hour)
 	now := t0
 	store := NewPostgres(pool, func() time.Time { return now })
-	if err := store.Record(ctx, wsA, Event{EnrolmentID: en.ID, DraftID: draftID, Kind: KindOpen}); err != nil {
+	if err := store.Record(ctx, wsA, Event{EnrolmentID: enID, DraftID: draftID, Kind: KindOpen}); err != nil {
 		t.Fatal(err)
 	}
 	now = t1
-	if err := store.Record(ctx, wsA, Event{EnrolmentID: en.ID, DraftID: draftID, Kind: KindOpen}); err != nil {
+	if err := store.Record(ctx, wsA, Event{EnrolmentID: enID, DraftID: draftID, Kind: KindOpen}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Record(ctx, wsA, Event{
-		EnrolmentID: en.ID, DraftID: draftID, Kind: KindClick, URL: "https://jobs.example/ada",
+		EnrolmentID: enID, DraftID: draftID, Kind: KindClick, URL: "https://jobs.example/ada",
 	}); err != nil {
 		t.Fatal(err)
 	}
-	fromA, err := store.List(ctx, wsA, en.ID)
+	fromA, err := store.List(ctx, wsA, enID)
 	if err != nil || len(fromA) != 3 {
 		t.Fatalf("wsA %+v %v", fromA, err)
 	}
-	fromB, err := store.List(ctx, wsB, en.ID)
+	fromB, err := store.List(ctx, wsB, enID)
 	if err != nil || len(fromB) != 0 {
 		t.Fatalf("wsB leaked %+v %v", fromB, err)
 	}
-	opened, clicked, err := store.Times(ctx, wsA, en.ID)
+	opened, clicked, err := store.Times(ctx, wsA, enID)
 	if err != nil || opened == nil || clicked == nil || !opened.Equal(t0) || !clicked.Equal(t1) {
 		t.Fatalf("times %v %v %v", opened, clicked, err)
 	}

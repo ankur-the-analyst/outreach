@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"outreach/internal/auth"
 	"outreach/internal/mime"
+	"outreach/internal/tracking"
 )
 
 type Store interface {
@@ -255,6 +256,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "suppressed", err.Error())
 	case errors.Is(err, mime.ErrTooLarge):
 		writeError(w, http.StatusBadRequest, "invalid_input", "this mail is too large to send")
+	case errors.Is(err, tracking.ErrHost):
+		writeError(w, http.StatusBadRequest, "track_host", tracking.ErrHost.Error())
 	default:
 		if err != nil {
 			switch err.Error() {

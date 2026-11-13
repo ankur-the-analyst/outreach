@@ -13,6 +13,36 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const campaignTracking = `-- name: CampaignTracking :one
+select c.track_opens, c.track_clicks, d.id as draft_id
+from send_ledger l
+join drafts d
+  on d.workspace_id = l.workspace_id and d.id = l.draft_id
+join enrolments e
+  on e.workspace_id = d.workspace_id and e.id = d.enrolment_id
+join campaigns c
+  on c.workspace_id = e.workspace_id and c.id = e.campaign_id
+where l.workspace_id = $1 and l.id = $2
+`
+
+type CampaignTrackingParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+type CampaignTrackingRow struct {
+	TrackOpens  bool
+	TrackClicks bool
+	DraftID     uuid.UUID
+}
+
+func (q *Queries) CampaignTracking(ctx context.Context, arg CampaignTrackingParams) (CampaignTrackingRow, error) {
+	row := q.db.QueryRow(ctx, campaignTracking, arg.WorkspaceID, arg.ID)
+	var i CampaignTrackingRow
+	err := row.Scan(&i.TrackOpens, &i.TrackClicks, &i.DraftID)
+	return i, err
+}
+
 const campaignWantsListUnsubscribe = `-- name: CampaignWantsListUnsubscribe :one
 select c.list_unsubscribe
 from send_ledger l
@@ -295,10 +325,12 @@ func (q *Queries) InsertApplication(ctx context.Context, arg InsertApplicationPa
 const insertCampaign = `-- name: InsertCampaign :one
 insert into campaigns (
   workspace_id, id, name, profile_id, intent, sender_strategy, status,
-  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, pool_id, attach
+  list_unsubscribe, new_contacts_per_day, ai_instructions, undo_hold_s, pool_id, attach,
+  track_opens, track_clicks
 ) values (
   $1, $2, $3, $4, $5, $6, $7,
-  $8, $9, $10, $11, $12, $13
+  $8, $9, $10, $11, $12, $13,
+  $14, $15
 )
 returning
   workspace_id, id, name, profile_id, intent, sender_strategy, status,
@@ -319,6 +351,8 @@ type InsertCampaignParams struct {
 	UndoHoldS         int32
 	PoolID            *uuid.UUID
 	Attach            string
+	TrackOpens        bool
+	TrackClicks       bool
 }
 
 type InsertCampaignRow struct {
@@ -353,6 +387,8 @@ func (q *Queries) InsertCampaign(ctx context.Context, arg InsertCampaignParams) 
 		arg.UndoHoldS,
 		arg.PoolID,
 		arg.Attach,
+		arg.TrackOpens,
+		arg.TrackClicks,
 	)
 	var i InsertCampaignRow
 	err := row.Scan(
