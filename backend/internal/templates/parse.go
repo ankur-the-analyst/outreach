@@ -1,6 +1,8 @@
 package templates
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -15,6 +17,7 @@ var (
 	ErrBody      = errors.New("body required")
 	ErrNotFound  = errors.New("not found")
 	ErrForbidden = errors.New("forbidden")
+	ErrDesign    = errors.New("invalid canvas")
 )
 
 var known = map[string]struct{}{
@@ -35,6 +38,38 @@ var (
 func Known(path string) bool {
 	_, ok := known[path]
 	return ok
+}
+
+func ValidateJSON(raw json.RawMessage) error {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) || bytes.Equal(raw, []byte("{}")) {
+		return nil
+	}
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return ErrDesign
+	}
+	return walkVars(v)
+}
+
+func walkVars(v any) error {
+	switch t := v.(type) {
+	case string:
+		return Validate(t)
+	case []any:
+		for _, x := range t {
+			if err := walkVars(x); err != nil {
+				return err
+			}
+		}
+	case map[string]any:
+		for _, x := range t {
+			if err := walkVars(x); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func Validate(s string) error {

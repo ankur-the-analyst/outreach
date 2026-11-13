@@ -238,6 +238,7 @@ func main() {
 	mux.Handle("POST /api/v1/fields", a.Require(http.HandlerFunc(fd.Create)))
 	mux.Handle("GET /api/v1/templates", a.Require(http.HandlerFunc(tpl.List)))
 	mux.Handle("POST /api/v1/templates", a.Require(http.HandlerFunc(tpl.Create)))
+	mux.Handle("PUT /api/v1/templates/{id}", a.Require(http.HandlerFunc(tpl.Put)))
 	mux.Handle("GET /api/v1/contacts", a.Require(http.HandlerFunc(ct.List)))
 	mux.Handle("POST /api/v1/contacts", a.Require(http.HandlerFunc(ct.Create)))
 	mux.Handle("POST /api/v1/contacts/preview", a.Require(http.HandlerFunc(ct.Preview)))

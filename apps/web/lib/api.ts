@@ -276,6 +276,8 @@ export type SavedEmail = {
   name: string;
   subject: string;
   body_text: string;
+  body_html?: string;
+  design_json?: unknown;
 };
 
 export function getSavedEmails() {

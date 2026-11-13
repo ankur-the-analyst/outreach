@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -22,7 +23,7 @@ func (q *Queries) DeleteTemplatesForWorkspace(ctx context.Context, workspaceID u
 }
 
 const getTemplate = `-- name: GetTemplate :one
-select workspace_id, id, name, subject, body_text, body_html, created_at
+select workspace_id, id, name, subject, body_text, body_html, design_json, created_at
 from templates
 where workspace_id = $1 and id = $2
 `
@@ -32,9 +33,20 @@ type GetTemplateParams struct {
 	ID          uuid.UUID
 }
 
-func (q *Queries) GetTemplate(ctx context.Context, arg GetTemplateParams) (Template, error) {
+type GetTemplateRow struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Name        string
+	Subject     string
+	BodyText    string
+	BodyHtml    pgtype.Text
+	DesignJson  json.RawMessage
+	CreatedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) GetTemplate(ctx context.Context, arg GetTemplateParams) (GetTemplateRow, error) {
 	row := q.db.QueryRow(ctx, getTemplate, arg.WorkspaceID, arg.ID)
-	var i Template
+	var i GetTemplateRow
 	err := row.Scan(
 		&i.WorkspaceID,
 		&i.ID,
@@ -42,6 +54,7 @@ func (q *Queries) GetTemplate(ctx context.Context, arg GetTemplateParams) (Templ
 		&i.Subject,
 		&i.BodyText,
 		&i.BodyHtml,
+		&i.DesignJson,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -49,11 +62,11 @@ func (q *Queries) GetTemplate(ctx context.Context, arg GetTemplateParams) (Templ
 
 const insertTemplate = `-- name: InsertTemplate :one
 insert into templates (
-  workspace_id, id, name, subject, body_text, body_html
+  workspace_id, id, name, subject, body_text, body_html, design_json
 ) values (
-  $1, $2, $3, $4, $5, $6
+  $1, $2, $3, $4, $5, $6, $7
 )
-returning workspace_id, id, name, subject, body_text, body_html, created_at
+returning workspace_id, id, name, subject, body_text, body_html, design_json, created_at
 `
 
 type InsertTemplateParams struct {
@@ -63,9 +76,21 @@ type InsertTemplateParams struct {
 	Subject     string
 	BodyText    string
 	BodyHtml    pgtype.Text
+	DesignJson  json.RawMessage
 }
 
-func (q *Queries) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (Template, error) {
+type InsertTemplateRow struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Name        string
+	Subject     string
+	BodyText    string
+	BodyHtml    pgtype.Text
+	DesignJson  json.RawMessage
+	CreatedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) InsertTemplate(ctx context.Context, arg InsertTemplateParams) (InsertTemplateRow, error) {
 	row := q.db.QueryRow(ctx, insertTemplate,
 		arg.WorkspaceID,
 		arg.ID,
@@ -73,8 +98,9 @@ func (q *Queries) InsertTemplate(ctx context.Context, arg InsertTemplateParams) 
 		arg.Subject,
 		arg.BodyText,
 		arg.BodyHtml,
+		arg.DesignJson,
 	)
-	var i Template
+	var i InsertTemplateRow
 	err := row.Scan(
 		&i.WorkspaceID,
 		&i.ID,
@@ -82,27 +108,39 @@ func (q *Queries) InsertTemplate(ctx context.Context, arg InsertTemplateParams) 
 		&i.Subject,
 		&i.BodyText,
 		&i.BodyHtml,
+		&i.DesignJson,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const listTemplates = `-- name: ListTemplates :many
-select workspace_id, id, name, subject, body_text, body_html, created_at
+select workspace_id, id, name, subject, body_text, body_html, design_json, created_at
 from templates
 where workspace_id = $1
 order by created_at desc
 `
 
-func (q *Queries) ListTemplates(ctx context.Context, workspaceID uuid.UUID) ([]Template, error) {
+type ListTemplatesRow struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Name        string
+	Subject     string
+	BodyText    string
+	BodyHtml    pgtype.Text
+	DesignJson  json.RawMessage
+	CreatedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) ListTemplates(ctx context.Context, workspaceID uuid.UUID) ([]ListTemplatesRow, error) {
 	rows, err := q.db.Query(ctx, listTemplates, workspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Template
+	var items []ListTemplatesRow
 	for rows.Next() {
-		var i Template
+		var i ListTemplatesRow
 		if err := rows.Scan(
 			&i.WorkspaceID,
 			&i.ID,
@@ -110,6 +148,7 @@ func (q *Queries) ListTemplates(ctx context.Context, workspaceID uuid.UUID) ([]T
 			&i.Subject,
 			&i.BodyText,
 			&i.BodyHtml,
+			&i.DesignJson,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -120,4 +159,56 @@ func (q *Queries) ListTemplates(ctx context.Context, workspaceID uuid.UUID) ([]T
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateTemplate = `-- name: UpdateTemplate :one
+update templates
+set name = $3, subject = $4, body_text = $5, body_html = $6, design_json = $7
+where workspace_id = $1 and id = $2
+returning workspace_id, id, name, subject, body_text, body_html, design_json, created_at
+`
+
+type UpdateTemplateParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Name        string
+	Subject     string
+	BodyText    string
+	BodyHtml    pgtype.Text
+	DesignJson  json.RawMessage
+}
+
+type UpdateTemplateRow struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Name        string
+	Subject     string
+	BodyText    string
+	BodyHtml    pgtype.Text
+	DesignJson  json.RawMessage
+	CreatedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) UpdateTemplate(ctx context.Context, arg UpdateTemplateParams) (UpdateTemplateRow, error) {
+	row := q.db.QueryRow(ctx, updateTemplate,
+		arg.WorkspaceID,
+		arg.ID,
+		arg.Name,
+		arg.Subject,
+		arg.BodyText,
+		arg.BodyHtml,
+		arg.DesignJson,
+	)
+	var i UpdateTemplateRow
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.Name,
+		&i.Subject,
+		&i.BodyText,
+		&i.BodyHtml,
+		&i.DesignJson,
+		&i.CreatedAt,
+	)
+	return i, err
 }

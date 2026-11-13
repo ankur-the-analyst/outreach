@@ -14,6 +14,7 @@ type Store interface {
 	Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error)
 	List(ctx context.Context, workspaceID uuid.UUID) ([]Template, error)
 	Create(ctx context.Context, workspaceID uuid.UUID, in CreateInput) (Template, error)
+	Update(ctx context.Context, workspaceID, id uuid.UUID, in CreateInput) (Template, error)
 }
 
 type API struct {
@@ -45,24 +46,55 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var in struct {
-		Name     string `json:"name"`
-		Subject  string `json:"subject"`
-		BodyText string `json:"body_text"`
-		BodyHTML string `json:"body_html"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
+	in, ok := decodeSave(w, r)
+	if !ok {
 		return
 	}
-	t, err := a.store.Create(r.Context(), s.WorkspaceID, CreateInput{
-		Name: in.Name, Subject: in.Subject, BodyText: in.BodyText, BodyHTML: in.BodyHTML,
-	})
+	t, err := a.store.Create(r.Context(), s.WorkspaceID, in)
 	if err != nil {
 		writeStoreError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, t)
+}
+
+func (a *API) Put(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.edit(w, r)
+	if !ok {
+		return
+	}
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_input", "invalid id")
+		return
+	}
+	in, ok := decodeSave(w, r)
+	if !ok {
+		return
+	}
+	t, err := a.store.Update(r.Context(), s.WorkspaceID, id, in)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, t)
+}
+
+func decodeSave(w http.ResponseWriter, r *http.Request) (CreateInput, bool) {
+	var in struct {
+		Name     string          `json:"name"`
+		Subject  string          `json:"subject"`
+		BodyText string          `json:"body_text"`
+		BodyHTML string          `json:"body_html"`
+		Design   json.RawMessage `json:"design_json"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
+		return CreateInput{}, false
+	}
+	return CreateInput{
+		Name: in.Name, Subject: in.Subject, BodyText: in.BodyText, BodyHTML: in.BodyHTML, Design: in.Design,
+	}, true
 }
 
 func (a *API) member(w http.ResponseWriter, r *http.Request) (auth.Session, bool) {
@@ -103,7 +135,7 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "not_found", "not found")
 	case errors.Is(err, ErrUnknown):
 		writeError(w, http.StatusBadRequest, "invalid_input", ErrUnknown.Error())
-	case errors.Is(err, ErrUnclosed), errors.Is(err, ErrName), errors.Is(err, ErrSubject), errors.Is(err, ErrBody):
+	case errors.Is(err, ErrUnclosed), errors.Is(err, ErrName), errors.Is(err, ErrSubject), errors.Is(err, ErrBody), errors.Is(err, ErrDesign):
 		writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 	default:
 		writeError(w, http.StatusInternalServerError, "internal", "internal error")

@@ -1,7 +1,9 @@
 package templates
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -12,12 +14,13 @@ import (
 )
 
 type Template struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	Subject   string    `json:"subject"`
-	BodyText  string    `json:"body_text"`
-	BodyHTML  string    `json:"body_html,omitempty"`
-	CreatedAt string    `json:"created_at,omitempty"`
+	ID        uuid.UUID       `json:"id"`
+	Name      string          `json:"name"`
+	Subject   string          `json:"subject"`
+	BodyText  string          `json:"body_text"`
+	BodyHTML  string          `json:"body_html,omitempty"`
+	Design    json.RawMessage `json:"design_json,omitempty"`
+	CreatedAt string          `json:"created_at,omitempty"`
 }
 
 type CreateInput struct {
@@ -25,6 +28,7 @@ type CreateInput struct {
 	Subject  string
 	BodyText string
 	BodyHTML string
+	Design   json.RawMessage
 }
 
 type Postgres struct {
@@ -60,7 +64,7 @@ func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID) ([]Template,
 		}
 		out = make([]Template, 0, len(rows))
 		for _, row := range rows {
-			out = append(out, fromRow(row.ID, row.Name, row.Subject, row.BodyText, row.BodyHtml, row.CreatedAt))
+			out = append(out, fromRow(row.ID, row.Name, row.Subject, row.BodyText, row.BodyHtml, row.DesignJson, row.CreatedAt))
 		}
 		return nil
 	})
@@ -74,7 +78,7 @@ func (p *Postgres) Get(ctx context.Context, workspaceID, id uuid.UUID) (Template
 		if err != nil {
 			return err
 		}
-		out = fromRow(row.ID, row.Name, row.Subject, row.BodyText, row.BodyHtml, row.CreatedAt)
+		out = fromRow(row.ID, row.Name, row.Subject, row.BodyText, row.BodyHtml, row.DesignJson, row.CreatedAt)
 		return nil
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -84,28 +88,9 @@ func (p *Postgres) Get(ctx context.Context, workspaceID, id uuid.UUID) (Template
 }
 
 func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateInput) (Template, error) {
-	name := strings.TrimSpace(in.Name)
-	subject := strings.TrimSpace(in.Subject)
-	body := strings.TrimSpace(in.BodyText)
-	if name == "" {
-		return Template{}, ErrName
-	}
-	if subject == "" {
-		return Template{}, ErrSubject
-	}
-	if body == "" {
-		return Template{}, ErrBody
-	}
-	if err := Validate(subject); err != nil {
+	name, subject, body, html, design, err := normalize(in)
+	if err != nil {
 		return Template{}, err
-	}
-	if err := Validate(body); err != nil {
-		return Template{}, err
-	}
-	if html := strings.TrimSpace(in.BodyHTML); html != "" {
-		if err := Validate(html); err != nil {
-			return Template{}, err
-		}
 	}
 	id, err := uuid.NewV7()
 	if err != nil {
@@ -119,19 +104,86 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 			Name:        name,
 			Subject:     subject,
 			BodyText:    body,
-			BodyHtml:    text(in.BodyHTML),
+			BodyHtml:    html,
+			DesignJson:  design,
 		})
 		if err != nil {
 			return err
 		}
-		out = fromRow(row.ID, row.Name, row.Subject, row.BodyText, row.BodyHtml, row.CreatedAt)
+		out = fromRow(row.ID, row.Name, row.Subject, row.BodyText, row.BodyHtml, row.DesignJson, row.CreatedAt)
 		return nil
 	})
 	return out, err
 }
 
-func fromRow(id uuid.UUID, name, subject, body string, html pgtype.Text, created pgtype.Timestamptz) Template {
-	t := Template{ID: id, Name: name, Subject: subject, BodyText: body, BodyHTML: html.String}
+func (p *Postgres) Update(ctx context.Context, workspaceID, id uuid.UUID, in CreateInput) (Template, error) {
+	name, subject, body, html, design, err := normalize(in)
+	if err != nil {
+		return Template{}, err
+	}
+	var out Template
+	err = p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.UpdateTemplate(ctx, db.UpdateTemplateParams{
+			WorkspaceID: workspaceID,
+			ID:          id,
+			Name:        name,
+			Subject:     subject,
+			BodyText:    body,
+			BodyHtml:    html,
+			DesignJson:  design,
+		})
+		if err != nil {
+			return err
+		}
+		out = fromRow(row.ID, row.Name, row.Subject, row.BodyText, row.BodyHtml, row.DesignJson, row.CreatedAt)
+		return nil
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Template{}, ErrNotFound
+	}
+	return out, err
+}
+
+func normalize(in CreateInput) (name, subject, body string, html pgtype.Text, design json.RawMessage, err error) {
+	name = strings.TrimSpace(in.Name)
+	subject = strings.TrimSpace(in.Subject)
+	body = strings.TrimSpace(in.BodyText)
+	if name == "" {
+		return "", "", "", pgtype.Text{}, nil, ErrName
+	}
+	if subject == "" {
+		return "", "", "", pgtype.Text{}, nil, ErrSubject
+	}
+	if body == "" {
+		return "", "", "", pgtype.Text{}, nil, ErrBody
+	}
+	if err := Validate(subject); err != nil {
+		return "", "", "", pgtype.Text{}, nil, err
+	}
+	if err := Validate(body); err != nil {
+		return "", "", "", pgtype.Text{}, nil, err
+	}
+	if h := strings.TrimSpace(in.BodyHTML); h != "" {
+		if err := Validate(h); err != nil {
+			return "", "", "", pgtype.Text{}, nil, err
+		}
+	}
+	if err := ValidateJSON(in.Design); err != nil {
+		return "", "", "", pgtype.Text{}, nil, err
+	}
+	return name, subject, body, text(in.BodyHTML), designOrEmpty(in.Design), nil
+}
+
+func designOrEmpty(raw json.RawMessage) json.RawMessage {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return json.RawMessage(`{}`)
+	}
+	return raw
+}
+
+func fromRow(id uuid.UUID, name, subject, body string, html pgtype.Text, design json.RawMessage, created pgtype.Timestamptz) Template {
+	t := Template{ID: id, Name: name, Subject: subject, BodyText: body, BodyHTML: html.String, Design: design}
 	if created.Valid {
 		t.CreatedAt = created.Time.UTC().Format("2006-01-02T15:04:05Z07:00")
 	}

@@ -526,6 +526,7 @@ type Template struct {
 	BodyText    string
 	BodyHtml    pgtype.Text
 	CreatedAt   pgtype.Timestamptz
+	DesignJson  json.RawMessage
 }
 
 type Thread struct {

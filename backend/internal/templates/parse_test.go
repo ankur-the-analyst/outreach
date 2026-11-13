@@ -5,6 +5,20 @@ import (
 	"testing"
 )
 
+func TestValidateJSONWalksButtonHref(t *testing.T) {
+	t.Parallel()
+	err := ValidateJSON([]byte(`{"settings":{},"elements":[{"type":"button","href":"https://x.test?n={{contact.nope}}"}]}`))
+	if !errors.Is(err, ErrUnknown) {
+		t.Fatalf("%v", err)
+	}
+	if err := ValidateJSON([]byte(`{"elements":[{"href":"https://x.test?n={{contact.first_name}}"}]}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateJSON([]byte(`{}`)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestValidateRejectsUnknown(t *testing.T) {
 	t.Parallel()
 	if err := Validate("Hi {{nope}}"); !errors.Is(err, ErrUnknown) {
