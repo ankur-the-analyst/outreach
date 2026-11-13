@@ -3,6 +3,7 @@ import {
   Briefcase,
   CircleUser,
   FileCheck,
+  FileText,
   Inbox,
   LayoutDashboard,
   LineChart,
@@ -34,6 +35,7 @@ export const navGroups: { label: string; items: NavItem[] }[] = [
     items: [
       { href: "/contacts", label: "Contacts", icon: Users },
       { href: "/campaigns", label: "Campaigns", icon: Megaphone },
+      { href: "/emails", label: "Saved emails", icon: FileText },
       { href: "/jobs", label: "Jobs", icon: Briefcase },
       { href: "/evidence", label: "Evidence", icon: FileCheck },
       { href: "/profiles", label: "Profiles", icon: CircleUser },
