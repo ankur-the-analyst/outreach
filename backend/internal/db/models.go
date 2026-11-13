@@ -210,6 +210,8 @@ type Enrolment struct {
 	StopReason   pgtype.Text
 	Outcome      pgtype.Text
 	CreatedAt    pgtype.Timestamptz
+	OpenedAt     pgtype.Timestamptz
+	ClickedAt    pgtype.Timestamptz
 }
 
 type EvidenceItem struct {
@@ -281,6 +283,16 @@ type Job struct {
 	Analysis       []byte
 	AnalysisStatus string
 	CreatedAt      pgtype.Timestamptz
+}
+
+type MailEvent struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	EnrolmentID uuid.UUID
+	DraftID     uuid.UUID
+	Kind        string
+	Url         pgtype.Text
+	At          pgtype.Timestamptz
 }
 
 type Mailbox struct {

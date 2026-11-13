@@ -75,6 +75,9 @@ func (p *Postgres) Delete(ctx context.Context, workspaceID uuid.UUID) error {
 		if err := q.DeleteMembershipsForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: memberships: %w", err)
 		}
+		if err := q.DeleteMailEventsForWorkspace(ctx, workspaceID); err != nil {
+			return fmt.Errorf("workspace: mail events: %w", err)
+		}
 		if err := q.DeleteDraftsForWorkspace(ctx, workspaceID); err != nil {
 			return fmt.Errorf("workspace: drafts: %w", err)
 		}
