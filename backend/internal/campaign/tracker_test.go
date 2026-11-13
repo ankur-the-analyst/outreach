@@ -12,6 +12,7 @@ import (
 	"outreach/internal/db"
 	"outreach/internal/mailbox"
 	"outreach/internal/pacing"
+	"outreach/internal/tracking"
 )
 
 func TestTrackerStage(t *testing.T) {
@@ -67,6 +68,7 @@ func TestListTrackerMovesDraftedSentReplied(t *testing.T) {
 		c, done := context.WithTimeout(context.Background(), 5*time.Second)
 		defer done()
 		_ = pool.WithGUC(c, db.GUC{WorkspaceID: wsID}, func(ctx context.Context, q *db.Queries) error {
+			_ = q.DeleteMailEventsForWorkspace(ctx, wsID)
 			_ = q.DeleteDraftsForWorkspace(ctx, wsID)
 			_ = q.DeleteEnrolmentsForWorkspace(ctx, wsID)
 			_ = q.DeleteCampaignSendersForWorkspace(ctx, wsID)
@@ -161,6 +163,27 @@ func TestListTrackerMovesDraftedSentReplied(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertTracker(t, store, ctx, wsID, "interview", "Ada", "Acme", "AE intro")
+
+	stamp := time.Date(2026, 11, 13, 12, 4, 0, 0, time.UTC)
+	tracks := tracking.NewPostgres(pool, func() time.Time { return stamp })
+	if err := tracks.Record(ctx, wsID, tracking.Event{
+		EnrolmentID: en.ID, DraftID: draft.ID, Kind: tracking.KindOpen,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tracks.Record(ctx, wsID, tracking.Event{
+		EnrolmentID: en.ID, DraftID: draft.ID, Kind: tracking.KindClick, URL: "https://jobs.example/ada",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err = store.ListTracker(ctx, wsID)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("opened rows %+v %v", rows, err)
+	}
+	got := rows[0]
+	if got.OpenedAt == nil || !got.OpenedAt.Equal(stamp) || got.ClickedAt == nil || !got.ClickedAt.Equal(stamp) {
+		t.Fatalf("opened/clicked %+v", got)
+	}
 }
 
 func assertTracker(t *testing.T, store *Postgres, ctx context.Context, wsID uuid.UUID, stage, contact, company, campaign string) {

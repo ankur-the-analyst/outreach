@@ -160,6 +160,8 @@ select
   e.id,
   e.status as enrolment_status,
   e.created_at,
+  e.opened_at,
+  e.clicked_at,
   camp.id as campaign_id,
   camp.name as campaign_name,
   ct.email,

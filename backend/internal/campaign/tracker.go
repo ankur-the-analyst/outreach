@@ -18,6 +18,8 @@ type TrackerRow struct {
 	Campaign      string     `json:"campaign"`
 	CampaignID    uuid.UUID  `json:"campaign_id"`
 	Stage         string     `json:"stage"`
+	OpenedAt      *time.Time `json:"opened_at,omitempty"`
+	ClickedAt     *time.Time `json:"clicked_at,omitempty"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
@@ -75,6 +77,8 @@ func (p *Postgres) ListTracker(ctx context.Context, workspaceID uuid.UUID) ([]Tr
 				Campaign:      row.CampaignName,
 				CampaignID:    row.CampaignID,
 				Stage:         PreferApplicationStage(derived, row.ApplicationStage),
+				OpenedAt:      timestamptzPtr(row.OpenedAt),
+				ClickedAt:     timestamptzPtr(row.ClickedAt),
 				UpdatedAt:     updated,
 			})
 		}
@@ -106,4 +110,12 @@ func textString(t pgtype.Text) string {
 		return ""
 	}
 	return t.String
+}
+
+func timestamptzPtr(t pgtype.Timestamptz) *time.Time {
+	if !t.Valid {
+		return nil
+	}
+	u := t.Time.UTC()
+	return &u
 }

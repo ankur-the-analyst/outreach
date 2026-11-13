@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { EmptyState, PageBody, PageHeader, Pill } from "@/components/page-header";
 import type { TrackerRow } from "@/lib/api";
-import { fieldSelect, trackerStageLabel } from "@/lib/labels";
+import { fieldSelect, formatVisitTime, trackerStageLabel } from "@/lib/labels";
 
 const stages = [
   "",
@@ -144,6 +144,9 @@ export function TrackerBoard({ rows }: { rows: TrackerRow[] }) {
                       <th className="px-4 py-3 font-label-sm text-muted-foreground">
                         Stage
                       </th>
+                      <th className="px-4 py-3 font-label-sm text-muted-foreground">
+                        Opened
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -179,6 +182,12 @@ export function TrackerBoard({ rows }: { rows: TrackerRow[] }) {
                             ) : null}
                           </div>
                         </td>
+                        <td className="px-4 py-3">
+                          <VisitMarks
+                            openedAt={row.opened_at}
+                            clickedAt={row.clicked_at}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -188,6 +197,32 @@ export function TrackerBoard({ rows }: { rows: TrackerRow[] }) {
           </div>
         )}
       </PageBody>
+    </div>
+  );
+}
+
+function VisitMarks({
+  openedAt,
+  clickedAt,
+}: {
+  openedAt?: string;
+  clickedAt?: string;
+}) {
+  if (!openedAt && !clickedAt) {
+    return <span className="font-body-sm text-muted-foreground">—</span>;
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      {openedAt ? (
+        <p className="font-body-sm tabular-nums text-foreground">
+          Opened {formatVisitTime(openedAt)}
+        </p>
+      ) : null}
+      {clickedAt ? (
+        <p className="font-body-sm tabular-nums text-foreground">
+          Clicked {formatVisitTime(clickedAt)}
+        </p>
+      ) : null}
     </div>
   );
 }

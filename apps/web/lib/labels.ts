@@ -69,6 +69,22 @@ export function mailboxUsageLabel(used: number, cap: number): string {
   return `${used} of ${cap} · last 24h`;
 }
 
+export function formatVisitTime(iso?: string): string {
+  if (!iso) {
+    return "";
+  }
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    return "";
+  }
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(d);
+}
+
 export function formatNextSend(iso?: string): string {
   if (!iso) {
     return "later";

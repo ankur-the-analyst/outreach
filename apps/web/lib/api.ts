@@ -353,6 +353,8 @@ export type TrackerRow = {
   campaign: string;
   campaign_id: string;
   stage: string;
+  opened_at?: string;
+  clicked_at?: string;
   updated_at: string;
 };
 

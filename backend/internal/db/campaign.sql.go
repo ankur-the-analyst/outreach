@@ -843,6 +843,8 @@ select
   e.id,
   e.status as enrolment_status,
   e.created_at,
+  e.opened_at,
+  e.clicked_at,
   camp.id as campaign_id,
   camp.name as campaign_name,
   ct.email,
@@ -885,6 +887,8 @@ type ListTrackerRowsRow struct {
 	ID               uuid.UUID
 	EnrolmentStatus  string
 	CreatedAt        pgtype.Timestamptz
+	OpenedAt         pgtype.Timestamptz
+	ClickedAt        pgtype.Timestamptz
 	CampaignID       uuid.UUID
 	CampaignName     string
 	Email            string
@@ -911,6 +915,8 @@ func (q *Queries) ListTrackerRows(ctx context.Context, workspaceID uuid.UUID) ([
 			&i.ID,
 			&i.EnrolmentStatus,
 			&i.CreatedAt,
+			&i.OpenedAt,
+			&i.ClickedAt,
 			&i.CampaignID,
 			&i.CampaignName,
 			&i.Email,
