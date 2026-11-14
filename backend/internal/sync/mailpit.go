@@ -16,6 +16,7 @@ type Item struct {
 	From         string
 	To           []string
 	Text         string
+	HTML         string
 	At           time.Time
 }
 

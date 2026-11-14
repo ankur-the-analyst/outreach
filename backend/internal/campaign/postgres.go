@@ -30,7 +30,7 @@ var (
 	ErrMailbox   = errors.New("mailbox required")
 	ErrFrom      = errors.New("add a mailbox to this campaign or group")
 	ErrStage     = errors.New("pick a valid stage")
-	ErrTemplate  = errors.New("pick a saved email")
+	ErrTemplate  = errors.New("pick an email template")
 	ErrResume    = errors.New("Upload a PDF on this profile.")
 )
 

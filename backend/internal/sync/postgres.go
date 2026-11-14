@@ -33,6 +33,7 @@ type Message struct {
 	To             []string        `json:"to"`
 	Subject        string          `json:"subject"`
 	BodyText       string          `json:"body_text"`
+	BodyHTML       string          `json:"body_html,omitempty"`
 	Classification json.RawMessage `json:"classification,omitempty"`
 }
 
@@ -126,7 +127,11 @@ func (p *Postgres) listItems(ctx context.Context, workspaceID, mailboxID uuid.UU
 			return nil, "", err
 		}
 		if err == nil {
-			cur := mailbox.FetchCursor{Token: p.syncCursor(ctx, workspaceID, mailboxID)}
+			token := p.syncCursor(ctx, workspaceID, mailboxID)
+			if p.needsHTML(ctx, workspaceID, mailboxID) {
+				token = ""
+			}
+			cur := mailbox.FetchCursor{Token: token}
 			res, ferr := ops.Fetch(ctx, cur)
 			if ferr == nil {
 				return messagesToItems(res.Messages), res.Cursor.Token, nil
@@ -141,6 +146,18 @@ func (p *Postgres) listItems(ctx context.Context, workspaceID, mailboxID uuid.UU
 	}
 	items, err := p.source.List(ctx)
 	return items, "", err
+}
+
+func (p *Postgres) needsHTML(ctx context.Context, workspaceID, mailboxID uuid.UUID) bool {
+	var n int64
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		n, err = q.CountRecentMessagesWithoutHTML(ctx, db.CountRecentMessagesWithoutHTMLParams{
+			WorkspaceID: workspaceID, MailboxID: mailboxID,
+		})
+		return err
+	})
+	return err == nil && n > 0
 }
 
 func (p *Postgres) syncCursor(ctx context.Context, workspaceID, mailboxID uuid.UUID) string {
@@ -170,6 +187,7 @@ func messagesToItems(msgs []mailbox.Message) []Item {
 			From:         m.From,
 			To:           m.To,
 			Text:         m.Text,
+			HTML:         m.HTML,
 			At:           m.At,
 		})
 	}
@@ -200,7 +218,8 @@ func (p *Postgres) ListThreads(ctx context.Context, workspaceID, mailboxID uuid.
 			for _, m := range msgs {
 				th.Messages = append(th.Messages, Message{
 					ID: m.ID, Direction: m.Direction, RFCMessageID: m.RfcMessageID,
-					From: textVal(m.FromAddr), To: m.ToAddrs, Subject: textVal(m.Subject), BodyText: textVal(m.BodyText),
+					From: textVal(m.FromAddr), To: m.ToAddrs, Subject: textVal(m.Subject),
+					BodyText: textVal(m.BodyText), BodyHTML: textVal(m.BodyHtml),
 					Classification: json.RawMessage(m.Classification),
 				})
 			}
@@ -256,6 +275,7 @@ func (p *Postgres) ingest(ctx context.Context, workspaceID, mailboxID uuid.UUID,
 		from := pgtype.Text{String: it.From, Valid: it.From != ""}
 		subj := pgtype.Text{String: it.Subject, Valid: it.Subject != ""}
 		body := pgtype.Text{String: it.Text, Valid: it.Text != ""}
+		htmlBody := pgtype.Text{String: it.HTML, Valid: it.HTML != ""}
 		inReply := pgtype.Text{String: it.InReplyTo, Valid: it.InReplyTo != ""}
 		if err := q.InsertMessage(ctx, db.InsertMessageParams{
 			WorkspaceID:  workspaceID,
@@ -269,6 +289,7 @@ func (p *Postgres) ingest(ctx context.Context, workspaceID, mailboxID uuid.UUID,
 			ToAddrs:      it.To,
 			Subject:      subj,
 			BodyText:     body,
+			BodyHtml:     htmlBody,
 			SentAt:       ts,
 			ReceivedAt:   ts,
 		}); err != nil {

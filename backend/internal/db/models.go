@@ -376,6 +376,7 @@ type Message struct {
 	Classification []byte
 	EnrolmentID    *uuid.UUID
 	DraftID        *uuid.UUID
+	BodyHtml       pgtype.Text
 }
 
 type Profile struct {

@@ -29,12 +29,22 @@ where workspace_id = $1 and id = $2 and mailbox_id = $3;
 -- name: InsertMessage :exec
 insert into messages (
   workspace_id, id, mailbox_id, thread_id, direction, rfc_message_id, in_reply_to,
-  from_addr, to_addrs, subject, body_text, sent_at, received_at
+  from_addr, to_addrs, subject, body_text, body_html, sent_at, received_at
 ) values (
   $1, $2, $3, $4, $5, $6, $7,
-  $8, $9, $10, $11, $12, $13
+  $8, $9, $10, $11, $12, $13, $14
 )
-on conflict (workspace_id, mailbox_id, rfc_message_id) do nothing;
+on conflict (workspace_id, mailbox_id, rfc_message_id) do update
+set body_html = case
+      when excluded.body_html is not null and excluded.body_html <> '' then excluded.body_html
+      else messages.body_html
+    end,
+    body_text = case
+      when excluded.body_html is not null and excluded.body_html <> ''
+        and excluded.body_text is not null and excluded.body_text <> ''
+        then excluded.body_text
+      else messages.body_text
+    end;
 
 -- name: GetMessageByRFC :one
 select id, direction, classification, from_addr, subject, body_text
@@ -64,10 +74,17 @@ order by last_message_at desc nulls last;
 
 -- name: ListMessagesForThread :many
 select workspace_id, id, mailbox_id, thread_id, direction, rfc_message_id, in_reply_to,
-  from_addr, to_addrs, subject, body_text, sent_at, received_at, classification
+  from_addr, to_addrs, subject, body_text, body_html, sent_at, received_at, classification
 from messages
 where workspace_id = $1 and thread_id = $2
 order by coalesce(sent_at, received_at, now());
+
+-- name: CountRecentMessagesWithoutHTML :one
+select count(*)::bigint
+from messages
+where workspace_id = $1 and mailbox_id = $2
+  and coalesce(body_html, '') = ''
+  and coalesce(received_at, sent_at) > now() - interval '7 days';
 
 -- name: GetSyncState :one
 select gmail_history_id, last_synced_at, last_error

@@ -154,7 +154,7 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 	if in.TemplateID != "" {
 		t, err := uuid.Parse(in.TemplateID)
 		if err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_input", "invalid saved email")
+			writeError(w, http.StatusBadRequest, "invalid_input", "invalid email template")
 			return
 		}
 		templateID = &t

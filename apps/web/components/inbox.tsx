@@ -432,9 +432,18 @@ function MessageCard({ message }: { message: ThreadMessage }) {
           <dd className="text-foreground">{to || "—"}</dd>
         </dl>
       ) : null}
-      <p className="mt-3 max-w-[68ch] whitespace-pre-wrap font-body-md text-foreground">
-        {readableMail(message.body_text)}
-      </p>
+      {message.body_html ? (
+        <iframe
+          title="Message"
+          sandbox=""
+          srcDoc={message.body_html}
+          className="mt-3 h-[420px] w-full rounded-md border border-border bg-card"
+        />
+      ) : (
+        <p className="mt-3 max-w-[68ch] whitespace-pre-wrap font-body-md text-foreground">
+          {readableMail(message.body_text)}
+        </p>
+      )}
     </article>
   );
 }

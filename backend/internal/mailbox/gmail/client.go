@@ -197,20 +197,12 @@ func (c *Client) profile(ctx context.Context) (profile, error) {
 
 func (c *Client) getMessage(ctx context.Context, id string) (mailbox.Message, error) {
 	q := url.Values{}
-	q.Set("format", "metadata")
-	for _, h := range []string{"From", "To", "Subject", "Message-ID", "In-Reply-To", "Date"} {
-		q.Add("metadataHeaders", h)
-	}
+	q.Set("format", "full")
 	var raw struct {
-		ID           string `json:"id"`
-		InternalDate string `json:"internalDate"`
-		Snippet      string `json:"snippet"`
-		Payload      struct {
-			Headers []struct {
-				Name  string `json:"name"`
-				Value string `json:"value"`
-			} `json:"headers"`
-		} `json:"payload"`
+		ID           string    `json:"id"`
+		InternalDate string    `json:"internalDate"`
+		Snippet      string    `json:"snippet"`
+		Payload      gmailPart `json:"payload"`
 	}
 	if err := c.do(ctx, http.MethodGet, "/gmail/v1/users/me/messages/"+url.PathEscape(id)+"?"+q.Encode(), nil, &raw); err != nil {
 		return mailbox.Message{}, err
@@ -225,16 +217,67 @@ func (c *Client) getMessage(ctx context.Context, id string) (mailbox.Message, er
 	if ms, err := strconv.ParseInt(raw.InternalDate, 10, 64); err == nil && ms > 0 {
 		at = time.UnixMilli(ms).UTC()
 	}
+	plain, htmlBody := partBodies(raw.Payload)
+	text := plain
+	if text == "" {
+		text = html.UnescapeString(raw.Snippet)
+	}
 	return mailbox.Message{
 		RFCMessageID: normalizeID(headers["Message-Id"]),
 		InReplyTo:    normalizeID(headers["In-Reply-To"]),
 		Subject:      html.UnescapeString(headers["Subject"]),
 		From:         from,
 		To:           to,
-		Text:         html.UnescapeString(raw.Snippet),
+		Text:         text,
+		HTML:         htmlBody,
 		At:           at,
 		ProviderID:   raw.ID,
 	}, nil
+}
+
+type gmailPart struct {
+	MimeType string `json:"mimeType"`
+	Headers  []struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+	} `json:"headers"`
+	Body struct {
+		Data string `json:"data"`
+	} `json:"body"`
+	Parts []gmailPart `json:"parts"`
+}
+
+func partBodies(p gmailPart) (plain, htmlBody string) {
+	switch p.MimeType {
+	case "text/plain":
+		plain = decodeB64(p.Body.Data)
+	case "text/html":
+		htmlBody = decodeB64(p.Body.Data)
+	}
+	for _, child := range p.Parts {
+		cp, ch := partBodies(child)
+		if plain == "" {
+			plain = cp
+		}
+		if htmlBody == "" {
+			htmlBody = ch
+		}
+	}
+	return plain, htmlBody
+}
+
+func decodeB64(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	for _, enc := range []*base64.Encoding{base64.RawURLEncoding, base64.URLEncoding, base64.StdEncoding} {
+		b, err := enc.DecodeString(s)
+		if err == nil {
+			return string(b)
+		}
+	}
+	return ""
 }
 
 func (c *Client) do(ctx context.Context, method, path string, body []byte, out any) error {

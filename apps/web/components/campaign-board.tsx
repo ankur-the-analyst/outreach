@@ -90,7 +90,8 @@ function operatorError(message: string): string {
     case "add a mailbox to this campaign or group":
       return "Add a mailbox to this campaign or group";
     case "pick a saved email":
-      return "Pick a saved email";
+    case "pick an email template":
+      return "Pick an email template";
     default:
       return message;
   }
@@ -414,7 +415,7 @@ function CampaignCard({
                   ) : null}
                   {step.content === "template" ? (
                     <span className="ml-2 rounded-sm bg-accent px-1.5 py-0.5 font-label-sm text-primary">
-                      Saved email
+                      Email template
                     </span>
                   ) : null}
                 </p>
@@ -781,11 +782,11 @@ function CreateCampaign({
       </div>
       <div className="flex flex-col gap-3 rounded-md border border-border bg-muted p-3">
         <p className="font-label-md text-foreground">
-          Optional reusable email
+          Optional email template
         </p>
         <p className="font-body-sm text-muted-foreground">
-          Leave this blank to write with AI. Fill it only if you want a saved
-          email you can reuse. Use {"{{contact.first_name | there}}"} so a
+          Leave this blank to write with AI. Fill it only if you want an email
+          template you can reuse. Use {"{{contact.first_name | there}}"} so a
           missing first name becomes &quot;there&quot;.
         </p>
         <div className="flex flex-col gap-1.5">
@@ -835,7 +836,7 @@ function CreateCampaign({
               const data = (await res.json().catch(() => null)) as
                 | { error?: { message?: string } }
                 | null;
-              setError(data?.error?.message ?? "Could not save email");
+              setError(data?.error?.message ?? "Could not save template");
               return;
             }
             const t = (await res.json()) as { id: string; name: string };
@@ -844,7 +845,7 @@ function CreateCampaign({
             setNewName("");
           }}
         >
-          Save email
+          Save template
         </Button>
       </div>
       {error ? <p className="font-body-md text-destructive">{error}</p> : null}

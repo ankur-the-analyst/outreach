@@ -83,6 +83,54 @@ func TestSendAndFetchHistory(t *testing.T) {
 	}
 }
 
+func TestFetchHTMLBody(t *testing.T) {
+	t.Parallel()
+	plain := base64.RawURLEncoding.EncodeToString([]byte("Hello Ada"))
+	page := base64.RawURLEncoding.EncodeToString([]byte("<p>Hello <b>Ada</b></p>"))
+	mux := http.NewServeMux()
+	mux.HandleFunc("/gmail/v1/users/me/profile", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"historyId": "1"})
+	})
+	mux.HandleFunc("/gmail/v1/users/me/messages", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/gmail/v1/users/me/messages" {
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"messages": []map[string]string{{"id": "abc"}}})
+	})
+	mux.HandleFunc("/gmail/v1/users/me/messages/abc", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("format") != "full" {
+			t.Errorf("format %s", r.URL.Query().Get("format"))
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":      "abc",
+			"snippet": "Hello Ada",
+			"payload": map[string]any{
+				"mimeType": "multipart/alternative",
+				"headers": []map[string]string{
+					{"name": "From", "value": "pat@x.test"},
+					{"name": "Subject", "value": "Hi"},
+					{"name": "Message-ID", "value": "<m@x>"},
+				},
+				"parts": []map[string]any{
+					{"mimeType": "text/plain", "body": map[string]string{"data": plain}},
+					{"mimeType": "text/html", "body": map[string]string{"data": page}},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	c := &Client{HTTP: srv.Client(), Base: srv.URL}
+	res, err := c.Fetch(context.Background(), mailbox.FetchCursor{})
+	if err != nil || len(res.Messages) != 1 {
+		t.Fatalf("%+v %v", res, err)
+	}
+	m := res.Messages[0]
+	if m.Text != "Hello Ada" || m.HTML != "<p>Hello <b>Ada</b></p>" {
+		t.Fatalf("%+v", m)
+	}
+}
+
 func TestFetch404FallsBackToFullSync(t *testing.T) {
 	t.Parallel()
 	mux := http.NewServeMux()

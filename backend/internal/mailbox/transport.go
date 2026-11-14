@@ -35,6 +35,7 @@ type Message struct {
 	From         string
 	To           []string
 	Text         string
+	HTML         string
 	At           time.Time
 	ProviderID   string
 }

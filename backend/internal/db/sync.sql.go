@@ -21,6 +21,26 @@ func (q *Queries) AdvisoryLockMailbox(ctx context.Context, dollar_1 string) erro
 	return err
 }
 
+const countRecentMessagesWithoutHTML = `-- name: CountRecentMessagesWithoutHTML :one
+select count(*)::bigint
+from messages
+where workspace_id = $1 and mailbox_id = $2
+  and coalesce(body_html, '') = ''
+  and coalesce(received_at, sent_at) > now() - interval '7 days'
+`
+
+type CountRecentMessagesWithoutHTMLParams struct {
+	WorkspaceID uuid.UUID
+	MailboxID   uuid.UUID
+}
+
+func (q *Queries) CountRecentMessagesWithoutHTML(ctx context.Context, arg CountRecentMessagesWithoutHTMLParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countRecentMessagesWithoutHTML, arg.WorkspaceID, arg.MailboxID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const deleteMessagesForContact = `-- name: DeleteMessagesForContact :exec
 delete from messages
 where messages.workspace_id = $1
@@ -249,12 +269,22 @@ func (q *Queries) GetThreadBySubject(ctx context.Context, arg GetThreadBySubject
 const insertMessage = `-- name: InsertMessage :exec
 insert into messages (
   workspace_id, id, mailbox_id, thread_id, direction, rfc_message_id, in_reply_to,
-  from_addr, to_addrs, subject, body_text, sent_at, received_at
+  from_addr, to_addrs, subject, body_text, body_html, sent_at, received_at
 ) values (
   $1, $2, $3, $4, $5, $6, $7,
-  $8, $9, $10, $11, $12, $13
+  $8, $9, $10, $11, $12, $13, $14
 )
-on conflict (workspace_id, mailbox_id, rfc_message_id) do nothing
+on conflict (workspace_id, mailbox_id, rfc_message_id) do update
+set body_html = case
+      when excluded.body_html is not null and excluded.body_html <> '' then excluded.body_html
+      else messages.body_html
+    end,
+    body_text = case
+      when excluded.body_html is not null and excluded.body_html <> ''
+        and excluded.body_text is not null and excluded.body_text <> ''
+        then excluded.body_text
+      else messages.body_text
+    end
 `
 
 type InsertMessageParams struct {
@@ -269,6 +299,7 @@ type InsertMessageParams struct {
 	ToAddrs      []string
 	Subject      pgtype.Text
 	BodyText     pgtype.Text
+	BodyHtml     pgtype.Text
 	SentAt       pgtype.Timestamptz
 	ReceivedAt   pgtype.Timestamptz
 }
@@ -286,6 +317,7 @@ func (q *Queries) InsertMessage(ctx context.Context, arg InsertMessageParams) er
 		arg.ToAddrs,
 		arg.Subject,
 		arg.BodyText,
+		arg.BodyHtml,
 		arg.SentAt,
 		arg.ReceivedAt,
 	)
@@ -332,7 +364,7 @@ func (q *Queries) InsertThread(ctx context.Context, arg InsertThreadParams) (Thr
 
 const listMessagesForThread = `-- name: ListMessagesForThread :many
 select workspace_id, id, mailbox_id, thread_id, direction, rfc_message_id, in_reply_to,
-  from_addr, to_addrs, subject, body_text, sent_at, received_at, classification
+  from_addr, to_addrs, subject, body_text, body_html, sent_at, received_at, classification
 from messages
 where workspace_id = $1 and thread_id = $2
 order by coalesce(sent_at, received_at, now())
@@ -355,6 +387,7 @@ type ListMessagesForThreadRow struct {
 	ToAddrs        []string
 	Subject        pgtype.Text
 	BodyText       pgtype.Text
+	BodyHtml       pgtype.Text
 	SentAt         pgtype.Timestamptz
 	ReceivedAt     pgtype.Timestamptz
 	Classification []byte
@@ -381,6 +414,7 @@ func (q *Queries) ListMessagesForThread(ctx context.Context, arg ListMessagesFor
 			&i.ToAddrs,
 			&i.Subject,
 			&i.BodyText,
+			&i.BodyHtml,
 			&i.SentAt,
 			&i.ReceivedAt,
 			&i.Classification,
