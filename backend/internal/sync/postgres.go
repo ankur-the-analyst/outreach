@@ -246,21 +246,7 @@ func (p *Postgres) ListThreads(ctx context.Context, workspaceID, mailboxID uuid.
 				return err
 			}
 			for _, m := range msgs {
-				var at *time.Time
-				when := m.ReceivedAt
-				if !when.Valid {
-					when = m.SentAt
-				}
-				if when.Valid {
-					t := when.Time.UTC()
-					at = &t
-				}
-				th.Messages = append(th.Messages, Message{
-					ID: m.ID, Direction: m.Direction, RFCMessageID: m.RfcMessageID,
-					From: textVal(m.FromAddr), To: m.ToAddrs, Subject: textVal(m.Subject),
-					BodyText: textVal(m.BodyText), BodyHTML: textVal(m.BodyHtml), At: at,
-					Classification: json.RawMessage(m.Classification),
-				})
+				th.Messages = append(th.Messages, messageFromRow(m))
 			}
 			out = append(out, th)
 		}
@@ -270,6 +256,51 @@ func (p *Postgres) ListThreads(ctx context.Context, workspaceID, mailboxID uuid.
 		return nil, fmt.Errorf("not found")
 	}
 	return out, err
+}
+
+func (p *Postgres) GetThread(ctx context.Context, workspaceID, threadID uuid.UUID) (Thread, error) {
+	var out Thread
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		row, err := q.GetThread(ctx, db.GetThreadParams{WorkspaceID: workspaceID, ID: threadID})
+		if err != nil {
+			return err
+		}
+		out = Thread{ID: row.ID, MailboxID: row.MailboxID, Subject: textVal(row.Subject), Unread: row.Unread}
+		if row.LastMessageAt.Valid {
+			t := row.LastMessageAt.Time.UTC()
+			out.LastMessageAt = &t
+		}
+		msgs, err := q.ListMessagesForThread(ctx, db.ListMessagesForThreadParams{WorkspaceID: workspaceID, ThreadID: row.ID})
+		if err != nil {
+			return err
+		}
+		for _, m := range msgs {
+			out.Messages = append(out.Messages, messageFromRow(m))
+		}
+		return nil
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Thread{}, fmt.Errorf("not found")
+	}
+	return out, err
+}
+
+func messageFromRow(m db.ListMessagesForThreadRow) Message {
+	var at *time.Time
+	when := m.ReceivedAt
+	if !when.Valid {
+		when = m.SentAt
+	}
+	if when.Valid {
+		t := when.Time.UTC()
+		at = &t
+	}
+	return Message{
+		ID: m.ID, Direction: m.Direction, RFCMessageID: m.RfcMessageID,
+		From: textVal(m.FromAddr), To: m.ToAddrs, Subject: textVal(m.Subject),
+		BodyText: textVal(m.BodyText), BodyHTML: textVal(m.BodyHtml), At: at,
+		Classification: json.RawMessage(m.Classification),
+	}
 }
 
 func (p *Postgres) MarkRead(ctx context.Context, workspaceID, threadID uuid.UUID) error {

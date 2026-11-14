@@ -72,6 +72,11 @@ from threads
 where workspace_id = $1 and mailbox_id = $2
 order by last_message_at desc nulls last;
 
+-- name: GetThread :one
+select workspace_id, id, mailbox_id, contact_id, subject, gmail_thread_id, last_message_at, unread
+from threads
+where workspace_id = $1 and id = $2;
+
 -- name: ListMessagesForThread :many
 select workspace_id, id, mailbox_id, thread_id, direction, rfc_message_id, in_reply_to,
   from_addr, to_addrs, subject, body_text, body_html, sent_at, received_at, classification

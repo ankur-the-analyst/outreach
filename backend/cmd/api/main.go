@@ -233,6 +233,7 @@ func main() {
 	mux.Handle("POST /api/v1/drafts/{id}/undo", a.Require(http.HandlerFunc(cmp.Undo)))
 	mux.Handle("POST /api/v1/mailboxes/{id}/sync", a.Require(http.HandlerFunc(sy.Sync)))
 	mux.Handle("GET /api/v1/mailboxes/{id}/threads", a.Require(http.HandlerFunc(sy.Threads)))
+	mux.Handle("GET /api/v1/threads/{id}", a.Require(http.HandlerFunc(sy.Thread)))
 	mux.Handle("POST /api/v1/threads/{id}/read", a.Require(http.HandlerFunc(sy.MarkRead)))
 	mux.Handle("GET /api/v1/evidence", a.Require(http.HandlerFunc(ev.List)))
 	mux.Handle("GET /api/v1/evidence/usable", a.Require(http.HandlerFunc(ev.Usable)))

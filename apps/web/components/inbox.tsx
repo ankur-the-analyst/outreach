@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { EmptyState, PageHeader, Pill } from "@/components/page-header";
+import { Spinner } from "@/components/ui/spinner";
+import { EmptyState, PageHeader } from "@/components/page-header";
 import type { Mailbox, Thread, ThreadMessage } from "@/lib/api";
 import { fieldSelect, readableMail } from "@/lib/labels";
 
@@ -74,14 +76,17 @@ export function Inbox({
   threadID: string;
 }) {
   const router = useRouter();
+  const [rows, setRows] = useState(threads);
   const [msg, setMsg] = useState("");
   const [pending, setPending] = useState(false);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
-  const selected = threads.find((t) => t.id === threadID);
-  const unreadCount = threads.filter((t) => t.unread).length;
+  const [openThread, setOpenThread] = useState<Thread | null>(null);
+  const [loadingMail, setLoadingMail] = useState(Boolean(threadID));
+  const [mailError, setMailError] = useState("");
+  const unreadCount = rows.filter((t) => t.unread).length;
   const classes = useMemo(() => {
     const seen = new Set<string>();
     for (const t of threads) {
@@ -92,7 +97,7 @@ export function Inbox({
     }
     return [...seen];
   }, [threads]);
-  const shown = threads.filter((t) => {
+  const shown = rows.filter((t) => {
     if (filter === "unread" && !t.unread) {
       return false;
     }
@@ -107,6 +112,45 @@ export function Inbox({
     const needle = q.trim().toLowerCase();
     return !needle || hay.includes(needle);
   });
+
+  useEffect(() => {
+    setRows(threads);
+  }, [threads]);
+
+  useEffect(() => {
+    if (!threadID) {
+      setOpenThread(null);
+      setLoadingMail(false);
+      setMailError("");
+      return;
+    }
+    let cancel = false;
+    setLoadingMail(true);
+    setMailError("");
+    setOpenThread(null);
+    void (async () => {
+      const res = await fetch(`/api/v1/threads/${threadID}`, { credentials: "include" });
+      if (cancel) {
+        return;
+      }
+      setLoadingMail(false);
+      if (!res.ok) {
+        if (res.status === 404) {
+          const known = threads.find((t) => t.id === threadID);
+          if (known) {
+            setOpenThread(known);
+            return;
+          }
+        }
+        setMailError("Could not open this email");
+        return;
+      }
+      setOpenThread((await res.json()) as Thread);
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [threadID, threads]);
 
   function href(nextMailbox: string, nextThread: string) {
     const q = new URLSearchParams();
@@ -152,13 +196,11 @@ export function Inbox({
     if (!t.unread) {
       return;
     }
-    const res = await fetch(`/api/v1/threads/${t.id}/read`, {
+    setRows((cur) => cur.map((row) => (row.id === t.id ? { ...row, unread: false } : row)));
+    await fetch(`/api/v1/threads/${t.id}/read`, {
       method: "POST",
       credentials: "include",
     });
-    if (res.ok) {
-      router.refresh();
-    }
   }
 
   return (
@@ -185,6 +227,7 @@ export function Inbox({
                 {msg}
               </p>
             ) : null}
+            {threadID ? null : (
             <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-card p-3">
               <label className="sr-only" htmlFor="inbox-mailbox">
                 Mailbox
@@ -266,10 +309,41 @@ export function Inbox({
                 Sync
               </Button>
             </div>
-            <div className="grid items-start gap-4 lg:grid-cols-12">
-              <div className="overflow-hidden rounded-md border border-border bg-card lg:col-span-5">
+            )}
+            {threadID ? (
+              <div className="min-h-[70vh] rounded-md border border-border bg-card">
+                <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+                  <Link
+                    href={href(mailboxID, "")}
+                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 font-label-md text-foreground hover:bg-muted"
+                  >
+                    <ArrowLeft className="size-4" />
+                    Back
+                  </Link>
+                </div>
+                {loadingMail ? (
+                  <div className="flex h-64 items-center justify-center">
+                    <Spinner className="size-6 text-muted-foreground" />
+                  </div>
+                ) : mailError ? (
+                  <p className="p-6 font-body-md text-destructive" role="alert">
+                    {mailError}
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-4 p-5">
+                    <h2 className="font-headline-sm text-foreground">
+                      {readableMail(openThread?.subject) || "No subject"}
+                    </h2>
+                    {(openThread?.messages ?? []).map((m) => (
+                      <MessageCard key={m.id} message={m} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+            <div className="overflow-hidden rounded-md border border-border bg-card">
                 <div className="flex items-center justify-between bg-muted px-4 py-2 font-label-sm text-muted-foreground">
-                  <span>Conversations ({shown.length})</span>
+                  <span>{shown.length}</span>
                   <span className="tabular-nums">{unreadCount} unread</span>
                 </div>
                 {shown.length === 0 ? (
@@ -277,17 +351,17 @@ export function Inbox({
                     <EmptyState
                       compact
                       title={
-                        threads.length === 0
+                        rows.length === 0
                           ? "No conversations"
                           : "Nothing in this filter"
                       }
                       description={
-                        threads.length === 0
+                        rows.length === 0
                           ? "Sync loads the last 2 days for a new mailbox. Pick dates to load that range."
                           : "Clear search or pick All."
                       }
                       action={
-                        threads.length === 0 ? (
+                        rows.length === 0 ? (
                           <Button
                             type="button"
                             className="rounded-md"
@@ -315,72 +389,46 @@ export function Inbox({
                 ) : (
                   <ul className="divide-y divide-border">
                     {shown.map((t) => {
-                      const active = t.id === threadID;
                       const last = (t.messages ?? []).at(-1);
                       const who = displayName(last?.from || "") || "Unknown";
                       const preview = readableMail(last?.body_text);
-                      const kind = threadClass(t);
+                      const subject = readableMail(t.subject) || "No subject";
                       return (
                         <li key={t.id}>
                           <Link
                             href={href(mailboxID, t.id)}
-                            aria-current={active ? "page" : undefined}
-                            className={
-                              active
-                                ? "relative block border-l-[3px] border-primary bg-accent px-4 py-3 text-left"
-                                : "relative block border-l-[3px] border-transparent px-4 py-3 text-left hover:bg-muted"
-                            }
+                            className="flex items-center gap-4 px-4 py-2.5 text-left hover:bg-muted"
                             onClick={() => {
                               void onOpen(t);
                             }}
                           >
-                            <div className="flex items-baseline justify-between gap-2">
-                              <p className="flex min-w-0 items-center gap-2">
-                                {t.unread ? (
-                                  <span className="size-2 shrink-0 rounded-full bg-primary" />
-                                ) : null}
-                                <span
-                                  className={
-                                    t.unread
-                                      ? "truncate font-label-md text-foreground"
-                                      : "truncate font-body-md text-muted-foreground"
-                                  }
-                                >
-                                  {who}
-                                </span>
-                              </p>
-                              <When iso={t.last_message_at} />
-                            </div>
-                            <p
+                            <span
                               className={
                                 t.unread
-                                  ? "mt-1 truncate font-label-md text-foreground"
-                                  : "mt-1 truncate font-body-md text-foreground"
+                                  ? "w-44 shrink-0 truncate font-label-md text-foreground"
+                                  : "w-44 shrink-0 truncate font-body-md text-muted-foreground"
                               }
                             >
-                              {readableMail(t.subject) || "No subject"}
-                            </p>
-                            {preview ? (
-                              <p className="mt-1 line-clamp-2 font-body-sm text-muted-foreground">
-                                {preview}
-                              </p>
-                            ) : null}
-                            {kind && classLabel[kind] ? (
-                              <div className="mt-2">
-                                <Pill
-                                  tone={
-                                    kind === "dsn" || kind === "complaint"
-                                      ? "danger"
-                                      : kind === "interview" ||
-                                          kind === "interested"
-                                        ? "success"
-                                        : "muted"
-                                  }
-                                >
-                                  {classLabel[kind]}
-                                </Pill>
-                              </div>
-                            ) : null}
+                              {who}
+                            </span>
+                            <span className="min-w-0 flex-1 truncate">
+                              <span
+                                className={
+                                  t.unread
+                                    ? "font-label-md text-foreground"
+                                    : "font-body-md text-foreground"
+                                }
+                              >
+                                {subject}
+                              </span>
+                              {preview ? (
+                                <span className="font-body-md text-muted-foreground">
+                                  {" "}
+                                  — {preview}
+                                </span>
+                              ) : null}
+                            </span>
+                            <When iso={t.last_message_at} />
                           </Link>
                         </li>
                       );
@@ -388,34 +436,7 @@ export function Inbox({
                   </ul>
                 )}
               </div>
-              <div className="rounded-md border border-border bg-card p-5 lg:col-span-7">
-                {!selected ? (
-                  <EmptyState
-                    compact
-                    title="Pick a conversation"
-                    description="Open one on the left to read it."
-                  />
-                ) : (
-                  <div className="flex flex-col gap-4">
-                    <div>
-                      <h2 className="font-headline-sm text-foreground">
-                        {readableMail(selected.subject) || "No subject"}
-                      </h2>
-                      {classLabel[threadClass(selected)] ? (
-                        <div className="mt-2">
-                          <Pill tone="muted">
-                            {classLabel[threadClass(selected)]}
-                          </Pill>
-                        </div>
-                      ) : null}
-                    </div>
-                    {(selected.messages ?? []).map((m) => (
-                      <MessageCard key={m.id} message={m} />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
           </div>
         )}
       </div>
@@ -469,7 +490,7 @@ function MessageCard({ message }: { message: ThreadMessage }) {
           title="Message"
           sandbox=""
           srcDoc={message.body_html}
-          className="mt-3 h-[420px] w-full rounded-md border border-border bg-card"
+          className="mt-3 h-[70vh] w-full rounded-md border border-border bg-card"
         />
       ) : (
         <p className="mt-3 max-w-[68ch] whitespace-pre-wrap font-body-md text-foreground">

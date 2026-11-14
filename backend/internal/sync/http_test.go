@@ -2,6 +2,7 @@ package sync
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,6 +26,9 @@ func (f *fakeStore) SyncMailbox(context.Context, uuid.UUID, uuid.UUID) (int, err
 }
 func (f *fakeStore) ListThreads(context.Context, uuid.UUID, uuid.UUID) ([]Thread, error) {
 	return f.threads, nil
+}
+func (f *fakeStore) GetThread(context.Context, uuid.UUID, uuid.UUID) (Thread, error) {
+	return Thread{}, errors.New("not found")
 }
 func (f *fakeStore) MarkRead(_ context.Context, _ uuid.UUID, threadID uuid.UUID) error {
 	f.readID = threadID

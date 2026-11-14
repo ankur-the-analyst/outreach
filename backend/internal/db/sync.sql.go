@@ -185,6 +185,33 @@ func (q *Queries) GetSyncState(ctx context.Context, arg GetSyncStateParams) (Get
 	return i, err
 }
 
+const getThread = `-- name: GetThread :one
+select workspace_id, id, mailbox_id, contact_id, subject, gmail_thread_id, last_message_at, unread
+from threads
+where workspace_id = $1 and id = $2
+`
+
+type GetThreadParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) GetThread(ctx context.Context, arg GetThreadParams) (Thread, error) {
+	row := q.db.QueryRow(ctx, getThread, arg.WorkspaceID, arg.ID)
+	var i Thread
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.MailboxID,
+		&i.ContactID,
+		&i.Subject,
+		&i.GmailThreadID,
+		&i.LastMessageAt,
+		&i.Unread,
+	)
+	return i, err
+}
+
 const getThreadByRFC = `-- name: GetThreadByRFC :one
 select t.workspace_id, t.id, t.mailbox_id, t.contact_id, t.subject, t.gmail_thread_id, t.last_message_at, t.unread
 from threads t
