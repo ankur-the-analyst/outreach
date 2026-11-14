@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -336,12 +336,12 @@ export function Inbox({
                     {mailError}
                   </p>
                 ) : (
-                  <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-5">
-                    <h2 className="shrink-0 font-headline-sm text-foreground">
+                  <div className="min-h-0 flex-1 overflow-y-auto p-5">
+                    <h2 className="font-headline-sm text-foreground">
                       {readableMail(openThread?.subject) || "No subject"}
                     </h2>
                     {(openThread?.messages ?? []).map((m) => (
-                      <MessageCard key={m.id} message={m} fill />
+                      <MessageCard key={m.id} message={m} />
                     ))}
                   </div>
                 )}
@@ -462,17 +462,11 @@ function When({ iso }: { iso?: string }) {
   );
 }
 
-function MessageCard({ message, fill }: { message: ThreadMessage; fill?: boolean }) {
+function MessageCard({ message }: { message: ThreadMessage }) {
   const [open, setOpen] = useState(false);
   const to = message.to.filter(Boolean).join(", ");
   return (
-    <article
-      className={
-        fill
-          ? "flex min-h-0 flex-1 flex-col border-t border-border pt-4 first:border-t-0 first:pt-0"
-          : "border-t border-border pt-4 first:border-t-0 first:pt-0"
-      }
-    >
+    <article className="mt-4 border-t border-border pt-4">
       <button
         type="button"
         aria-expanded={open}
@@ -498,21 +492,34 @@ function MessageCard({ message, fill }: { message: ThreadMessage; fill?: boolean
         </dl>
       ) : null}
       {message.body_html ? (
-        <iframe
-          title="Message"
-          sandbox=""
-          srcDoc={message.body_html}
-          className={
-            fill
-              ? "mt-3 min-h-0 w-full flex-1 rounded-md border border-border bg-card"
-              : "mt-3 h-[70vh] w-full rounded-md border border-border bg-card"
-          }
-        />
+        <MailFrame html={message.body_html} />
       ) : (
         <p className="mt-3 max-w-[68ch] whitespace-pre-wrap font-body-md text-foreground">
           {readableMail(message.body_text)}
         </p>
       )}
     </article>
+  );
+}
+
+function MailFrame({ html }: { html: string }) {
+  const frame = useRef<HTMLIFrameElement>(null);
+  function fit() {
+    const doc = frame.current?.contentDocument;
+    const height = doc?.documentElement.scrollHeight;
+    if (frame.current && height) {
+      frame.current.style.height = `${height}px`;
+    }
+  }
+  return (
+    <iframe
+      ref={frame}
+      title="Message"
+      sandbox="allow-same-origin"
+      scrolling="no"
+      srcDoc={html}
+      onLoad={fit}
+      className="mt-3 w-full overflow-hidden rounded-md border border-border bg-card"
+    />
   );
 }
