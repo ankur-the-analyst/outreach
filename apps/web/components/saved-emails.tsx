@@ -374,7 +374,7 @@ function CanvasBlock({
         }`}
       >
         <span className="font-label-sm text-muted-foreground">{blockLabel[element.type]}</span>
-        <span className="mt-1 block truncate font-body-sm text-foreground">
+        <span className="mt-1 block whitespace-pre-wrap break-words font-body-sm text-foreground">
           {element.content || element.props.src || element.props.alt || "Empty"}
         </span>
       </button>

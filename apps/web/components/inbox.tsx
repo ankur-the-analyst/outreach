@@ -83,9 +83,13 @@ export function Inbox({
   const [to, setTo] = useState("");
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
+  const [openID, setOpenID] = useState(threadID);
   const [openThread, setOpenThread] = useState<Thread | null>(null);
   const [loadingMail, setLoadingMail] = useState(Boolean(threadID));
   const [mailError, setMailError] = useState("");
+  const loadGen = useRef(0);
+  const threadsRef = useRef(threads);
+  threadsRef.current = threads;
   const unreadCount = rows.filter((t) => t.unread).length;
   const classes = useMemo(() => {
     const seen = new Set<string>();
@@ -118,39 +122,69 @@ export function Inbox({
   }, [threads]);
 
   useEffect(() => {
-    if (!threadID) {
-      setOpenThread(null);
-      setLoadingMail(false);
-      setMailError("");
-      return;
+    if (threadID) {
+      void loadMail(threadID);
     }
-    let cancel = false;
+    // The server id only changes on a full page load. Row clicks call loadMail directly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadID]);
+
+  useEffect(() => {
+    function onPop() {
+      const id = new URLSearchParams(window.location.search).get("thread") ?? "";
+      setOpenID(id);
+      if (id) {
+        void loadMail(id);
+        return;
+      }
+      loadGen.current += 1;
+      setLoadingMail(false);
+      setOpenThread(null);
+      setMailError("");
+    }
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [mailboxID]);
+
+  async function loadMail(id: string) {
+    const gen = ++loadGen.current;
     setLoadingMail(true);
     setMailError("");
     setOpenThread(null);
-    void (async () => {
-      const res = await fetch(`/api/v1/threads/${threadID}`, { credentials: "include" });
-      if (cancel) {
-        return;
-      }
-      setLoadingMail(false);
-      if (!res.ok) {
-        if (res.status === 404) {
-          const known = threads.find((t) => t.id === threadID);
-          if (known) {
-            setOpenThread(known);
-            return;
-          }
+    const res = await fetch(`/api/v1/threads/${id}`, { credentials: "include" });
+    if (gen !== loadGen.current) {
+      return;
+    }
+    setLoadingMail(false);
+    if (!res.ok) {
+      if (res.status === 404) {
+        const known = threadsRef.current.find((t) => t.id === id);
+        if (known) {
+          setOpenThread(known);
+          return;
         }
-        setMailError("Could not open this email");
-        return;
       }
-      setOpenThread((await res.json()) as Thread);
-    })();
-    return () => {
-      cancel = true;
-    };
-  }, [threadID, threads]);
+      setMailError("Could not open this email");
+      return;
+    }
+    setOpenThread((await res.json()) as Thread);
+  }
+
+  function openRow(t: Thread) {
+    void onOpen(t);
+    window.history.pushState(null, "", href(mailboxID, t.id));
+    setOpenID(t.id);
+    void loadMail(t.id);
+  }
+
+  function closeMail() {
+    window.history.pushState(null, "", href(mailboxID, ""));
+    loadGen.current += 1;
+    setOpenID("");
+    setLoadingMail(false);
+    setOpenThread(null);
+    setMailError("");
+  }
 
   function href(nextMailbox: string, nextThread: string) {
     const q = new URLSearchParams();
@@ -204,11 +238,11 @@ export function Inbox({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="relative flex min-h-0 flex-1 flex-col">
       <PageHeader title="Inbox" />
       <div
         className={
-          threadID
+          openID
             ? "flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-[var(--margin-desktop)]"
             : "min-h-0 flex-1 overflow-y-auto bg-background p-[var(--margin-desktop)]"
         }
@@ -227,13 +261,13 @@ export function Inbox({
             }
           />
         ) : (
-          <div className={threadID ? "flex min-h-0 flex-1 flex-col gap-4" : "flex flex-col gap-4"}>
+          <div className={openID ? "flex min-h-0 flex-1 flex-col gap-4" : "flex flex-col gap-4"}>
             {msg ? (
               <p role="alert" className="font-body-md text-destructive">
                 {msg}
               </p>
             ) : null}
-            {threadID ? null : (
+            {openID ? null : (
             <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-card p-3">
               <label className="sr-only" htmlFor="inbox-mailbox">
                 Mailbox
@@ -316,21 +350,20 @@ export function Inbox({
               </Button>
             </div>
             )}
-            {threadID ? (
+            {openID ? (
               <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-card">
                 <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
-                  <Link
-                    href={href(mailboxID, "")}
+                  <button
+                    type="button"
+                    onClick={closeMail}
                     className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 font-label-md text-foreground hover:bg-muted"
                   >
                     <ArrowLeft className="size-4" />
                     Back
-                  </Link>
+                  </button>
                 </div>
                 {loadingMail ? (
-                  <div className="flex h-64 items-center justify-center">
-                    <Spinner className="size-6 text-muted-foreground" />
-                  </div>
+                  <div className="flex h-64 items-center justify-center" />
                 ) : mailError ? (
                   <p className="p-6 font-body-md text-destructive" role="alert">
                     {mailError}
@@ -401,12 +434,10 @@ export function Inbox({
                       const subject = readableMail(t.subject) || "No subject";
                       return (
                         <li key={t.id}>
-                          <Link
-                            href={href(mailboxID, t.id)}
-                            className="flex items-center gap-4 px-4 py-2.5 text-left hover:bg-muted"
-                            onClick={() => {
-                              void onOpen(t);
-                            }}
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-4 px-4 py-2.5 text-left hover:bg-muted"
+                            onClick={() => openRow(t)}
                           >
                             <span
                               className={
@@ -435,7 +466,7 @@ export function Inbox({
                               ) : null}
                             </span>
                             <When iso={t.last_message_at} />
-                          </Link>
+                          </button>
                         </li>
                       );
                     })}
@@ -446,6 +477,11 @@ export function Inbox({
           </div>
         )}
       </div>
+      {loadingMail ? (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/70">
+          <Spinner className="size-6 text-muted-foreground" />
+        </div>
+      ) : null}
     </div>
   );
 }
