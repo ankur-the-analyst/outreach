@@ -34,6 +34,7 @@ type Message struct {
 	Subject        string          `json:"subject"`
 	BodyText       string          `json:"body_text"`
 	BodyHTML       string          `json:"body_html,omitempty"`
+	At             *time.Time      `json:"at,omitempty"`
 	Classification json.RawMessage `json:"classification,omitempty"`
 }
 
@@ -136,13 +137,21 @@ func (p *Postgres) listItems(ctx context.Context, workspaceID, mailboxID uuid.UU
 		}
 		if err == nil {
 			token := p.syncCursor(ctx, workspaceID, mailboxID)
-			if from.IsZero() && to.IsZero() && p.needsHTML(ctx, workspaceID, mailboxID) {
-				token = ""
+			if from.IsZero() && to.IsZero() {
+				start, end, n := p.missingHTMLSpan(ctx, workspaceID, mailboxID)
+				if n > 0 {
+					from = start.AddDate(0, 0, -1)
+					to = end
+				}
 			}
 			cur := mailbox.FetchCursor{Token: token, After: from, Before: to}
 			res, ferr := ops.Fetch(ctx, cur)
 			if ferr == nil {
-				return messagesToItems(res.Messages), res.Cursor.Token, nil
+				next := res.Cursor.Token
+				if token != "" && (!cur.After.IsZero() || !cur.Before.IsZero()) {
+					next = token
+				}
+				return messagesToItems(res.Messages), next, nil
 			}
 			if !errors.Is(ferr, mailbox.ErrInboxFallback) {
 				return nil, "", ferr
@@ -156,16 +165,29 @@ func (p *Postgres) listItems(ctx context.Context, workspaceID, mailboxID uuid.UU
 	return items, "", err
 }
 
-func (p *Postgres) needsHTML(ctx context.Context, workspaceID, mailboxID uuid.UUID) bool {
+func (p *Postgres) missingHTMLSpan(ctx context.Context, workspaceID, mailboxID uuid.UUID) (time.Time, time.Time, int64) {
+	var start, end time.Time
 	var n int64
 	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		n, err = q.CountRecentMessagesWithoutHTML(ctx, db.CountRecentMessagesWithoutHTMLParams{
+		row, err := q.MissingHTMLSpan(ctx, db.MissingHTMLSpanParams{
 			WorkspaceID: workspaceID, MailboxID: mailboxID,
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		n = row.N
+		if row.StartAt.Valid {
+			start = row.StartAt.Time
+		}
+		if row.EndAt.Valid {
+			end = row.EndAt.Time
+		}
+		return nil
 	})
-	return err == nil && n > 0
+	if err != nil || n == 0 || start.IsZero() {
+		return time.Time{}, time.Time{}, 0
+	}
+	return start, end, n
 }
 
 func (p *Postgres) syncCursor(ctx context.Context, workspaceID, mailboxID uuid.UUID) string {
@@ -224,10 +246,19 @@ func (p *Postgres) ListThreads(ctx context.Context, workspaceID, mailboxID uuid.
 				return err
 			}
 			for _, m := range msgs {
+				var at *time.Time
+				when := m.ReceivedAt
+				if !when.Valid {
+					when = m.SentAt
+				}
+				if when.Valid {
+					t := when.Time.UTC()
+					at = &t
+				}
 				th.Messages = append(th.Messages, Message{
 					ID: m.ID, Direction: m.Direction, RFCMessageID: m.RfcMessageID,
 					From: textVal(m.FromAddr), To: m.ToAddrs, Subject: textVal(m.Subject),
-					BodyText: textVal(m.BodyText), BodyHTML: textVal(m.BodyHtml),
+					BodyText: textVal(m.BodyText), BodyHTML: textVal(m.BodyHtml), At: at,
 					Classification: json.RawMessage(m.Classification),
 				})
 			}

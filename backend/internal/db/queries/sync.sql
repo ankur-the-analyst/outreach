@@ -79,15 +79,17 @@ from messages
 where workspace_id = $1 and thread_id = $2
 order by coalesce(sent_at, received_at, now());
 
--- name: CountRecentMessagesWithoutHTML :one
-select count(*)::bigint
+-- name: MissingHTMLSpan :one
+select
+  min(coalesce(received_at, sent_at))::timestamptz as start_at,
+  max(coalesce(received_at, sent_at))::timestamptz as end_at,
+  count(*)::bigint as n
 from messages
 where workspace_id = $1 and mailbox_id = $2
   and (
     coalesce(body_html, '') = ''
     or body_html like '%cid:%'
-  )
-  and coalesce(received_at, sent_at) > now() - interval '2 days';
+  );
 
 -- name: GetSyncState :one
 select gmail_history_id, last_synced_at, last_error

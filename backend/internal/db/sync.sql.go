@@ -21,29 +21,6 @@ func (q *Queries) AdvisoryLockMailbox(ctx context.Context, dollar_1 string) erro
 	return err
 }
 
-const countRecentMessagesWithoutHTML = `-- name: CountRecentMessagesWithoutHTML :one
-select count(*)::bigint
-from messages
-where workspace_id = $1 and mailbox_id = $2
-  and (
-    coalesce(body_html, '') = ''
-    or body_html like '%cid:%'
-  )
-  and coalesce(received_at, sent_at) > now() - interval '2 days'
-`
-
-type CountRecentMessagesWithoutHTMLParams struct {
-	WorkspaceID uuid.UUID
-	MailboxID   uuid.UUID
-}
-
-func (q *Queries) CountRecentMessagesWithoutHTML(ctx context.Context, arg CountRecentMessagesWithoutHTMLParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countRecentMessagesWithoutHTML, arg.WorkspaceID, arg.MailboxID)
-	var column_1 int64
-	err := row.Scan(&column_1)
-	return column_1, err
-}
-
 const deleteMessagesForContact = `-- name: DeleteMessagesForContact :exec
 delete from messages
 where messages.workspace_id = $1
@@ -490,6 +467,37 @@ func (q *Queries) MarkThreadRead(ctx context.Context, arg MarkThreadReadParams) 
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const missingHTMLSpan = `-- name: MissingHTMLSpan :one
+select
+  min(coalesce(received_at, sent_at))::timestamptz as start_at,
+  max(coalesce(received_at, sent_at))::timestamptz as end_at,
+  count(*)::bigint as n
+from messages
+where workspace_id = $1 and mailbox_id = $2
+  and (
+    coalesce(body_html, '') = ''
+    or body_html like '%cid:%'
+  )
+`
+
+type MissingHTMLSpanParams struct {
+	WorkspaceID uuid.UUID
+	MailboxID   uuid.UUID
+}
+
+type MissingHTMLSpanRow struct {
+	StartAt pgtype.Timestamptz
+	EndAt   pgtype.Timestamptz
+	N       int64
+}
+
+func (q *Queries) MissingHTMLSpan(ctx context.Context, arg MissingHTMLSpanParams) (MissingHTMLSpanRow, error) {
+	row := q.db.QueryRow(ctx, missingHTMLSpan, arg.WorkspaceID, arg.MailboxID)
+	var i MissingHTMLSpanRow
+	err := row.Scan(&i.StartAt, &i.EndAt, &i.N)
+	return i, err
 }
 
 const oldestSyncAt = `-- name: OldestSyncAt :one

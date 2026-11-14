@@ -52,15 +52,13 @@ function shortWhen(iso?: string): string {
     return "";
   }
   const now = new Date();
-  if (d.toDateString() === now.toDateString()) {
-    return new Intl.DateTimeFormat(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(d);
-  }
+  const sameYear = d.getFullYear() === now.getFullYear();
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
     day: "numeric",
+    year: sameYear ? undefined : "numeric",
+    hour: "numeric",
+    minute: "2-digit",
   }).format(d);
 }
 
@@ -456,6 +454,7 @@ function MessageCard({ message }: { message: ThreadMessage }) {
             {open ? "Hide details" : to ? `to ${to}` : "Show details"}
           </span>
         </span>
+        <When iso={message.at} />
       </button>
       {open ? (
         <dl className="mt-2 grid grid-cols-[4.5rem_1fr] gap-x-3 gap-y-1 font-body-sm">

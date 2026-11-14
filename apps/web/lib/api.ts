@@ -375,6 +375,7 @@ export type ThreadMessage = {
   subject: string;
   body_text: string;
   body_html?: string;
+  at?: string;
   classification?: {
     class?: string;
     reply_draft?: boolean;
