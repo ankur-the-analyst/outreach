@@ -206,7 +206,13 @@ export function Inbox({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PageHeader title="Inbox" />
-      <div className="min-h-0 flex-1 overflow-y-auto bg-background p-[var(--margin-desktop)]">
+      <div
+        className={
+          threadID
+            ? "flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-[var(--margin-desktop)]"
+            : "min-h-0 flex-1 overflow-y-auto bg-background p-[var(--margin-desktop)]"
+        }
+      >
         {mailboxes.length === 0 ? (
           <EmptyState
             title="Connect a mailbox first"
@@ -221,7 +227,7 @@ export function Inbox({
             }
           />
         ) : (
-          <div className="flex flex-col gap-4">
+          <div className={threadID ? "flex min-h-0 flex-1 flex-col gap-4" : "flex flex-col gap-4"}>
             {msg ? (
               <p role="alert" className="font-body-md text-destructive">
                 {msg}
@@ -311,8 +317,8 @@ export function Inbox({
             </div>
             )}
             {threadID ? (
-              <div className="min-h-[70vh] rounded-md border border-border bg-card">
-                <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-card">
+                <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
                   <Link
                     href={href(mailboxID, "")}
                     className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 font-label-md text-foreground hover:bg-muted"
@@ -330,12 +336,12 @@ export function Inbox({
                     {mailError}
                   </p>
                 ) : (
-                  <div className="flex flex-col gap-4 p-5">
-                    <h2 className="font-headline-sm text-foreground">
+                  <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-5">
+                    <h2 className="shrink-0 font-headline-sm text-foreground">
                       {readableMail(openThread?.subject) || "No subject"}
                     </h2>
                     {(openThread?.messages ?? []).map((m) => (
-                      <MessageCard key={m.id} message={m} />
+                      <MessageCard key={m.id} message={m} fill />
                     ))}
                   </div>
                 )}
@@ -456,11 +462,17 @@ function When({ iso }: { iso?: string }) {
   );
 }
 
-function MessageCard({ message }: { message: ThreadMessage }) {
+function MessageCard({ message, fill }: { message: ThreadMessage; fill?: boolean }) {
   const [open, setOpen] = useState(false);
   const to = message.to.filter(Boolean).join(", ");
   return (
-    <article className="border-t border-border pt-4 first:border-t-0 first:pt-0">
+    <article
+      className={
+        fill
+          ? "flex min-h-0 flex-1 flex-col border-t border-border pt-4 first:border-t-0 first:pt-0"
+          : "border-t border-border pt-4 first:border-t-0 first:pt-0"
+      }
+    >
       <button
         type="button"
         aria-expanded={open}
@@ -490,7 +502,11 @@ function MessageCard({ message }: { message: ThreadMessage }) {
           title="Message"
           sandbox=""
           srcDoc={message.body_html}
-          className="mt-3 h-[70vh] w-full rounded-md border border-border bg-card"
+          className={
+            fill
+              ? "mt-3 min-h-0 w-full flex-1 rounded-md border border-border bg-card"
+              : "mt-3 h-[70vh] w-full rounded-md border border-border bg-card"
+          }
         />
       ) : (
         <p className="mt-3 max-w-[68ch] whitespace-pre-wrap font-body-md text-foreground">
