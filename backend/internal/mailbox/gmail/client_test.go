@@ -9,9 +9,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"outreach/internal/mailbox"
 	"outreach/internal/mime"
+	"outreach/internal/storage"
 )
 
 func TestSendAndFetchHistory(t *testing.T) {
@@ -128,6 +130,185 @@ func TestFetchHTMLBody(t *testing.T) {
 	m := res.Messages[0]
 	if m.Text != "Hello Ada" || m.HTML != "<p>Hello <b>Ada</b></p>" {
 		t.Fatalf("%+v", m)
+	}
+}
+
+func TestFetchHTMLAttachment(t *testing.T) {
+	t.Parallel()
+	page := base64.RawURLEncoding.EncodeToString([]byte("<p>Full <b>letter</b></p>"))
+	mux := http.NewServeMux()
+	mux.HandleFunc("/gmail/v1/users/me/profile", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"historyId": "1"})
+	})
+	mux.HandleFunc("/gmail/v1/users/me/messages", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/gmail/v1/users/me/messages" {
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"messages": []map[string]string{{"id": "abc"}}})
+	})
+	mux.HandleFunc("/gmail/v1/users/me/messages/abc/attachments/att1", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"data": page})
+	})
+	mux.HandleFunc("/gmail/v1/users/me/messages/abc", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":      "abc",
+			"snippet": "Full letter",
+			"payload": map[string]any{
+				"mimeType": "text/html",
+				"headers": []map[string]string{
+					{"name": "From", "value": "pat@x.test"},
+					{"name": "Message-ID", "value": "<m@x>"},
+				},
+				"body": map[string]string{"attachmentId": "att1"},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	c := &Client{HTTP: srv.Client(), Base: srv.URL}
+	res, err := c.Fetch(context.Background(), mailbox.FetchCursor{})
+	if err != nil || len(res.Messages) != 1 {
+		t.Fatalf("%+v %v", res, err)
+	}
+	m := res.Messages[0]
+	if m.Text != "Full letter" || m.HTML != "<p>Full <b>letter</b></p>" {
+		t.Fatalf("%+v", m)
+	}
+}
+
+func TestListPagesAndInlineImage(t *testing.T) {
+	t.Parallel()
+	png := base64.RawURLEncoding.EncodeToString([]byte{1, 2, 3})
+	page := base64.RawURLEncoding.EncodeToString([]byte(`<img src="cid:logo@x">`))
+	mux := http.NewServeMux()
+	mux.HandleFunc("/gmail/v1/users/me/profile", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"historyId": "9"})
+	})
+	mux.HandleFunc("/gmail/v1/users/me/messages", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/gmail/v1/users/me/messages" {
+			return
+		}
+		if r.URL.Query().Get("maxResults") == "" {
+			t.Errorf("missing maxResults")
+		}
+		if r.URL.Query().Get("pageToken") == "" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"messages":      []map[string]string{{"id": "a"}},
+				"nextPageToken": "p2",
+			})
+			return
+		}
+		if r.URL.Query().Get("pageToken") != "p2" {
+			t.Errorf("page %s", r.URL.Query().Get("pageToken"))
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"messages": []map[string]string{{"id": "b"}},
+		})
+	})
+	write := func(id, html string, withImage bool) {
+		mux.HandleFunc("/gmail/v1/users/me/messages/"+id, func(w http.ResponseWriter, r *http.Request) {
+			payload := map[string]any{
+				"mimeType": "multipart/related",
+				"headers": []map[string]string{
+					{"name": "From", "value": "pat@x.test"},
+					{"name": "Message-ID", "value": "<" + id + "@x>"},
+				},
+				"parts": []map[string]any{
+					{"mimeType": "text/html", "body": map[string]string{"data": html}},
+				},
+			}
+			if withImage {
+				payload["parts"] = []map[string]any{
+					{"mimeType": "text/html", "body": map[string]string{"data": html}},
+					{
+						"mimeType": "image/png",
+						"headers":  []map[string]string{{"name": "Content-Id", "value": "<logo@x>"}},
+						"body":     map[string]string{"data": png},
+					},
+				}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": id, "snippet": id, "payload": payload,
+			})
+		})
+	}
+	write("a", page, true)
+	write("b", base64.RawURLEncoding.EncodeToString([]byte("<p>second</p>")), false)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	c := &Client{HTTP: srv.Client(), Base: srv.URL}
+	res, err := c.Fetch(context.Background(), mailbox.FetchCursor{})
+	if err != nil || len(res.Messages) != 2 {
+		t.Fatalf("%+v %v", res, err)
+	}
+	if !strings.Contains(res.Messages[0].HTML, "data:image/png;base64,") || strings.Contains(res.Messages[0].HTML, "cid:") {
+		t.Fatalf("image not embedded: %s", res.Messages[0].HTML)
+	}
+	if res.Messages[1].HTML != "<p>second</p>" {
+		t.Fatalf("%s", res.Messages[1].HTML)
+	}
+}
+
+func TestImageSavedAndDateQuery(t *testing.T) {
+	t.Parallel()
+	png := base64.RawURLEncoding.EncodeToString([]byte{1, 2, 3})
+	page := base64.RawURLEncoding.EncodeToString([]byte(`<img src="cid:logo@x">`))
+	mux := http.NewServeMux()
+	mux.HandleFunc("/gmail/v1/users/me/profile", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"historyId": "3"})
+	})
+	mux.HandleFunc("/gmail/v1/users/me/messages", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/gmail/v1/users/me/messages" {
+			return
+		}
+		q := r.URL.Query().Get("q")
+		if !strings.Contains(q, "after:2026/11/13") || !strings.Contains(q, "before:2026/11/16") {
+			t.Errorf("query %s", q)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"messages": []map[string]string{{"id": "a"}},
+		})
+	})
+	mux.HandleFunc("/gmail/v1/users/me/messages/a", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id": "a", "snippet": "hi",
+			"payload": map[string]any{
+				"mimeType": "multipart/related",
+				"headers": []map[string]string{
+					{"name": "From", "value": "pat@x.test"},
+					{"name": "Message-ID", "value": "<a@x>"},
+				},
+				"parts": []map[string]any{
+					{"mimeType": "text/html", "body": map[string]string{"data": page}},
+					{
+						"mimeType": "image/png",
+						"headers":  []map[string]string{{"name": "Content-Id", "value": "<logo@x>"}},
+						"body":     map[string]string{"data": png},
+					},
+				},
+			},
+		})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	files := storage.NewMemory()
+	c := &Client{HTTP: srv.Client(), Base: srv.URL, Files: files, FileBase: "http://api.test"}
+	res, err := c.Fetch(context.Background(), mailbox.FetchCursor{
+		After:  time.Date(2026, 11, 13, 0, 0, 0, 0, time.UTC),
+		Before: time.Date(2026, 11, 15, 0, 0, 0, 0, time.UTC),
+	})
+	if err != nil || len(res.Messages) != 1 {
+		t.Fatalf("%+v %v", res, err)
+	}
+	htmlBody := res.Messages[0].HTML
+	if strings.Contains(htmlBody, "cid:") || !strings.Contains(htmlBody, "http://api.test/api/v1/mail-files/mail-images/") {
+		t.Fatalf("html %s", htmlBody)
+	}
+	key := strings.TrimPrefix(htmlBody, `<img src="http://api.test/api/v1/mail-files/`)
+	key = strings.TrimSuffix(key, `">`)
+	got, err := files.Get(context.Background(), key)
+	if err != nil || string(got) != string([]byte{1, 2, 3}) {
+		t.Fatalf("file %q %v %v", key, got, err)
 	}
 }
 

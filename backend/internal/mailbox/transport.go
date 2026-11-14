@@ -25,7 +25,9 @@ type Transport interface {
 }
 
 type FetchCursor struct {
-	Token string
+	Token  string
+	After  time.Time
+	Before time.Time
 }
 
 type Message struct {

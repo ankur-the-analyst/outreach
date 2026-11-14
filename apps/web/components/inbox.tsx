@@ -78,6 +78,8 @@ export function Inbox({
   const router = useRouter();
   const [msg, setMsg] = useState("");
   const [pending, setPending] = useState(false);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("all");
   const selected = threads.find((t) => t.id === threadID);
@@ -125,10 +127,21 @@ export function Inbox({
     }
     setMsg("");
     setPending(true);
-    const res = await fetch(`/api/v1/mailboxes/${mailboxID}/sync`, {
-      method: "POST",
-      credentials: "include",
-    });
+    const params = new URLSearchParams();
+    if (from) {
+      params.set("from", from);
+    }
+    if (to) {
+      params.set("to", to);
+    }
+    const qs = params.toString();
+    const res = await fetch(
+      `/api/v1/mailboxes/${mailboxID}/sync${qs ? `?${qs}` : ""}`,
+      {
+        method: "POST",
+        credentials: "include",
+      },
+    );
     setPending(false);
     if (!res.ok) {
       setMsg("Sync failed");
@@ -224,6 +237,26 @@ export function Inbox({
                 placeholder="Search sender or subject"
                 className={`${fieldSelect} !w-56 shrink-0`}
               />
+              <label className="flex items-center gap-1.5 font-label-sm text-muted-foreground">
+                From
+                <input
+                  type="date"
+                  aria-label="From date"
+                  value={from}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className={`${fieldSelect} !w-auto`}
+                />
+              </label>
+              <label className="flex items-center gap-1.5 font-label-sm text-muted-foreground">
+                To
+                <input
+                  type="date"
+                  aria-label="To date"
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                  className={`${fieldSelect} !w-auto`}
+                />
+              </label>
               <Button
                 type="button"
                 variant="outline"
@@ -252,7 +285,7 @@ export function Inbox({
                       }
                       description={
                         threads.length === 0
-                          ? "Sync this mailbox to pull mail."
+                          ? "Sync loads the last 2 days for a new mailbox. Pick dates to load that range."
                           : "Clear search or pick All."
                       }
                       action={

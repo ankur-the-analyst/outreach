@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"outreach/internal/auth"
@@ -35,16 +36,66 @@ func (a *API) Sync(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "forbidden", "owner or member role required")
 		return
 	}
-	n, err := a.store.SyncMailbox(r.Context(), s.WorkspaceID, mailboxID)
+	n, err := a.sync(r, s.WorkspaceID, mailboxID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			writeError(w, http.StatusNotFound, "not_found", "not found")
+			return
+		}
+		if strings.Contains(err.Error(), "date") {
+			writeError(w, http.StatusBadRequest, "invalid_input", err.Error())
 			return
 		}
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ingested": n})
+}
+
+type ranged interface {
+	SyncRange(ctx context.Context, workspaceID, mailboxID uuid.UUID, from, to time.Time) (int, error)
+}
+
+func (a *API) sync(r *http.Request, workspaceID, mailboxID uuid.UUID) (int, error) {
+	from, to, err := dateQuery(r)
+	if err != nil {
+		return 0, err
+	}
+	if from.IsZero() && to.IsZero() {
+		return a.store.SyncMailbox(r.Context(), workspaceID, mailboxID)
+	}
+	rng, ok := a.store.(ranged)
+	if !ok {
+		return 0, errors.New("date range is not available")
+	}
+	return rng.SyncRange(r.Context(), workspaceID, mailboxID, from, to)
+}
+
+func dateQuery(r *http.Request) (time.Time, time.Time, error) {
+	from, err := day(r.URL.Query().Get("from"))
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	to, err := day(r.URL.Query().Get("to"))
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	if !from.IsZero() && !to.IsZero() && to.Before(from) {
+		return time.Time{}, time.Time{}, errors.New("end date is before the start date")
+	}
+	return from, to, nil
+}
+
+func day(v string) (time.Time, error) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return time.Time{}, nil
+	}
+	t, err := time.Parse("2006-01-02", v)
+	if err != nil {
+		return time.Time{}, errors.New("use a date like 2026-11-13")
+	}
+	return t.UTC(), nil
 }
 
 func (a *API) Threads(w http.ResponseWriter, r *http.Request) {

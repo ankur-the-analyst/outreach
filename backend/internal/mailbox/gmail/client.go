@@ -19,15 +19,30 @@ import (
 	"golang.org/x/oauth2/google"
 	"outreach/internal/mailbox"
 	"outreach/internal/mime"
+	"outreach/internal/storage"
+
+	"github.com/google/uuid"
 )
 
 const defaultAPIBase = "https://gmail.googleapis.com"
+
+// pageSize is one Gmail list request. maxMessages is how many messages one sync
+// will open. syncWindow is the search used when a mailbox has no cursor yet.
+// A picture larger than maxImage is skipped.
+const (
+	pageSize    = 50
+	maxMessages = 100
+	maxImage    = 1 << 20
+	syncWindow  = "newer_than:2d"
+)
 
 type Config struct {
 	ClientID     string
 	ClientSecret string
 	HTTP         *http.Client
 	APIBase      string
+	Files        storage.Store
+	FileBase     string
 }
 
 func NewFactory(cfg Config) mailbox.Factory {
@@ -48,13 +63,20 @@ func NewFactory(cfg Config) mailbox.Factory {
 		if base == "" {
 			base = defaultAPIBase
 		}
-		return &Client{HTTP: httpClient, Base: strings.TrimRight(base, "/")}, nil
+		return &Client{
+			HTTP:     httpClient,
+			Base:     strings.TrimRight(base, "/"),
+			Files:    cfg.Files,
+			FileBase: strings.TrimRight(cfg.FileBase, "/"),
+		}, nil
 	}
 }
 
 type Client struct {
-	HTTP *http.Client
-	Base string
+	HTTP     *http.Client
+	Base     string
+	Files    storage.Store
+	FileBase string
 }
 
 var _ mailbox.Operations = (*Client)(nil)
@@ -103,6 +125,9 @@ func (c *Client) FindSent(ctx context.Context, messageID string) (bool, error) {
 }
 
 func (c *Client) Fetch(ctx context.Context, cur mailbox.FetchCursor) (mailbox.FetchResult, error) {
+	if !cur.After.IsZero() || !cur.Before.IsZero() {
+		return c.fullSyncQuery(ctx, dateQuery(cur))
+	}
 	if cur.Token == "" {
 		return c.fullSync(ctx)
 	}
@@ -117,21 +142,21 @@ func (c *Client) Fetch(ctx context.Context, cur mailbox.FetchCursor) (mailbox.Fe
 }
 
 func (c *Client) fullSync(ctx context.Context) (mailbox.FetchResult, error) {
+	return c.fullSyncQuery(ctx, syncWindow)
+}
+
+func (c *Client) fullSyncQuery(ctx context.Context, query string) (mailbox.FetchResult, error) {
 	prof, err := c.profile(ctx)
 	if err != nil {
 		return mailbox.FetchResult{}, err
 	}
-	var list struct {
-		Messages []struct {
-			ID string `json:"id"`
-		} `json:"messages"`
-	}
-	if err := c.do(ctx, http.MethodGet, "/gmail/v1/users/me/messages?q="+url.QueryEscape("newer_than:7d")+"&maxResults=50", nil, &list); err != nil {
+	ids, err := c.listMessageIDs(ctx, query, maxMessages)
+	if err != nil {
 		return mailbox.FetchResult{}, err
 	}
-	msgs := make([]mailbox.Message, 0, len(list.Messages))
-	for _, raw := range list.Messages {
-		m, err := c.getMessage(ctx, raw.ID)
+	msgs := make([]mailbox.Message, 0, len(ids))
+	for _, id := range ids {
+		m, err := c.getMessage(ctx, id)
 		if err != nil {
 			return mailbox.FetchResult{}, err
 		}
@@ -140,45 +165,134 @@ func (c *Client) fullSync(ctx context.Context) (mailbox.FetchResult, error) {
 	return mailbox.FetchResult{Messages: msgs, Cursor: mailbox.FetchCursor{Token: prof.HistoryID}}, nil
 }
 
-func (c *Client) history(ctx context.Context, start string) (mailbox.FetchResult, error) {
-	path := "/gmail/v1/users/me/history?startHistoryId=" + url.QueryEscape(start) + "&historyTypes=messageAdded&maxResults=50"
-	var body struct {
-		History []struct {
-			MessagesAdded []struct {
-				Message struct {
-					ID string `json:"id"`
-				} `json:"message"`
-			} `json:"messagesAdded"`
-		} `json:"history"`
-		HistoryID string `json:"historyId"`
+func dateQuery(cur mailbox.FetchCursor) string {
+	var parts []string
+	if !cur.After.IsZero() {
+		parts = append(parts, "after:"+cur.After.UTC().Format("2006/01/02"))
 	}
-	if err := c.do(ctx, http.MethodGet, path, nil, &body); err != nil {
-		return mailbox.FetchResult{}, err
+	if !cur.Before.IsZero() {
+		parts = append(parts, "before:"+cur.Before.UTC().AddDate(0, 0, 1).Format("2006/01/02"))
 	}
-	seen := map[string]bool{}
-	var msgs []mailbox.Message
-	for _, h := range body.History {
-		for _, added := range h.MessagesAdded {
-			id := added.Message.ID
-			if id == "" || seen[id] {
+	if len(parts) == 0 {
+		return syncWindow
+	}
+	return strings.Join(parts, " ")
+}
+
+func (c *Client) listMessageIDs(ctx context.Context, query string, limit int) ([]string, error) {
+	if limit <= 0 || limit > maxMessages {
+		limit = maxMessages
+	}
+	var ids []string
+	page := ""
+	for len(ids) < limit {
+		n := pageSize
+		if remain := limit - len(ids); remain < n {
+			n = remain
+		}
+		q := url.Values{}
+		q.Set("q", query)
+		q.Set("maxResults", strconv.Itoa(n))
+		if page != "" {
+			q.Set("pageToken", page)
+		}
+		var list struct {
+			Messages []struct {
+				ID string `json:"id"`
+			} `json:"messages"`
+			NextPageToken string `json:"nextPageToken"`
+		}
+		if err := c.do(ctx, http.MethodGet, "/gmail/v1/users/me/messages?"+q.Encode(), nil, &list); err != nil {
+			return nil, err
+		}
+		for _, m := range list.Messages {
+			if m.ID == "" {
 				continue
 			}
-			seen[id] = true
-			m, err := c.getMessage(ctx, id)
-			if err != nil {
-				if isNotFound(err) {
+			ids = append(ids, m.ID)
+			if len(ids) >= limit {
+				break
+			}
+		}
+		if list.NextPageToken == "" || len(ids) >= limit {
+			break
+		}
+		page = list.NextPageToken
+	}
+	return ids, nil
+}
+
+func (c *Client) history(ctx context.Context, start string) (mailbox.FetchResult, error) {
+	seen := map[string]bool{}
+	var msgs []mailbox.Message
+	page := ""
+	cursor := start
+	for {
+		q := url.Values{}
+		q.Set("startHistoryId", start)
+		q.Set("historyTypes", "messageAdded")
+		q.Set("maxResults", strconv.Itoa(pageSize))
+		if page != "" {
+			q.Set("pageToken", page)
+		}
+		var body struct {
+			History []struct {
+				ID            string `json:"id"`
+				MessagesAdded []struct {
+					Message struct {
+						ID string `json:"id"`
+					} `json:"message"`
+				} `json:"messagesAdded"`
+			} `json:"history"`
+			HistoryID     string `json:"historyId"`
+			NextPageToken string `json:"nextPageToken"`
+		}
+		if err := c.do(ctx, http.MethodGet, "/gmail/v1/users/me/history?"+q.Encode(), nil, &body); err != nil {
+			return mailbox.FetchResult{}, err
+		}
+		stop := false
+		for _, h := range body.History {
+			for _, added := range h.MessagesAdded {
+				if len(msgs) >= maxMessages {
+					stop = true
+					break
+				}
+				id := added.Message.ID
+				if id == "" || seen[id] {
 					continue
 				}
-				return mailbox.FetchResult{}, err
+				seen[id] = true
+				m, err := c.getMessage(ctx, id)
+				if err != nil {
+					if isNotFound(err) {
+						continue
+					}
+					return mailbox.FetchResult{}, err
+				}
+				msgs = append(msgs, m)
 			}
-			msgs = append(msgs, m)
+			if stop {
+				break
+			}
+			if h.ID != "" {
+				cursor = h.ID
+			}
 		}
+		if stop {
+			break
+		}
+		if body.NextPageToken == "" {
+			if body.HistoryID != "" {
+				cursor = body.HistoryID
+			}
+			break
+		}
+		page = body.NextPageToken
 	}
-	token := body.HistoryID
-	if token == "" {
-		token = start
+	if cursor == "" {
+		cursor = start
 	}
-	return mailbox.FetchResult{Messages: msgs, Cursor: mailbox.FetchCursor{Token: token}}, nil
+	return mailbox.FetchResult{Messages: msgs, Cursor: mailbox.FetchCursor{Token: cursor}}, nil
 }
 
 type profile struct {
@@ -217,10 +331,11 @@ func (c *Client) getMessage(ctx context.Context, id string) (mailbox.Message, er
 	if ms, err := strconv.ParseInt(raw.InternalDate, 10, 64); err == nil && ms > 0 {
 		at = time.UnixMilli(ms).UTC()
 	}
-	plain, htmlBody := partBodies(raw.Payload)
-	text := plain
-	if text == "" {
-		text = html.UnescapeString(raw.Snippet)
+	plain, htmlBody := c.partBodies(ctx, raw.ID, raw.Payload)
+	htmlBody = c.embedImages(ctx, raw.ID, raw.Payload, htmlBody)
+	text := html.UnescapeString(raw.Snippet)
+	if strings.TrimSpace(text) == "" {
+		text = plain
 	}
 	return mailbox.Message{
 		RFCMessageID: normalizeID(headers["Message-Id"]),
@@ -242,20 +357,22 @@ type gmailPart struct {
 		Value string `json:"value"`
 	} `json:"headers"`
 	Body struct {
-		Data string `json:"data"`
+		Data         string `json:"data"`
+		AttachmentID string `json:"attachmentId"`
 	} `json:"body"`
 	Parts []gmailPart `json:"parts"`
 }
 
-func partBodies(p gmailPart) (plain, htmlBody string) {
-	switch p.MimeType {
-	case "text/plain":
-		plain = decodeB64(p.Body.Data)
-	case "text/html":
-		htmlBody = decodeB64(p.Body.Data)
+func (c *Client) partBodies(ctx context.Context, messageID string, p gmailPart) (plain, htmlBody string) {
+	body := c.partText(ctx, messageID, p)
+	switch {
+	case strings.HasPrefix(p.MimeType, "text/plain"):
+		plain = body
+	case strings.HasPrefix(p.MimeType, "text/html"):
+		htmlBody = body
 	}
 	for _, child := range p.Parts {
-		cp, ch := partBodies(child)
+		cp, ch := c.partBodies(ctx, messageID, child)
 		if plain == "" {
 			plain = cp
 		}
@@ -266,18 +383,104 @@ func partBodies(p gmailPart) (plain, htmlBody string) {
 	return plain, htmlBody
 }
 
-func decodeB64(s string) string {
+func (c *Client) partText(ctx context.Context, messageID string, p gmailPart) string {
+	if !strings.HasPrefix(p.MimeType, "text/plain") && !strings.HasPrefix(p.MimeType, "text/html") {
+		return ""
+	}
+	return string(c.partBytes(ctx, messageID, p))
+}
+
+func (c *Client) embedImages(ctx context.Context, messageID string, p gmailPart, htmlBody string) string {
+	if htmlBody == "" || !strings.Contains(strings.ToLower(htmlBody), "cid:") {
+		return htmlBody
+	}
+	images := map[string]string{}
+	c.collectImages(ctx, messageID, p, images)
+	for id, uri := range images {
+		htmlBody = strings.ReplaceAll(htmlBody, "cid:"+id, uri)
+		htmlBody = strings.ReplaceAll(htmlBody, "CID:"+id, uri)
+		htmlBody = strings.ReplaceAll(htmlBody, "cid:<"+id+">", uri)
+	}
+	return htmlBody
+}
+
+func (c *Client) collectImages(ctx context.Context, messageID string, p gmailPart, images map[string]string) {
+	if strings.HasPrefix(p.MimeType, "image/") {
+		if id := contentID(p); id != "" {
+			raw := c.partBytes(ctx, messageID, p)
+			if len(raw) > 0 && len(raw) <= maxImage {
+				images[id] = c.imageURL(ctx, p.MimeType, raw)
+			}
+		}
+	}
+	for _, child := range p.Parts {
+		c.collectImages(ctx, messageID, child, images)
+	}
+}
+
+func (c *Client) imageURL(ctx context.Context, mimeType string, raw []byte) string {
+	if c.Files != nil && c.FileBase != "" {
+		key := "mail-images/" + uuid.NewString() + imageExt(mimeType)
+		if err := c.Files.Put(ctx, key, mimeType, raw); err == nil {
+			return c.FileBase + "/api/v1/mail-files/" + key
+		}
+	}
+	return "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(raw)
+}
+
+func imageExt(mimeType string) string {
+	switch {
+	case strings.Contains(mimeType, "jpeg"), strings.Contains(mimeType, "jpg"):
+		return ".jpg"
+	case strings.Contains(mimeType, "gif"):
+		return ".gif"
+	case strings.Contains(mimeType, "webp"):
+		return ".webp"
+	default:
+		return ".png"
+	}
+}
+
+func contentID(p gmailPart) string {
+	for _, h := range p.Headers {
+		if !strings.EqualFold(h.Name, "Content-Id") {
+			continue
+		}
+		id := strings.Trim(strings.TrimSpace(h.Value), "<>")
+		return id
+	}
+	return ""
+}
+
+func (c *Client) partBytes(ctx context.Context, messageID string, p gmailPart) []byte {
+	if p.Body.Data != "" {
+		return decodeB64(p.Body.Data)
+	}
+	if p.Body.AttachmentID == "" || messageID == "" {
+		return nil
+	}
+	var out struct {
+		Data string `json:"data"`
+	}
+	path := "/gmail/v1/users/me/messages/" + url.PathEscape(messageID) + "/attachments/" + url.PathEscape(p.Body.AttachmentID)
+	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
+		return nil
+	}
+	return decodeB64(out.Data)
+}
+
+func decodeB64(s string) []byte {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return ""
+		return nil
 	}
 	for _, enc := range []*base64.Encoding{base64.RawURLEncoding, base64.URLEncoding, base64.StdEncoding} {
 		b, err := enc.DecodeString(s)
 		if err == nil {
-			return string(b)
+			return b
 		}
 	}
-	return ""
+	return nil
 }
 
 func (c *Client) do(ctx context.Context, method, path string, body []byte, out any) error {

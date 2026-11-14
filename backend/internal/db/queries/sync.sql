@@ -83,8 +83,11 @@ order by coalesce(sent_at, received_at, now());
 select count(*)::bigint
 from messages
 where workspace_id = $1 and mailbox_id = $2
-  and coalesce(body_html, '') = ''
-  and coalesce(received_at, sent_at) > now() - interval '7 days';
+  and (
+    coalesce(body_html, '') = ''
+    or body_html like '%cid:%'
+  )
+  and coalesce(received_at, sent_at) > now() - interval '2 days';
 
 -- name: GetSyncState :one
 select gmail_history_id, last_synced_at, last_error

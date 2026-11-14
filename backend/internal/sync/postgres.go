@@ -83,6 +83,14 @@ func (p *Postgres) Membership(ctx context.Context, workspaceID, userID uuid.UUID
 }
 
 func (p *Postgres) SyncMailbox(ctx context.Context, workspaceID, mailboxID uuid.UUID) (int, error) {
+	return p.syncMailbox(ctx, workspaceID, mailboxID, time.Time{}, time.Time{})
+}
+
+func (p *Postgres) SyncRange(ctx context.Context, workspaceID, mailboxID uuid.UUID, from, to time.Time) (int, error) {
+	return p.syncMailbox(ctx, workspaceID, mailboxID, from, to)
+}
+
+func (p *Postgres) syncMailbox(ctx context.Context, workspaceID, mailboxID uuid.UUID, from, to time.Time) (int, error) {
 	var email string
 	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
 		mb, err := q.GetMailbox(ctx, db.GetMailboxParams{WorkspaceID: workspaceID, ID: mailboxID})
@@ -98,7 +106,7 @@ func (p *Postgres) SyncMailbox(ctx context.Context, workspaceID, mailboxID uuid.
 	if err != nil {
 		return 0, err
 	}
-	items, cursor, err := p.listItems(ctx, workspaceID, mailboxID)
+	items, cursor, err := p.listItems(ctx, workspaceID, mailboxID, from, to)
 	if err != nil {
 		_ = p.mark(ctx, workspaceID, mailboxID, err, "")
 		return 0, err
@@ -120,7 +128,7 @@ func (p *Postgres) SyncMailbox(ctx context.Context, workspaceID, mailboxID uuid.
 	return n, nil
 }
 
-func (p *Postgres) listItems(ctx context.Context, workspaceID, mailboxID uuid.UUID) ([]Item, string, error) {
+func (p *Postgres) listItems(ctx context.Context, workspaceID, mailboxID uuid.UUID, from, to time.Time) ([]Item, string, error) {
 	if p.open != nil {
 		ops, _, err := p.open.Open(ctx, workspaceID, mailboxID)
 		if err != nil && !errors.Is(err, mailbox.ErrNotConfigured) && !errors.Is(err, mailbox.ErrInboxFallback) {
@@ -128,10 +136,10 @@ func (p *Postgres) listItems(ctx context.Context, workspaceID, mailboxID uuid.UU
 		}
 		if err == nil {
 			token := p.syncCursor(ctx, workspaceID, mailboxID)
-			if p.needsHTML(ctx, workspaceID, mailboxID) {
+			if from.IsZero() && to.IsZero() && p.needsHTML(ctx, workspaceID, mailboxID) {
 				token = ""
 			}
-			cur := mailbox.FetchCursor{Token: token}
+			cur := mailbox.FetchCursor{Token: token, After: from, Before: to}
 			res, ferr := ops.Fetch(ctx, cur)
 			if ferr == nil {
 				return messagesToItems(res.Messages), res.Cursor.Token, nil

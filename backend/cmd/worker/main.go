@@ -70,6 +70,12 @@ func main() {
 		logger.Error("open storage", "err", err)
 		os.Exit(1)
 	}
+	reg.Register("oauth", "gmail", gmail.NewFactory(gmail.Config{
+		ClientID:     cfg.GoogleOAuthClientID,
+		ClientSecret: cfg.GoogleOAuthClientSecret,
+		Files:        blobs,
+		FileBase:     cfg.PublicBaseURL,
+	}))
 	cvStore := cv.NewPostgres(pool, blobs)
 	led := sender.NewPostgres(pool, time.Now, hold).
 		WithDialer(dialer).
