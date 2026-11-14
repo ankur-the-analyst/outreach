@@ -611,6 +611,12 @@ Also: `companies.custom jsonb not null default '{}'`, `memberships.attrs jsonb n
 - member: `email`, `name`, `role` (from `users` + membership)
 - workspace/sender: `name`, `legal_name`, `reply_address`, `postal_address`
 
+**Catalog the operator sees.** `GET /api/v1/fields?object=contact&catalog=1` (same for `member`) returns the built-in columns first, marked `builtin`, then `field_defs`. Built-ins are not inserted. The contact list the operator fills is `email`, `first_name`, `last_name`, `title`, `linkedin_url`, `timezone`, `region`. Reserved keys that stay off that list (`role_class`, `tags`) still cannot be reused as a custom key. Member built-ins on the list are `name`, `email`, `role`.
+
+**Types.** `kind` is already constrained. `select` requires a non-empty `options` JSON array of strings. Other kinds ignore options.
+
+**`{{user.key}}` at draft time.** Enrolment has no author. Merge reads `memberships.attrs` for `role = owner` (one row) into `user.<key>`. Approver-specific values are a later pass, when approve re-renders the draft. Contact custom values stay on `contact.<key>` and in the compose notes. Do not add CRM pipeline fields (status, priority, source) as contact builtins.
+
 ### 14.3 CSV map
 
 **Choice:** client sends `columns: {field_key: csv_header}`. Server does not persist mapping (HLD: session only). Guess aliases + def labels; **never invent `email`**.

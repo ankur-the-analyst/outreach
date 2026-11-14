@@ -32,6 +32,13 @@ select attrs
 from memberships
 where workspace_id = $1 and user_id = $2;
 
+-- name: GetOwnerAttrs :one
+select attrs
+from memberships
+where workspace_id = $1 and role = 'owner'
+order by user_id
+limit 1;
+
 -- name: UpdateMembershipAttrs :exec
 update memberships
 set attrs = $3

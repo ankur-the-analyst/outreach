@@ -13,6 +13,7 @@ var (
 	ErrBuiltin   = errors.New("fields: cannot redefine a built-in field")
 	ErrObject    = errors.New("fields: unknown object")
 	ErrKind      = errors.New("fields: unknown type")
+	ErrOptions   = errors.New("fields: add at least one choice")
 	ErrLimit     = errors.New("fields: too many fields")
 	ErrDuplicate = errors.New("fields: that key already exists")
 	ErrLabel     = errors.New("fields: label required")
@@ -71,6 +72,43 @@ func ContactMapTargets() []string {
 		"email", "first_name", "last_name", "title", "company",
 		"linkedin_url", "timezone", "region",
 	}
+}
+
+func Catalog(object string) []Def {
+	switch object {
+	case "contact":
+		return catalogRows(object, [][3]string{
+			{"email", "Email", "text"},
+			{"first_name", "First name", "text"},
+			{"last_name", "Last name", "text"},
+			{"title", "Title", "text"},
+			{"linkedin_url", "LinkedIn", "url"},
+			{"timezone", "Timezone", "text"},
+			{"region", "Region", "text"},
+		})
+	case "member":
+		return catalogRows(object, [][3]string{
+			{"name", "Name", "text"},
+			{"email", "Email", "text"},
+			{"role", "Role", "text"},
+		})
+	default:
+		return nil
+	}
+}
+
+func catalogRows(object string, rows [][3]string) []Def {
+	out := make([]Def, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, Def{
+			Object:  object,
+			Key:     row[0],
+			Label:   row[1],
+			Kind:    row[2],
+			Builtin: true,
+		})
+	}
+	return out
 }
 
 func NormalizeHeader(s string) string {

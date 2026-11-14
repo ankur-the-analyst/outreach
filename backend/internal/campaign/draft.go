@@ -375,6 +375,11 @@ func fillVars(ctx context.Context, q *db.Queries, workspaceID uuid.UUID, ct db.G
 	for k, v := range customMap(ct.Custom) {
 		vals["contact."+k] = v
 	}
+	if raw, err := q.GetOwnerAttrs(ctx, workspaceID); err == nil {
+		for k, v := range customMap(raw) {
+			vals["user."+k] = v
+		}
+	}
 	if ct.CompanyID != nil {
 		co, err := q.GetCompany(ctx, db.GetCompanyParams{WorkspaceID: workspaceID, ID: *ct.CompanyID})
 		if err == nil {

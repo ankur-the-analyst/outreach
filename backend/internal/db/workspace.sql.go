@@ -107,6 +107,21 @@ func (q *Queries) GetMembershipAttrs(ctx context.Context, arg GetMembershipAttrs
 	return attrs, err
 }
 
+const getOwnerAttrs = `-- name: GetOwnerAttrs :one
+select attrs
+from memberships
+where workspace_id = $1 and role = 'owner'
+order by user_id
+limit 1
+`
+
+func (q *Queries) GetOwnerAttrs(ctx context.Context, workspaceID uuid.UUID) (json.RawMessage, error) {
+	row := q.db.QueryRow(ctx, getOwnerAttrs, workspaceID)
+	var attrs json.RawMessage
+	err := row.Scan(&attrs)
+	return attrs, err
+}
+
 const getWorkspace = `-- name: GetWorkspace :one
 select id, name, sends_paused, created_at
 from workspaces

@@ -43,7 +43,7 @@ Monorepo: Next.js + TypeScript web app; Go **api** (HTTP, auth, CRUD, public uns
 | Writing | Confirmed `evidence_items` + IDs; include-all if ≤ ~30; else exact pgvector under workspace filter |
 | Replies | Classify → policy code → `reply.draft` → review. No auto-send. `reply_mode` column exists, allowed value in Now is `draft` (and `off`) |
 | Transports | `Operations` (send + fetch); Gmail user OAuth live; Workspace SA send still stub |
-| Fields | Catalog `field_defs`; values in JSON on the row. Contact + member in this cut. Not EAV. Not columns on global `users` |
+| Fields | One catalog per object: built-in columns (read-only) plus workspace `field_defs`. Values for extras stay JSON on the row. Kinds are text, number, link, date, yes/no, dropdown. `{{user.*}}` merges the workspace owner's saved values at draft time. Not EAV. Not columns on global `users` |
 | CV | JSON spec without email; `cv_renders` per mailbox (and optional job); never rewrite uploaded PDF bytes |
 | AI | Propose-only tools; no send tool |
 | Secrets | Envelope encryption; server master key; UI discloses the host can decrypt |
@@ -238,6 +238,10 @@ Preview returns header names + first row samples. Import body includes `columns`
 `templates` workspace table: name, subject, body. Vars: `{{contact.first_name}}`, `{{company.name}}`, `{{job.title}}`, `{{profile.name}}`, `{{contact.first_name | there}}`. Unknown vars rejected **on save**. Campaign email step: `content=template` + `template_id`, or `content=ai`. Render at draft-create; leftover `{{` still hits existing gates.
 
 **Breaks:** template saved, contact missing first name → empty greeting; AI and template both ignored. **Fix:** fallbacks in the pipe syntax; empty required var is a gate failure on that draft, not a campaign-wide crash.
+
+### 13.8 One field list
+
+The operator sees built-in columns and the fields they added as one list. Built-ins are not rows in `field_defs` and cannot be renamed or deleted. Adding a field picks a type the schema already allows (`text`, `number`, `url`, `date`, `boolean`, `select`). A dropdown needs at least one choice. Contact extras go into the draft notes. Member extras are filled into `{{user.key}}` from the workspace owner's saved values when the draft is written (there is no approver yet). Pipeline fields such as status, priority, and source are not part of this list. See LLD §14.2.
 
 ### 13.4 From on start
 

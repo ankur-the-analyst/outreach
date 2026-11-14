@@ -46,6 +46,8 @@ type PreviewRow = {
 type FieldDef = {
   key: string;
   label: string;
+  kind?: string;
+  options?: string[];
 };
 
 const builtinFields: { key: string; label: string }[] = [
@@ -136,7 +138,7 @@ export function ContactBook({
           <FieldCatalog
             object="contact"
             title="Contact fields"
-            description="Create these before you import. They appear in the column map. A value on a person is included when a draft is written."
+            description="Built-in fields stay fixed. Extra fields appear in the column map, and a value on a person is included when a draft is written."
           />
         </div>
         {rows.length === 0 ? (
@@ -376,16 +378,13 @@ function CreateForm() {
         />
       </div>
       {defs.map((d) => (
-        <div key={d.key} className="flex flex-col gap-1.5">
-          <Label htmlFor={`contact-${d.key}`}>{d.label}</Label>
-          <Input
-            id={`contact-${d.key}`}
-            value={custom[d.key] ?? ""}
-            onChange={(e) =>
-              setCustom((cur) => ({ ...cur, [d.key]: e.target.value }))
-            }
-          />
-        </div>
+        <FieldValue
+          key={d.key}
+          id={`contact-${d.key}`}
+          def={d}
+          value={custom[d.key] ?? ""}
+          onChange={(next) => setCustom((cur) => ({ ...cur, [d.key]: next }))}
+        />
       ))}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="contact-source">How you found them</Label>
@@ -401,6 +400,65 @@ function CreateForm() {
         Save
       </Button>
     </form>
+  );
+}
+
+function FieldValue({
+  id,
+  def,
+  value,
+  onChange,
+}: {
+  id: string;
+  def: FieldDef;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>{def.label}</Label>
+      {def.kind === "select" && def.options && def.options.length > 0 ? (
+        <select
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={fieldSelect}
+        >
+          <option value="">Choose</option>
+          {def.options.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+        </select>
+      ) : def.kind === "boolean" ? (
+        <select
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={fieldSelect}
+        >
+          <option value="">Choose</option>
+          <option value="yes">Yes</option>
+          <option value="no">No</option>
+        </select>
+      ) : (
+        <Input
+          id={id}
+          type={
+            def.kind === "number"
+              ? "number"
+              : def.kind === "date"
+                ? "date"
+                : def.kind === "url"
+                  ? "url"
+                  : "text"
+          }
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      )}
+    </div>
   );
 }
 
@@ -557,6 +615,8 @@ function CSVPreview() {
   const [defs, setDefs] = useState<FieldDef[]>([]);
   const [newKey, setNewKey] = useState("");
   const [newLabel, setNewLabel] = useState("");
+  const [newKind, setNewKind] = useState("text");
+  const [newChoices, setNewChoices] = useState("");
   const [rows, setRows] = useState<PreviewRow[]>([]);
   const [error, setError] = useState("");
   const [done, setDone] = useState("");
@@ -640,6 +700,17 @@ function CSVPreview() {
   async function onAddField(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    const options =
+      newKind === "select"
+        ? newChoices
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [];
+    if (newKind === "select" && options.length === 0) {
+      setError("Add at least one choice, separated by commas.");
+      return;
+    }
     const res = await fetch("/api/v1/fields", {
       method: "POST",
       credentials: "include",
@@ -648,7 +719,8 @@ function CSVPreview() {
         object: "contact",
         key: newKey,
         label: newLabel,
-        kind: "text",
+        kind: newKind,
+        options,
       }),
     });
     if (!res.ok) {
@@ -662,6 +734,8 @@ function CSVPreview() {
     setDefs((cur) => [...cur, d]);
     setNewKey("");
     setNewLabel("");
+    setNewKind("text");
+    setNewChoices("");
   }
 
   async function onImport() {
@@ -828,6 +902,33 @@ function CSVPreview() {
                 }}
               />
             </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="new-field-kind">Type</Label>
+              <select
+                id="new-field-kind"
+                value={newKind}
+                onChange={(e) => setNewKind(e.target.value)}
+                className={fieldSelect}
+              >
+                <option value="text">Text</option>
+                <option value="number">Number</option>
+                <option value="url">Link</option>
+                <option value="date">Date</option>
+                <option value="boolean">Yes / no</option>
+                <option value="select">Dropdown</option>
+              </select>
+            </div>
+            {newKind === "select" ? (
+              <div className="flex min-w-40 flex-1 flex-col gap-1.5">
+                <Label htmlFor="new-field-choices">Choices</Label>
+                <Input
+                  id="new-field-choices"
+                  value={newChoices}
+                  onChange={(e) => setNewChoices(e.target.value)}
+                  placeholder="Low, Medium, High"
+                />
+              </div>
+            ) : null}
             <Button
               type="button"
               variant="outline"

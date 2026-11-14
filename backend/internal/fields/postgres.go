@@ -22,6 +22,7 @@ type Def struct {
 	Required bool            `json:"required"`
 	Options  json.RawMessage `json:"options,omitempty"`
 	Position int32           `json:"position"`
+	Builtin  bool            `json:"builtin,omitempty"`
 }
 
 type CreateInput struct {
@@ -30,6 +31,7 @@ type CreateInput struct {
 	Label    string
 	Kind     string
 	Required bool
+	Options  []string
 }
 
 type Hint struct {
@@ -167,6 +169,24 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 	if !ValidKind(kind) {
 		return Def{}, ErrKind
 	}
+	options := json.RawMessage("[]")
+	if kind == "select" {
+		clean := make([]string, 0, len(in.Options))
+		for _, opt := range in.Options {
+			opt = strings.TrimSpace(opt)
+			if opt != "" {
+				clean = append(clean, opt)
+			}
+		}
+		if len(clean) == 0 {
+			return Def{}, ErrOptions
+		}
+		raw, err := json.Marshal(clean)
+		if err != nil {
+			return Def{}, err
+		}
+		options = raw
+	}
 	if label == "" {
 		return Def{}, ErrLabel
 	}
@@ -191,7 +211,7 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 			Label:       label,
 			Kind:        kind,
 			Required:    in.Required,
-			Options:     json.RawMessage("[]"),
+			Options:     options,
 			Position:    n,
 		})
 		if err != nil {

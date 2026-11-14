@@ -71,3 +71,18 @@ func TestListEmpty(t *testing.T) {
 		t.Fatalf("%s", rec.Body.String())
 	}
 }
+
+func TestListCatalogIncludesBuiltins(t *testing.T) {
+	t.Parallel()
+	api := New(&fakeStore{role: "owner"})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/fields?object=contact&catalog=1", nil)
+	req = req.WithContext(auth.WithSession(req.Context(), auth.Session{
+		UserID:      uuid.MustParse("01700000-0000-7000-8000-000000000001"),
+		WorkspaceID: uuid.MustParse("01700000-0000-7000-8000-000000000002"),
+	}))
+	rec := httptest.NewRecorder()
+	api.List(rec, req)
+	if rec.Code != http.StatusOK || !bytes.Contains(rec.Body.Bytes(), []byte(`"key":"email"`)) || !bytes.Contains(rec.Body.Bytes(), []byte(`"builtin":true`)) {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+}

@@ -45,6 +45,9 @@ func (a *API) List(w http.ResponseWriter, r *http.Request) {
 	if defs == nil {
 		defs = []Def{}
 	}
+	if r.URL.Query().Get("catalog") == "1" && object != "" {
+		defs = append(Catalog(object), defs...)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"fields": defs})
 }
 
@@ -54,18 +57,19 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Object   string `json:"object"`
-		Key      string `json:"key"`
-		Label    string `json:"label"`
-		Kind     string `json:"kind"`
-		Required bool   `json:"required"`
+		Object   string   `json:"object"`
+		Key      string   `json:"key"`
+		Label    string   `json:"label"`
+		Kind     string   `json:"kind"`
+		Required bool     `json:"required"`
+		Options  []string `json:"options"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
 		return
 	}
 	d, err := a.store.Create(r.Context(), s.WorkspaceID, CreateInput{
-		Object: in.Object, Key: in.Key, Label: in.Label, Kind: in.Kind, Required: in.Required,
+		Object: in.Object, Key: in.Key, Label: in.Label, Kind: in.Kind, Required: in.Required, Options: in.Options,
 	})
 	if err != nil {
 		writeStoreError(w, err)
@@ -148,6 +152,8 @@ func writeStoreError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, "invalid_input", "That name is already a built-in field")
 	case errors.Is(err, ErrKey):
 		writeError(w, http.StatusBadRequest, "invalid_input", "Use lowercase letters, numbers, and underscores")
+	case errors.Is(err, ErrOptions):
+		writeError(w, http.StatusBadRequest, "invalid_input", "Add at least one choice")
 	case errors.Is(err, ErrObject), errors.Is(err, ErrKind):
 		writeError(w, http.StatusBadRequest, "invalid_input", "That field type is not supported")
 	case errors.Is(err, ErrLabel):

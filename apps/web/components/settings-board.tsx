@@ -55,7 +55,7 @@ export function SettingsBoard({
           <FieldCatalog
             object="member"
             title="Your fields"
-            description="About you in this workspace. Email templates can use the placeholder shown next to each field."
+            description="About you in this workspace. Built-in fields stay fixed. A template fills {{user.key}} from the values you save here."
             values
           />
           <div className="lg:col-span-2">
