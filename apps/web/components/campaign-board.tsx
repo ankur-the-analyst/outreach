@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, UserPlus } from "lucide-react";
+import { LocalText } from "@/components/local-text";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
@@ -382,7 +383,12 @@ function CampaignCard({
               ? " · add a mailbox to start"
               : ""}
             {profile ? ` · ${profile.name}` : ""}
-            {idle ? ` · ${idle}` : ""}
+            {idle ? (
+              <>
+                {" · "}
+                <LocalText text={idle} />
+              </>
+            ) : null}
             {campaign.track_opens || campaign.track_clicks
               ? " · records opens and clicks"
               : " · not recording opens"}
@@ -447,9 +453,11 @@ function CampaignCard({
                     ) : null}
                   </div>
                   <p className="font-body-sm text-muted-foreground">
-                    {p.status === "pending" && idle
-                      ? idle
-                      : (campaignPersonStatus[p.status] ?? p.status)}
+                    {p.status === "pending" && idle ? (
+                      <LocalText text={idle} />
+                    ) : (
+                      (campaignPersonStatus[p.status] ?? p.status)
+                    )}
                   </p>
                 </li>
               );
@@ -563,7 +571,9 @@ function CreateCampaign({
   const router = useRouter();
   const [name, setName] = useState("");
   const [intent, setIntent] = useState("job");
-  const [mailboxID, setMailboxID] = useState(mailboxes[0]?.id ?? "");
+  const [mailboxIDs, setMailboxIDs] = useState<string[]>(
+    mailboxes[0] ? [mailboxes[0].id] : [],
+  );
   const [poolID, setPoolID] = useState("");
   const [profileID, setProfileID] = useState("");
   const [perDay, setPerDay] = useState("5");
@@ -593,6 +603,10 @@ function CreateCampaign({
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!poolID && mailboxIDs.length === 0) {
+      setError("Pick at least one mailbox, or a group.");
+      return;
+    }
     setError("");
     setPending(true);
     const res = await fetch("/api/v1/campaigns", {
@@ -602,7 +616,7 @@ function CreateCampaign({
       body: JSON.stringify({
         name,
         intent,
-        mailbox_ids: poolID ? [] : mailboxID ? [mailboxID] : [],
+        mailbox_ids: poolID ? [] : mailboxIDs,
         pool_id: poolID || undefined,
         new_contacts_per_day: Number(perDay),
         sender_strategy: strategy,
@@ -652,23 +666,39 @@ function CreateCampaign({
             <option value="freelance">Freelance</option>
           </select>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="camp-mailbox">Mailbox</Label>
-          <select
-            id="camp-mailbox"
-            required={!poolID}
-            disabled={Boolean(poolID)}
-            value={mailboxID}
-            onChange={(e) => setMailboxID(e.target.value)}
-            className={fieldSelect}
-          >
-            {mailboxes.map((mb) => (
-              <option key={mb.id} value={mb.id}>
+        <fieldset className="flex flex-col gap-1.5" disabled={Boolean(poolID)}>
+          <legend className="font-label-sm text-muted-foreground">
+            Mailboxes
+          </legend>
+          {mailboxes.length === 0 ? (
+            <p className="font-body-sm text-muted-foreground">
+              Connect a mailbox first.
+            </p>
+          ) : (
+            mailboxes.map((mb) => (
+              <label
+                key={mb.id}
+                className="flex items-center gap-2 font-body-md text-foreground"
+              >
+                <input
+                  type="checkbox"
+                  checked={mailboxIDs.includes(mb.id)}
+                  onChange={(e) =>
+                    setMailboxIDs((cur) =>
+                      e.target.checked
+                        ? [...cur, mb.id]
+                        : cur.filter((id) => id !== mb.id),
+                    )
+                  }
+                />
                 {mb.email}
-              </option>
-            ))}
-          </select>
-        </div>
+              </label>
+            ))
+          )}
+          <p className="font-body-sm text-muted-foreground">
+            Checked mailboxes share this campaign. A group replaces this list.
+          </p>
+        </fieldset>
         {pools.length > 0 ? (
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="camp-group">Mailbox group</Label>
@@ -750,10 +780,13 @@ function CreateCampaign({
         </select>
       </div>
       <div className="flex flex-col gap-3 rounded-md border border-border bg-muted p-3">
-        <p className="font-label-md text-foreground">Save an email</p>
+        <p className="font-label-md text-foreground">
+          Optional reusable email
+        </p>
         <p className="font-body-sm text-muted-foreground">
-          Use {"{{contact.first_name | there}}"} so a missing first name becomes
-          "there".
+          Leave this blank to write with AI. Fill it only if you want a saved
+          email you can reuse. Use {"{{contact.first_name | there}}"} so a
+          missing first name becomes &quot;there&quot;.
         </p>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="saved-name">Name</Label>

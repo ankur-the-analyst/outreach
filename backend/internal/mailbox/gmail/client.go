@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/mail"
@@ -227,10 +228,10 @@ func (c *Client) getMessage(ctx context.Context, id string) (mailbox.Message, er
 	return mailbox.Message{
 		RFCMessageID: normalizeID(headers["Message-Id"]),
 		InReplyTo:    normalizeID(headers["In-Reply-To"]),
-		Subject:      headers["Subject"],
+		Subject:      html.UnescapeString(headers["Subject"]),
 		From:         from,
 		To:           to,
-		Text:         raw.Snippet,
+		Text:         html.UnescapeString(raw.Snippet),
 		At:           at,
 		ProviderID:   raw.ID,
 	}, nil

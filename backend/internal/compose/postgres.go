@@ -254,7 +254,7 @@ func (p *Postgres) Compose(ctx context.Context, workspaceID uuid.UUID, in Compos
 	if err != nil {
 		return ComposeResult{}, err
 	}
-	body, regen, fails, err := Generate(ctx, w, cited, in.Facts)
+	body, regen, fails, err := Generate(ctx, w, cited, in.Facts, "")
 	if err != nil {
 		return ComposeResult{}, err
 	}
@@ -407,7 +407,7 @@ func (p *Postgres) Regenerate(ctx context.Context, workspaceID, draftID uuid.UUI
 	if err != nil {
 		return ComposeResult{}, err
 	}
-	body, regen, fails, err := Generate(ctx, w, cited, d.FactsUsed)
+	body, regen, fails, err := Generate(ctx, w, cited, d.FactsUsed, "")
 	if err != nil {
 		return ComposeResult{}, err
 	}

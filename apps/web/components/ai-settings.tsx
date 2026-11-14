@@ -35,10 +35,10 @@ export function AISettingsForm({
   const [apiKey, setAPIKey] = useState("");
   const [baseURL, setBaseURL] = useState(settings?.base_url ?? "");
   const [composeModel, setComposeModel] = useState(
-    settings?.compose_model || initial?.compose_models[0] || "",
+    settings?.compose_model || initial?.compose_models?.[0] || "",
   );
   const [embedModel, setEmbedModel] = useState(
-    settings?.embed_model || initial?.embed_models[0] || "",
+    settings?.embed_model || initial?.embed_models?.[0] || "",
   );
   const [msg, setMsg] = useState("");
   const [pending, setPending] = useState(false);
@@ -54,8 +54,8 @@ export function AISettingsForm({
     setKind(next);
     const p = providers.find((x) => x.kind === next);
     if (!p?.custom_models) {
-      setComposeModel(p?.compose_models[0] ?? "");
-      setEmbedModel(p?.embed_models[0] ?? "");
+      setComposeModel(p?.compose_models?.[0] ?? "");
+      setEmbedModel(p?.embed_models?.[0] ?? "");
     }
   }
 

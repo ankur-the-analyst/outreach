@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { EmptyState, PageBody, PageHeader, Panel, Pill } from "@/components/page-header";
-import { ReviewQueue } from "@/components/review-queue";
 import type { Campaign, Draft, Mailbox } from "@/lib/api";
 import {
   campaignStatusLabel,
@@ -8,6 +7,7 @@ import {
   mailboxStatus,
   mailboxUsageLabel,
   reviewBucket,
+  sendStatus,
 } from "@/lib/labels";
 
 export function OverviewBoard({
@@ -69,7 +69,7 @@ export function OverviewBoard({
                     href="/review"
                     className="font-label-md text-primary hover:underline"
                   >
-                    Full review
+                    Review
                   </Link>
                 }
               >
@@ -88,7 +88,38 @@ export function OverviewBoard({
                     }
                   />
                 ) : (
-                  <ReviewQueue drafts={needsYou} mailboxes={mailboxes} />
+                  <ul className="flex flex-col gap-2">
+                    {needsYou.map((d) => {
+                      const mailbox = mailboxes.find((m) => m.id === d.mailbox_id);
+                      return (
+                        <li key={d.id}>
+                          <Link
+                            href="/review"
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate font-label-md text-foreground">
+                                {d.subject || "Untitled"}
+                              </p>
+                              <p className="mt-0.5 truncate font-body-sm text-muted-foreground">
+                                To {d.to}
+                                {mailbox ? ` · via ${mailbox.email}` : ""}
+                              </p>
+                            </div>
+                            <Pill
+                              tone={
+                                reviewBucket(d, mailbox) === "undo"
+                                  ? "primary"
+                                  : "muted"
+                              }
+                            >
+                              {sendStatus(d, mailbox)}
+                            </Pill>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
                 )}
               </Panel>
             </div>
@@ -121,10 +152,11 @@ export function OverviewBoard({
                 ) : (
                   <ul className="flex flex-col gap-2">
                     {mailboxes.map((mb) => (
-                      <li
-                        key={mb.id}
-                        className="rounded-md border border-border bg-muted/50 px-3 py-2"
-                      >
+                      <li key={mb.id}>
+                        <Link
+                          href="/mailboxes"
+                          className="block rounded-md border border-border bg-muted/50 px-3 py-2 transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+                        >
                         <div className="flex items-center justify-between gap-2">
                           <p className="truncate font-label-md text-foreground">
                             {mb.email}
@@ -146,6 +178,7 @@ export function OverviewBoard({
                             mb.effective_daily_limit,
                           )}
                         </p>
+                        </Link>
                       </li>
                     ))}
                   </ul>
@@ -177,7 +210,10 @@ export function OverviewBoard({
                     }
                   />
                 ) : (
-                  <div className="rounded-md border border-border bg-muted/50 p-3">
+                  <Link
+                    href="/campaigns"
+                    className="block rounded-md border border-border bg-muted/50 p-3 transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+                  >
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-headline-sm text-foreground">
                         {snapshot.name}
@@ -197,7 +233,7 @@ export function OverviewBoard({
                       {snapshot.steps.filter((s) => s.kind === "email").length}{" "}
                       emails
                     </p>
-                  </div>
+                  </Link>
                 )}
               </Panel>
             </div>

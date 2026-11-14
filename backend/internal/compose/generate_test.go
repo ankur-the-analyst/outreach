@@ -18,7 +18,7 @@ func TestGenerateRegeneratesThenShowsFailures(t *testing.T) {
 		"Hi {{name}}, you closed 12 deals last year.",
 		"You closed 12 deals last year. Open to a quick chat?",
 	}}
-	body, regen, fails, err := Generate(context.Background(), w, cited, facts)
+	body, regen, fails, err := Generate(context.Background(), w, cited, facts, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestGenerateShowsFailuresAfterOneRegen(t *testing.T) {
 		"Hi {{name}}, guaranteed income.",
 		"Still {{broken}} and guaranteed.",
 	}}
-	_, regen, fails, err := Generate(context.Background(), w, cited, facts)
+	_, regen, fails, err := Generate(context.Background(), w, cited, facts, "")
 	if err != nil {
 		t.Fatal(err)
 	}

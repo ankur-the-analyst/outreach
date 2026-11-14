@@ -10,7 +10,7 @@ import (
 	"google.golang.org/genai"
 )
 
-const geminiDefaultModel = "gemini-2.0-flash"
+const geminiDefaultModel = "gemini-3.8-flash"
 
 type Gemini struct {
 	Model  string

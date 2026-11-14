@@ -105,6 +105,48 @@ func (p *Postgres) Hints(ctx context.Context, workspaceID uuid.UUID, object stri
 	return out, nil
 }
 
+func (p *Postgres) Mine(ctx context.Context, workspaceID, userID uuid.UUID) (map[string]string, error) {
+	var out map[string]string
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID, UserID: userID}, func(ctx context.Context, q *db.Queries) error {
+		raw, err := q.GetMembershipAttrs(ctx, db.GetMembershipAttrsParams{WorkspaceID: workspaceID, UserID: userID})
+		if err != nil {
+			return err
+		}
+		if len(raw) == 0 {
+			out = map[string]string{}
+			return nil
+		}
+		return json.Unmarshal(raw, &out)
+	})
+	if out == nil {
+		out = map[string]string{}
+	}
+	return out, err
+}
+
+func (p *Postgres) SetMine(ctx context.Context, workspaceID, userID uuid.UUID, values map[string]string) error {
+	allowed, err := p.AllowedCustom(ctx, workspaceID, "member")
+	if err != nil {
+		return err
+	}
+	clean := map[string]string{}
+	for k, v := range values {
+		if _, ok := allowed[k]; !ok {
+			continue
+		}
+		clean[k] = strings.TrimSpace(v)
+	}
+	raw, err := json.Marshal(clean)
+	if err != nil {
+		return err
+	}
+	return p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID, UserID: userID}, func(ctx context.Context, q *db.Queries) error {
+		return q.UpdateMembershipAttrs(ctx, db.UpdateMembershipAttrsParams{
+			WorkspaceID: workspaceID, UserID: userID, Attrs: raw,
+		})
+	})
+}
+
 func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateInput) (Def, error) {
 	object := strings.TrimSpace(in.Object)
 	key := strings.TrimSpace(in.Key)

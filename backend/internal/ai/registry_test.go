@@ -29,7 +29,7 @@ func TestRegistryOmitsFake(t *testing.T) {
 func TestCheckModelUsesCatalog(t *testing.T) {
 	t.Parallel()
 	spec, _ := Lookup(KindOpenAI)
-	if err := checkModel(spec, RoleCompose, "gpt-4o-mini"); err != nil {
+	if err := checkModel(spec, RoleCompose, "gpt-6-luna"); err != nil {
 		t.Fatal(err)
 	}
 	if err := checkModel(spec, RoleCompose, "not-a-model"); !errors.Is(err, ErrUnknownModel) {

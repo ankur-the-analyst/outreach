@@ -35,12 +35,30 @@ var (
 	pathRE = regexp.MustCompile(`^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$`)
 )
 
-func Known(path string) bool {
-	_, ok := known[path]
+func allowedPath(path string, extra map[string]struct{}) bool {
+	if Known(path) {
+		return true
+	}
+	_, ok := extra[path]
 	return ok
 }
 
+func Known(path string) bool {
+	if _, ok := known[path]; ok {
+		return true
+	}
+	return false
+}
+
+func ValidateAllowed(s string, extra map[string]struct{}) error {
+	return validate(s, extra)
+}
+
 func ValidateJSON(raw json.RawMessage) error {
+	return validateJSON(raw, nil)
+}
+
+func validateJSON(raw json.RawMessage, extra map[string]struct{}) error {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) || bytes.Equal(raw, []byte("{}")) {
 		return nil
@@ -49,22 +67,22 @@ func ValidateJSON(raw json.RawMessage) error {
 	if err := json.Unmarshal(raw, &v); err != nil {
 		return ErrDesign
 	}
-	return walkVars(v)
+	return walkVars(v, extra)
 }
 
-func walkVars(v any) error {
+func walkVars(v any, extra map[string]struct{}) error {
 	switch t := v.(type) {
 	case string:
-		return Validate(t)
+		return validate(t, extra)
 	case []any:
 		for _, x := range t {
-			if err := walkVars(x); err != nil {
+			if err := walkVars(x, extra); err != nil {
 				return err
 			}
 		}
 	case map[string]any:
 		for _, x := range t {
-			if err := walkVars(x); err != nil {
+			if err := walkVars(x, extra); err != nil {
 				return err
 			}
 		}
@@ -73,12 +91,16 @@ func walkVars(v any) error {
 }
 
 func Validate(s string) error {
+	return validate(s, nil)
+}
+
+func validate(s string, extra map[string]struct{}) error {
 	if strings.Count(s, "{{") != strings.Count(s, "}}") {
 		return ErrUnclosed
 	}
 	for _, m := range slotRE.FindAllStringSubmatch(s, -1) {
 		path, _, ok := parseSlot(m[1])
-		if !ok || !Known(path) {
+		if !ok || !allowedPath(path, extra) {
 			return fmt.Errorf("%w", ErrUnknown)
 		}
 	}

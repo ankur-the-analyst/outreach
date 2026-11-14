@@ -88,7 +88,11 @@ func (p *Postgres) Get(ctx context.Context, workspaceID, id uuid.UUID) (Template
 }
 
 func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateInput) (Template, error) {
-	name, subject, body, html, design, err := normalize(in)
+	extra, err := p.paths(ctx, workspaceID)
+	if err != nil {
+		return Template{}, err
+	}
+	name, subject, body, html, design, err := normalize(in, extra)
 	if err != nil {
 		return Template{}, err
 	}
@@ -117,7 +121,11 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 }
 
 func (p *Postgres) Update(ctx context.Context, workspaceID, id uuid.UUID, in CreateInput) (Template, error) {
-	name, subject, body, html, design, err := normalize(in)
+	extra, err := p.paths(ctx, workspaceID)
+	if err != nil {
+		return Template{}, err
+	}
+	name, subject, body, html, design, err := normalize(in, extra)
 	if err != nil {
 		return Template{}, err
 	}
@@ -144,7 +152,27 @@ func (p *Postgres) Update(ctx context.Context, workspaceID, id uuid.UUID, in Cre
 	return out, err
 }
 
-func normalize(in CreateInput) (name, subject, body string, html pgtype.Text, design json.RawMessage, err error) {
+func (p *Postgres) paths(ctx context.Context, workspaceID uuid.UUID) (map[string]struct{}, error) {
+	extra := map[string]struct{}{}
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		rows, err := q.ListFieldDefs(ctx, db.ListFieldDefsParams{WorkspaceID: workspaceID})
+		if err != nil {
+			return err
+		}
+		for _, row := range rows {
+			switch row.Object {
+			case "contact":
+				extra["contact."+row.Key] = struct{}{}
+			case "member":
+				extra["user."+row.Key] = struct{}{}
+			}
+		}
+		return nil
+	})
+	return extra, err
+}
+
+func normalize(in CreateInput, extra map[string]struct{}) (name, subject, body string, html pgtype.Text, design json.RawMessage, err error) {
 	name = strings.TrimSpace(in.Name)
 	subject = strings.TrimSpace(in.Subject)
 	body = strings.TrimSpace(in.BodyText)
@@ -157,18 +185,18 @@ func normalize(in CreateInput) (name, subject, body string, html pgtype.Text, de
 	if body == "" {
 		return "", "", "", pgtype.Text{}, nil, ErrBody
 	}
-	if err := Validate(subject); err != nil {
+	if err := ValidateAllowed(subject, extra); err != nil {
 		return "", "", "", pgtype.Text{}, nil, err
 	}
-	if err := Validate(body); err != nil {
+	if err := ValidateAllowed(body, extra); err != nil {
 		return "", "", "", pgtype.Text{}, nil, err
 	}
 	if h := strings.TrimSpace(in.BodyHTML); h != "" {
-		if err := Validate(h); err != nil {
+		if err := ValidateAllowed(h, extra); err != nil {
 			return "", "", "", pgtype.Text{}, nil, err
 		}
 	}
-	if err := ValidateJSON(in.Design); err != nil {
+	if err := validateJSON(in.Design, extra); err != nil {
 		return "", "", "", pgtype.Text{}, nil, err
 	}
 	return name, subject, body, text(in.BodyHTML), designOrEmpty(in.Design), nil

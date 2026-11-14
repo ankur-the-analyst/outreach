@@ -51,7 +51,7 @@ func (o *OpenAI) chat(ctx context.Context, req Request, asJSON bool) (string, st
 	}
 	model := o.Model
 	if model == "" {
-		model = "gpt-4o-mini"
+		model = "gpt-6-luna"
 	}
 	payload := map[string]any{
 		"model":       model,

@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { AISettingsForm } from "@/components/ai-settings";
+import { FieldCatalog } from "@/components/field-catalog";
 import { SenderIdentityForm } from "@/components/sender-identity-form";
 import type { Member, ModelSettings, SenderIdentity, Workspace } from "@/lib/api";
 
@@ -51,6 +52,12 @@ export function SettingsBoard({
           />
           <SenderIdentityForm identity={identity} />
           <AISettingsForm settings={models} />
+          <FieldCatalog
+            object="member"
+            title="Your fields"
+            description="About you in this workspace. Saved emails can use the placeholder shown next to each field."
+            values
+          />
           <div className="lg:col-span-2">
             <MembersList members={members} canInvite={owner} />
           </div>

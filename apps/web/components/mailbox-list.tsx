@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { LocalText } from "@/components/local-text";
 import { Button } from "@/components/ui/button";
 import { EmptyState, Pill } from "@/components/page-header";
 import type { Mailbox, SendingDomain } from "@/lib/api";
@@ -12,6 +13,7 @@ import {
   mailboxStatus,
   mailboxUsageLabel,
   replyModeLabel,
+  warmupKindHint,
   warmupKindLabel,
 } from "@/lib/labels";
 
@@ -153,43 +155,54 @@ function MailboxRow({
     router.refresh();
   }
 
+  const bits = [
+    authKindLabel(mailbox.auth_kind),
+    mailboxUsageLabel(used, mailbox.effective_daily_limit),
+  ];
+  if (mailbox.auth_kind === "smtp_imap" && mailbox.smtp_host) {
+    bits.push(`${mailbox.smtp_host}:${mailbox.smtp_port}`);
+  }
+
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card p-4">
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="font-label-md text-foreground">{mailbox.email}</p>
-          <Pill
-            tone={
-              mailbox.status === "paused" || mailbox.status === "disconnected"
-                ? "danger"
-                : mailbox.status === "warming"
-                  ? "primary"
-                  : "success"
+    <li className="rounded-md border border-border bg-card p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-label-md text-foreground">{mailbox.email}</p>
+            <Pill
+              tone={
+                mailbox.status === "paused" || mailbox.status === "disconnected"
+                  ? "danger"
+                  : mailbox.status === "warming"
+                    ? "primary"
+                    : "success"
+              }
+            >
+              {mailboxStatus(mailbox.status)}
+            </Pill>
+          </div>
+          <LocalText
+            as="p"
+            className="mt-1 font-body-sm text-muted-foreground"
+            text={mailboxSendLabel(mailbox)}
+          />
+          <p className="mt-1 font-body-sm tabular-nums text-muted-foreground">
+            {bits.join(" · ")}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+        {msg ? (
+          <p
+            role={msg === "Server answered" ? undefined : "alert"}
+            className={
+              msg === "Server answered"
+                ? "w-full font-body-md text-muted-foreground"
+                : "w-full font-body-md text-destructive"
             }
           >
-            {mailboxStatus(mailbox.status)}
-          </Pill>
-        </div>
-        {mailboxSendLabel(mailbox) ? (
-          <p className="mt-1 font-body-sm text-muted-foreground">
-            {mailboxSendLabel(mailbox)}
+            {msg}
           </p>
-        ) : null}
-        <p className="mt-1 font-body-sm tabular-nums text-muted-foreground">
-          {authKindLabel(mailbox.auth_kind)}
-          {mailbox.domain ? ` · ${mailbox.domain}` : ""}
-          {mailbox.domain_daily_limit
-            ? ` · ${mailbox.domain_daily_limit}/day on this domain`
-            : ""}
-          {mailbox.smtp_host
-            ? ` · ${mailbox.smtp_host}:${mailbox.smtp_port}`
-            : ""}
-          {` · ${mailboxUsageLabel(used, mailbox.effective_daily_limit)}`}
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-3">
-        {msg ? (
-          <p className="font-body-md text-muted-foreground">{msg}</p>
         ) : null}
         <select
           aria-label="Send ramp"
@@ -204,6 +217,11 @@ function MailboxRow({
           <option value="off">{warmupKindLabel("off")}</option>
           <option value="custom">{warmupKindLabel("custom")}</option>
         </select>
+        {warmupKindHint(warmupKind) ? (
+          <p className="w-full font-body-sm text-muted-foreground">
+            {warmupKindHint(warmupKind)}
+          </p>
+        ) : null}
         <select
           aria-label="When they reply"
           disabled={pending}

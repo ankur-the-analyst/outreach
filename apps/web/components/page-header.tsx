@@ -9,7 +9,7 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border px-[var(--margin-desktop)] py-2.5">
+    <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-card px-[var(--margin-desktop)] py-2.5">
       <h1 className="font-headline-md text-foreground">{title}</h1>
       {actions ? (
         <div className="flex flex-wrap items-center justify-end gap-2">
@@ -85,7 +85,7 @@ export function EmptyState({
 
 export function PageBody({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-[var(--margin-desktop)]">
+    <div className="min-h-0 flex-1 overflow-y-auto bg-background p-[var(--margin-desktop)]">
       {children}
     </div>
   );

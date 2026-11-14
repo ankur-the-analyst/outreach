@@ -241,6 +241,8 @@ func main() {
 	mux.Handle("GET /api/v1/fits", a.Require(http.HandlerFunc(jd.ListFits)))
 	mux.Handle("GET /api/v1/fields", a.Require(http.HandlerFunc(fd.List)))
 	mux.Handle("POST /api/v1/fields", a.Require(http.HandlerFunc(fd.Create)))
+	mux.Handle("GET /api/v1/fields/mine", a.Require(http.HandlerFunc(fd.Mine)))
+	mux.Handle("PUT /api/v1/fields/mine", a.Require(http.HandlerFunc(fd.SetMine)))
 	mux.Handle("GET /api/v1/templates", a.Require(http.HandlerFunc(tpl.List)))
 	mux.Handle("POST /api/v1/templates", a.Require(http.HandlerFunc(tpl.Create)))
 	mux.Handle("PUT /api/v1/templates/{id}", a.Require(http.HandlerFunc(tpl.Put)))

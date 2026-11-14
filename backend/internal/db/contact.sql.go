@@ -125,7 +125,7 @@ func (q *Queries) GetCompanyByDomain(ctx context.Context, arg GetCompanyByDomain
 const getContact = `-- name: GetContact :one
 select
   workspace_id, id, email, first_name, last_name, title, company_id,
-  linkedin_url, timezone, region, role_class, provenance, readiness, created_at
+  linkedin_url, timezone, region, role_class, provenance, readiness, created_at, custom
 from contacts
 where workspace_id = $1 and id = $2
 `
@@ -150,6 +150,7 @@ type GetContactRow struct {
 	Provenance  json.RawMessage
 	Readiness   string
 	CreatedAt   pgtype.Timestamptz
+	Custom      json.RawMessage
 }
 
 func (q *Queries) GetContact(ctx context.Context, arg GetContactParams) (GetContactRow, error) {
@@ -170,6 +171,7 @@ func (q *Queries) GetContact(ctx context.Context, arg GetContactParams) (GetCont
 		&i.Provenance,
 		&i.Readiness,
 		&i.CreatedAt,
+		&i.Custom,
 	)
 	return i, err
 }

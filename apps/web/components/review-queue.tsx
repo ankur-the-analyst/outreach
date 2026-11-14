@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SquarePen } from "lucide-react";
+import { LocalText } from "@/components/local-text";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -356,13 +357,22 @@ function ReviewRow({
             To {draft.to}
             {mailbox ? ` · via ${mailbox.email}` : ""}
           </p>
-          {draft.opened_at || draft.clicked_at ? (
-            <p className="mt-1 font-body-sm tabular-nums text-muted-foreground">
-              {draft.opened_at ? `Opened ${formatVisitTime(draft.opened_at)}` : ""}
-              {draft.opened_at && draft.clicked_at ? " · " : ""}
-              {draft.clicked_at ? `Clicked ${formatVisitTime(draft.clicked_at)}` : ""}
-            </p>
-          ) : null}
+          <LocalText
+            as="p"
+            className="mt-1 font-body-sm tabular-nums text-muted-foreground"
+            text={
+              [
+                draft.opened_at
+                  ? `Opened ${formatVisitTime(draft.opened_at)}`
+                  : "",
+                draft.clicked_at
+                  ? `Clicked ${formatVisitTime(draft.clicked_at)}`
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" · ")
+            }
+          />
           {draft.attachment_name ? (
             <p className="mt-1 font-body-sm text-muted-foreground">
               File {draft.attachment_name}
@@ -373,7 +383,7 @@ function ReviewRow({
         <Pill
           tone={bucket === "undo" || bucket === "pending" ? "primary" : "muted"}
         >
-          {sendStatus(draft, mailbox, nowMs)}
+          <LocalText text={sendStatus(draft, mailbox, nowMs)} />
         </Pill>
       </div>
       {(draft.facts_used ?? []).length > 0 ? (

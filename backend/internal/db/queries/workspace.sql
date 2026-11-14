@@ -27,6 +27,16 @@ select workspace_id, user_id, role
 from memberships
 where workspace_id = $1 and user_id = $2;
 
+-- name: GetMembershipAttrs :one
+select attrs
+from memberships
+where workspace_id = $1 and user_id = $2;
+
+-- name: UpdateMembershipAttrs :exec
+update memberships
+set attrs = $3
+where workspace_id = $1 and user_id = $2;
+
 -- name: ListMembers :many
 select m.workspace_id, m.user_id, m.role, u.email, u.name
 from memberships m

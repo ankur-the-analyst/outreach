@@ -47,7 +47,7 @@ func TestSendAndFetchHistory(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"id":           "abc",
 			"internalDate": "1700000000000",
-			"snippet":      "hello",
+			"snippet":      "you&#39;ll now be able to ask",
 			"payload": map[string]any{
 				"headers": []map[string]string{
 					{"name": "From", "value": "Pat <pat@x.test>"},
@@ -77,6 +77,9 @@ func TestSendAndFetchHistory(t *testing.T) {
 	m := res.Messages[0]
 	if m.From != "pat@x.test" || m.RFCMessageID != "<m@x>" || m.InReplyTo != "<prev@x>" {
 		t.Fatalf("%+v", m)
+	}
+	if m.Text != "you'll now be able to ask" {
+		t.Fatalf("snippet %q", m.Text)
 	}
 }
 

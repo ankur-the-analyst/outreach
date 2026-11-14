@@ -38,7 +38,7 @@ limit sqlc.arg('n');
 -- name: GetContact :one
 select
   workspace_id, id, email, first_name, last_name, title, company_id,
-  linkedin_url, timezone, region, role_class, provenance, readiness, created_at
+  linkedin_url, timezone, region, role_class, provenance, readiness, created_at, custom
 from contacts
 where workspace_id = $1 and id = $2;
 

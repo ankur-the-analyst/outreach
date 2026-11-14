@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -86,6 +87,24 @@ func (q *Queries) GetMembership(ctx context.Context, arg GetMembershipParams) (G
 	var i GetMembershipRow
 	err := row.Scan(&i.WorkspaceID, &i.UserID, &i.Role)
 	return i, err
+}
+
+const getMembershipAttrs = `-- name: GetMembershipAttrs :one
+select attrs
+from memberships
+where workspace_id = $1 and user_id = $2
+`
+
+type GetMembershipAttrsParams struct {
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
+}
+
+func (q *Queries) GetMembershipAttrs(ctx context.Context, arg GetMembershipAttrsParams) (json.RawMessage, error) {
+	row := q.db.QueryRow(ctx, getMembershipAttrs, arg.WorkspaceID, arg.UserID)
+	var attrs json.RawMessage
+	err := row.Scan(&attrs)
+	return attrs, err
 }
 
 const getWorkspace = `-- name: GetWorkspace :one
@@ -179,6 +198,23 @@ where id = $1
 
 func (q *Queries) TouchWorkspace(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, touchWorkspace, id)
+	return err
+}
+
+const updateMembershipAttrs = `-- name: UpdateMembershipAttrs :exec
+update memberships
+set attrs = $3
+where workspace_id = $1 and user_id = $2
+`
+
+type UpdateMembershipAttrsParams struct {
+	WorkspaceID uuid.UUID
+	UserID      uuid.UUID
+	Attrs       json.RawMessage
+}
+
+func (q *Queries) UpdateMembershipAttrs(ctx context.Context, arg UpdateMembershipAttrsParams) error {
+	_, err := q.db.Exec(ctx, updateMembershipAttrs, arg.WorkspaceID, arg.UserID, arg.Attrs)
 	return err
 }
 

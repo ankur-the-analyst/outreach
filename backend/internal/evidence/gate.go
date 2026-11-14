@@ -8,10 +8,14 @@ import (
 
 var digits = regexp.MustCompile(`\d+`)
 
-func GateNumbers(body string, cited []Item) error {
+func GateNumbers(body string, cited []Item, extra ...string) error {
 	blob := make([]byte, 0, 256)
 	for _, it := range cited {
 		blob = append(blob, it.Text...)
+		blob = append(blob, '\n')
+	}
+	for _, e := range extra {
+		blob = append(blob, e...)
 		blob = append(blob, '\n')
 	}
 	hay := string(blob)

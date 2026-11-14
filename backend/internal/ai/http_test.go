@@ -74,7 +74,7 @@ func TestPutSettingsHTTP(t *testing.T) {
 	t.Parallel()
 	store := &fakeStore{role: "owner"}
 	api := NewAPI(store)
-	body := `{"kind":"openai","api_key":"sk-live-secret","compose_model":"gpt-4o-mini","embed_model":"text-embedding-3-small"}`
+	body := `{"kind":"openai","api_key":"sk-live-secret","compose_model":"gpt-6-luna","embed_model":"text-embedding-3-small"}`
 	req := session(httptest.NewRequest(http.MethodPut, "/api/v1/settings/ai", bytes.NewBufferString(body)))
 	rec := httptest.NewRecorder()
 	api.Put(rec, req)
@@ -115,7 +115,7 @@ func TestPutSettingsHTTPKeepKey(t *testing.T) {
 	t.Parallel()
 	store := &fakeStore{role: "owner", got: Settings{HasKey: true, Hint: "…oldx", Kind: KindOpenAI}}
 	api := NewAPI(store)
-	body := `{"kind":"openai","compose_model":"gpt-4o-mini","embed_model":"text-embedding-3-small"}`
+	body := `{"kind":"openai","compose_model":"gpt-6-luna","embed_model":"text-embedding-3-small"}`
 	req := session(httptest.NewRequest(http.MethodPut, "/api/v1/settings/ai", bytes.NewBufferString(body)))
 	rec := httptest.NewRecorder()
 	api.Put(rec, req)

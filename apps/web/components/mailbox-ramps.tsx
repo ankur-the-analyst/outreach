@@ -12,7 +12,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { warmupKindLabel } from "@/lib/labels";
+import { warmupKindHint, warmupKindLabel } from "@/lib/labels";
 import type { WarmupProfile } from "@/lib/api";
 
 export function MailboxRamps({ profiles }: { profiles: WarmupProfile[] }) {
@@ -47,10 +47,8 @@ export function MailboxRamps({ profiles }: { profiles: WarmupProfile[] }) {
                 <p className="font-label-md text-foreground">
                   {p.name || warmupKindLabel(p.kind)}
                 </p>
-                <p className="font-body-sm text-muted-foreground">
-                  {p.first_day != null
-                    ? `Starts at ${p.first_day}/day`
-                    : warmupKindLabel(p.kind)}
+                <p className="max-w-md text-right font-body-sm text-muted-foreground">
+                  {rampLine(p)}
                 </p>
               </li>
             ))}
@@ -69,6 +67,14 @@ export function MailboxRamps({ profiles }: { profiles: WarmupProfile[] }) {
       </Sheet>
     </>
   );
+}
+
+function rampLine(p: WarmupProfile): string {
+  const hint = warmupKindHint(p.kind);
+  if (p.kind === "custom" && p.first_day != null) {
+    return `Starts at ${p.first_day}/day. ${hint}`;
+  }
+  return hint || warmupKindLabel(p.kind);
 }
 
 function RampForm({ onDone }: { onDone: () => void }) {

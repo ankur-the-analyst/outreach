@@ -93,6 +93,10 @@ export function EvidenceLibrary({
         }
       />
       <PageBody>
+        <p className="mb-4 max-w-prose font-body-md text-muted-foreground">
+          Facts you have confirmed. A draft can only cite these, so a number,
+          employer, or date that is not here cannot go out.
+        </p>
         {profiles.length > 0 ? (
           <div className="mb-4 flex max-w-xs flex-col gap-1.5">
             <Label htmlFor="evidence-usable">Claims for this profile</Label>

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -196,11 +197,16 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 			return err
 		}
 		notes := notesFromContext(en.Context)
+		about := customAbout(ct.Custom)
 		profileID := en.ProfileID
 		if profileID == nil {
 			profileID = camp.ProfileID
 		}
-		cited, facts, err := retrieveFacts(ctx, p.retrieve, workspaceID, profileID, notes)
+		query := notes
+		if about != "" {
+			query = notes + "\n" + about
+		}
+		cited, facts, err := retrieveFacts(ctx, p.retrieve, workspaceID, profileID, query)
 		if err != nil {
 			return err
 		}
@@ -229,7 +235,7 @@ func (p *Postgres) DraftDueStep(ctx context.Context, workspaceID, enrolmentID uu
 				subject = camp.Name
 			}
 		} else {
-			body, err = p.writeBody(ctx, workspaceID, notes, cited, facts)
+			body, err = p.writeBody(ctx, workspaceID, notes, cited, facts, about)
 			if err != nil {
 				return err
 			}
@@ -333,7 +339,7 @@ func retrieveFacts(ctx context.Context, r Retriever, workspaceID uuid.UUID, prof
 	return items, out, nil
 }
 
-func (p *Postgres) writeBody(ctx context.Context, workspaceID uuid.UUID, notes string, cited []evidence.Item, facts []draftFact) (string, error) {
+func (p *Postgres) writeBody(ctx context.Context, workspaceID uuid.UUID, notes string, cited []evidence.Item, facts []draftFact, about string) (string, error) {
 	if len(cited) == 0 {
 		return notes, nil
 	}
@@ -348,7 +354,7 @@ func (p *Postgres) writeBody(ctx context.Context, workspaceID uuid.UUID, notes s
 	for _, f := range facts {
 		cf = append(cf, compose.Fact{Claim: f.Claim, EvidenceID: f.EvidenceID})
 	}
-	body, _, _, err := compose.Generate(ctx, w, cited, cf)
+	body, _, _, err := compose.Generate(ctx, w, cited, cf, about)
 	if err != nil {
 		return "", err
 	}
@@ -365,6 +371,9 @@ func fillVars(ctx context.Context, q *db.Queries, workspaceID uuid.UUID, ct db.G
 		"contact.last_name":  ct.LastName.String,
 		"contact.email":      ct.Email,
 		"contact.title":      ct.Title.String,
+	}
+	for k, v := range customMap(ct.Custom) {
+		vals["contact."+k] = v
 	}
 	if ct.CompanyID != nil {
 		co, err := q.GetCompany(ctx, db.GetCompanyParams{WorkspaceID: workspaceID, ID: *ct.CompanyID})
@@ -389,6 +398,37 @@ func fillVars(ctx context.Context, q *db.Queries, workspaceID uuid.UUID, ct db.G
 		}
 	}
 	return vals
+}
+
+func customMap(raw json.RawMessage) map[string]string {
+	if len(raw) == 0 {
+		return nil
+	}
+	var m map[string]string
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil
+	}
+	return m
+}
+
+func customAbout(raw json.RawMessage) string {
+	m := customMap(raw)
+	if len(m) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(m))
+	for k, v := range m {
+		if strings.TrimSpace(v) == "" {
+			continue
+		}
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, k := range keys {
+		fmt.Fprintf(&b, "%s: %s\n", k, strings.TrimSpace(m[k]))
+	}
+	return strings.TrimSpace(b.String())
 }
 
 func notesFromContext(raw json.RawMessage) string {

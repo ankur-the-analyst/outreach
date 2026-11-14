@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FieldCatalog } from "@/components/field-catalog";
 import { EmptyState, PageBody, PageHeader, Pill } from "@/components/page-header";
 import {
   Sheet,
@@ -131,6 +132,13 @@ export function ContactBook({
         }
       />
       <PageBody>
+        <div className="mb-6 max-w-xl">
+          <FieldCatalog
+            object="contact"
+            title="Contact fields"
+            description="Create these before you import. They appear in the column map. A value on a person is included when a draft is written."
+          />
+        </div>
         {rows.length === 0 ? (
           <EmptyState
             title="No contacts yet"
@@ -288,8 +296,23 @@ function CreateForm() {
   const [firstName, setFirstName] = useState("");
   const [company, setCompany] = useState("");
   const [source, setSource] = useState("typed");
+  const [defs, setDefs] = useState<FieldDef[]>([]);
+  const [custom, setCustom] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/v1/fields?object=contact", {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        return;
+      }
+      const data = (await res.json()) as { fields?: FieldDef[] };
+      setDefs(data.fields ?? []);
+    })();
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -304,6 +327,7 @@ function CreateForm() {
         first_name: firstName,
         company,
         provenance: { source },
+        custom,
       }),
     });
     setPending(false);
@@ -351,6 +375,18 @@ function CreateForm() {
           onChange={(e) => setCompany(e.target.value)}
         />
       </div>
+      {defs.map((d) => (
+        <div key={d.key} className="flex flex-col gap-1.5">
+          <Label htmlFor={`contact-${d.key}`}>{d.label}</Label>
+          <Input
+            id={`contact-${d.key}`}
+            value={custom[d.key] ?? ""}
+            onChange={(e) =>
+              setCustom((cur) => ({ ...cur, [d.key]: e.target.value }))
+            }
+          />
+        </div>
+      ))}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="contact-source">How you found them</Label>
         <Input

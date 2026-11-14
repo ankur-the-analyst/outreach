@@ -23,6 +23,12 @@ func (f *fakeStore) Membership(context.Context, uuid.UUID, uuid.UUID) (string, e
 func (f *fakeStore) List(context.Context, uuid.UUID, string) ([]Def, error) {
 	return f.defs, f.err
 }
+func (f *fakeStore) Mine(context.Context, uuid.UUID, uuid.UUID) (map[string]string, error) {
+	return map[string]string{}, f.err
+}
+func (f *fakeStore) SetMine(context.Context, uuid.UUID, uuid.UUID, map[string]string) error {
+	return f.err
+}
 func (f *fakeStore) Create(context.Context, uuid.UUID, CreateInput) (Def, error) {
 	if f.err != nil {
 		return Def{}, f.err

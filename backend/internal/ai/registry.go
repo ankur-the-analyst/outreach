@@ -20,10 +20,10 @@ var registry = []ProviderSpec{
 		Label: "OpenAI",
 		Embed: true,
 		Compose: []string{
-			"gpt-4o-mini",
-			"gpt-4o",
-			"gpt-4.1-mini",
-			"gpt-4.1",
+			"gpt-6.1-sol",
+			"gpt-6.1-terra",
+			"gpt-6-luna",
+			"gpt-5.6-sol",
 		},
 		EmbedModels: []string{
 			"text-embedding-3-small",
@@ -35,19 +35,21 @@ var registry = []ProviderSpec{
 		Label: "Google",
 		Embed: true,
 		Compose: []string{
-			"gemini-2.0-flash",
+			"gemini-3.8-flash",
+			"gemini-3.5-flash-lite",
 			"gemini-2.5-flash",
 			"gemini-2.5-pro",
 		},
 		EmbedModels: []string{
-			"text-embedding-004",
+			"gemini-embedding-001",
 		},
 	},
 	{
-		Kind:    KindAnthropic,
-		Label:   "Anthropic",
-		Embed:   false,
-		Compose: []string{"claude-sonnet-4-0", "claude-3-5-haiku-latest"},
+		Kind:        KindAnthropic,
+		Label:       "Anthropic",
+		Embed:       false,
+		Compose:     []string{"claude-sonnet-5-5", "claude-haiku-5-5", "claude-opus-5-5"},
+		EmbedModels: []string{},
 	},
 	{
 		Kind:         KindCompat,

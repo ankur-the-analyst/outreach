@@ -38,7 +38,7 @@ func Leftover(parts ...string) bool {
 	return false
 }
 
-func Check(body string, facts []Fact, cited []evidence.Item) []Failure {
+func Check(body string, facts []Fact, cited []evidence.Item, extra ...string) []Failure {
 	var out []Failure
 	if Leftover(body) {
 		out = append(out, Failure{Code: "template", Message: "leftover {{ in body"})
@@ -64,7 +64,7 @@ func Check(body string, facts []Fact, cited []evidence.Item) []Failure {
 			out = append(out, Failure{Code: "uncited", Message: f.EvidenceID.String()})
 		}
 	}
-	if err := evidence.GateNumbers(body, cited); err != nil {
+	if err := evidence.GateNumbers(body, cited, extra...); err != nil {
 		out = append(out, Failure{Code: "claim", Message: err.Error()})
 	}
 	return out

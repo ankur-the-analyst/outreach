@@ -30,7 +30,7 @@ func TestValidatePutRejectsUnknownModel(t *testing.T) {
 
 func TestValidatePutRequiresKeyUntilSaved(t *testing.T) {
 	t.Parallel()
-	in := PutInput{Kind: KindOpenAI, ComposeModel: "gpt-4o-mini", EmbedModel: "text-embedding-3-small"}
+	in := PutInput{Kind: KindOpenAI, ComposeModel: "gpt-6-luna", EmbedModel: "text-embedding-3-small"}
 	if err := validatePut(in, Settings{}); !errors.Is(err, ErrKeyRequired) {
 		t.Fatalf("%v", err)
 	}

@@ -46,7 +46,7 @@ export function SenderIdentityForm({
   return (
     <Panel
       title="Sender identity"
-      description="Needed before cold or freelance campaigns (unsubscribe footer)."
+      description="Required only for cold and freelance mail. Those messages end with your legal name, a reply address, and a postal address, plus an unsubscribe link. Job and referral mail do not use this."
     >
     <form
       onSubmit={pending ? (e) => e.preventDefault() : onSubmit}

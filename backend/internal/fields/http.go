@@ -15,6 +15,8 @@ type Store interface {
 	Membership(ctx context.Context, workspaceID, userID uuid.UUID) (string, error)
 	List(ctx context.Context, workspaceID uuid.UUID, object string) ([]Def, error)
 	Create(ctx context.Context, workspaceID uuid.UUID, in CreateInput) (Def, error)
+	Mine(ctx context.Context, workspaceID, userID uuid.UUID) (map[string]string, error)
+	SetMine(ctx context.Context, workspaceID, userID uuid.UUID, values map[string]string) error
 }
 
 type API struct {
@@ -70,6 +72,38 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, d)
+}
+
+func (a *API) Mine(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.member(w, r)
+	if !ok {
+		return
+	}
+	values, err := a.store.Mine(r.Context(), s.WorkspaceID, s.UserID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"values": values})
+}
+
+func (a *API) SetMine(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.edit(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Values map[string]string `json:"values"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
+		return
+	}
+	if err := a.store.SetMine(r.Context(), s.WorkspaceID, s.UserID, in.Values); err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (a *API) member(w http.ResponseWriter, r *http.Request) (auth.Session, bool) {

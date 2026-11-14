@@ -81,7 +81,8 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		Provenance  struct {
 			Source string `json:"source"`
 		} `json:"provenance"`
-		Source string `json:"source"`
+		Source string            `json:"source"`
+		Custom map[string]string `json:"custom"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
@@ -94,7 +95,7 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 	c, err := a.store.Create(r.Context(), s.WorkspaceID, CreateInput{
 		Email: in.Email, FirstName: in.FirstName, LastName: in.LastName, Title: in.Title,
 		Company: in.Company, LinkedInURL: in.LinkedInURL, Timezone: in.Timezone, Region: in.Region,
-		Source: source, AddedBy: s.UserID,
+		Source: source, AddedBy: s.UserID, Custom: in.Custom,
 	})
 	if err != nil {
 		writeStoreError(w, err)

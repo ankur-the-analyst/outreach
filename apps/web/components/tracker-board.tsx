@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { LocalText } from "@/components/local-text";
 import { Input } from "@/components/ui/input";
 import { EmptyState, PageBody, PageHeader, Pill } from "@/components/page-header";
 import type { TrackerRow } from "@/lib/api";
@@ -213,16 +214,16 @@ function VisitMarks({
   }
   return (
     <div className="flex flex-col gap-1">
-      {openedAt ? (
-        <p className="font-body-sm tabular-nums text-foreground">
-          Opened {formatVisitTime(openedAt)}
-        </p>
-      ) : null}
-      {clickedAt ? (
-        <p className="font-body-sm tabular-nums text-foreground">
-          Clicked {formatVisitTime(clickedAt)}
-        </p>
-      ) : null}
+      <LocalText
+        as="p"
+        className="font-body-sm tabular-nums text-foreground"
+        text={openedAt ? `Opened ${formatVisitTime(openedAt)}` : ""}
+      />
+      <LocalText
+        as="p"
+        className="font-body-sm tabular-nums text-foreground"
+        text={clickedAt ? `Clicked ${formatVisitTime(clickedAt)}` : ""}
+      />
     </div>
   );
 }
