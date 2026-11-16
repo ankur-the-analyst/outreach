@@ -120,6 +120,28 @@ func (q *Queries) GetMembershipAttrs(ctx context.Context, arg GetMembershipAttrs
 	return attrs, err
 }
 
+const getOwner = `-- name: GetOwner :one
+select coalesce(u.name, '') as name, u.email::text as email, m.attrs
+from memberships m
+join users u on u.id = m.user_id
+where m.workspace_id = $1 and m.role = 'owner'
+order by m.user_id
+limit 1
+`
+
+type GetOwnerRow struct {
+	Name  string
+	Email string
+	Attrs json.RawMessage
+}
+
+func (q *Queries) GetOwner(ctx context.Context, workspaceID uuid.UUID) (GetOwnerRow, error) {
+	row := q.db.QueryRow(ctx, getOwner, workspaceID)
+	var i GetOwnerRow
+	err := row.Scan(&i.Name, &i.Email, &i.Attrs)
+	return i, err
+}
+
 const getOwnerAttrs = `-- name: GetOwnerAttrs :one
 select attrs
 from memberships

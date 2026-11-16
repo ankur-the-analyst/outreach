@@ -49,6 +49,14 @@ where workspace_id = $1 and role = 'owner'
 order by user_id
 limit 1;
 
+-- name: GetOwner :one
+select coalesce(u.name, '') as name, u.email::text as email, m.attrs
+from memberships m
+join users u on u.id = m.user_id
+where m.workspace_id = $1 and m.role = 'owner'
+order by m.user_id
+limit 1;
+
 -- name: UpdateMembershipAttrs :exec
 update memberships
 set attrs = $3

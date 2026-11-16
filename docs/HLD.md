@@ -235,7 +235,7 @@ Preview returns header names + first row samples. Import body includes `columns`
 
 ### 13.3 Templates
 
-`templates` workspace table: name, subject, body. Vars: `{{contact.first_name}}`, `{{company.name}}`, `{{job.title}}`, `{{profile.name}}`, `{{contact.first_name | there}}`. Unknown vars rejected **on save**. Campaign email step: `content=template` + `template_id`, or `content=ai`. Render at draft-create; leftover `{{` still hits existing gates.
+`templates` workspace table: name, subject, body. Vars: contact columns and custom fields (`{{contact.first_name}}`, `{{contact.linkedin_url}}`, …), owner `{{user.name}}` / `{{user.email}}` / `{{user.<field>}}`, `{{company.name}}`, `{{job.title}}`, `{{profile.name}}`, plus `{{contact.first_name | there}}`. Unknown vars rejected **on save**. Campaign email step: `content=template` + `template_id`, or `content=ai`. Render at draft-create; leftover `{{` still hits existing gates.
 
 **Breaks:** template saved, contact missing first name → empty greeting; AI and template both ignored. **Fix:** fallbacks in the pipe syntax; empty required var is a gate failure on that draft, not a campaign-wide crash.
 

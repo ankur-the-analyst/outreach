@@ -367,16 +367,21 @@ func (p *Postgres) writeBody(ctx context.Context, workspaceID uuid.UUID, notes s
 
 func fillVars(ctx context.Context, q *db.Queries, workspaceID uuid.UUID, ct db.GetContactRow, en db.GetEnrolmentRow, camp Campaign) map[string]string {
 	vals := map[string]string{
-		"contact.first_name": ct.FirstName.String,
-		"contact.last_name":  ct.LastName.String,
-		"contact.email":      ct.Email,
-		"contact.title":      ct.Title.String,
+		"contact.first_name":   ct.FirstName.String,
+		"contact.last_name":    ct.LastName.String,
+		"contact.email":        ct.Email,
+		"contact.title":        ct.Title.String,
+		"contact.linkedin_url": ct.LinkedinUrl.String,
+		"contact.timezone":     ct.Timezone.String,
+		"contact.region":       ct.Region.String,
 	}
 	for k, v := range customMap(ct.Custom) {
 		vals["contact."+k] = v
 	}
-	if raw, err := q.GetOwnerAttrs(ctx, workspaceID); err == nil {
-		for k, v := range customMap(raw) {
+	if owner, err := q.GetOwner(ctx, workspaceID); err == nil {
+		vals["user.name"] = owner.Name
+		vals["user.email"] = owner.Email
+		for k, v := range customMap(owner.Attrs) {
 			vals["user."+k] = v
 		}
 	}

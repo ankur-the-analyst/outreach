@@ -21,13 +21,18 @@ var (
 )
 
 var known = map[string]struct{}{
-	"contact.first_name": {},
-	"contact.last_name":  {},
-	"contact.email":      {},
-	"contact.title":      {},
-	"company.name":       {},
-	"job.title":          {},
-	"profile.name":       {},
+	"contact.first_name":   {},
+	"contact.last_name":    {},
+	"contact.email":        {},
+	"contact.title":        {},
+	"contact.linkedin_url": {},
+	"contact.timezone":     {},
+	"contact.region":       {},
+	"user.name":            {},
+	"user.email":           {},
+	"company.name":         {},
+	"job.title":            {},
+	"profile.name":         {},
 }
 
 var (

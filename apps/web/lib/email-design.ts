@@ -369,7 +369,7 @@ function elementHTML(el: EmailElement): string {
     case "spacer":
       return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="height: ${num(p.height, 20)}px; line-height: ${num(p.height, 20)}px; font-size: 0;">&nbsp;</td></tr></table>`;
     case "section":
-      return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="background-color: ${esc(p.backgroundColor || "#f9fafb")}; padding: ${num(p.padding, 20)}px; border-radius: ${num(p.borderRadius, 8)}px;"><p style="margin: 0; text-align: center; color: #666666;">${inline(el.content || "").replace(/\n/g, "<br>")}</p></td></tr></table>`;
+      return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="background-color: ${esc(p.backgroundColor || "#f9fafb")}; padding: ${num(p.padding, 20)}px; border-radius: ${num(p.borderRadius, 8)}px;"><div style="margin: 0; text-align: center; color: #666666;">${richText(el.content || "")}</div></td></tr></table>`;
     case "row":
       return rowHTML(el);
     case "codeBlock":
@@ -379,7 +379,7 @@ function elementHTML(el: EmailElement): string {
     case "previewText":
       return previewHTML(el.content);
     case "footer":
-      return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="background-color: ${esc(p.backgroundColor || "#f9fafb")}; padding: ${num(p.padding, 20)}px; text-align: center;"><p style="margin: 0; color: ${esc(p.textColor || "#6b7280")}; font-size: ${num(p.fontSize, 12)}px;">${inline(el.content || "").replace(/\n/g, "<br>")}</p></td></tr></table>`;
+      return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="background-color: ${esc(p.backgroundColor || "#f9fafb")}; padding: ${num(p.padding, 20)}px; text-align: center;"><div style="margin: 0; color: ${esc(p.textColor || "#6b7280")}; font-size: ${num(p.fontSize, 12)}px;">${richText(el.content || "")}</div></td></tr></table>`;
     case "markdown":
       return markdownHTML(el.content, p);
     default:
@@ -394,8 +394,7 @@ function headingHTML(content: string, p: Record<string, string>): string {
 }
 
 function textHTML(content: string, p: Record<string, string>): string {
-  const text = inline(content || "").replace(/\n/g, "<br>");
-  return `<p style="margin: 0; font-size: ${num(p.fontSize, 16)}px; color: ${esc(p.color || "#333333")}; text-align: ${esc(p.align || "left")}; line-height: ${esc(p.lineHeight || "1.6")};">${text}</p>`;
+  return `<div style="margin: 0; font-size: ${num(p.fontSize, 16)}px; color: ${esc(p.color || "#333333")}; text-align: ${esc(p.align || "left")}; line-height: ${esc(p.lineHeight || "1.6")};">${richText(content)}</div>`;
 }
 
 function buttonHTML(content: string, p: Record<string, string>): string {
@@ -416,8 +415,7 @@ function listHTML(content: string, p: Record<string, string>): string {
 }
 
 function quoteHTML(content: string, p: Record<string, string>): string {
-  const text = inline(content || "").replace(/\n/g, "<br>");
-  return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="border-left: 4px solid ${esc(p.borderColor || "#d9643a")}; background-color: ${esc(p.backgroundColor || "#f8fafc")}; padding: 16px 20px;"><p style="margin: 0; color: ${esc(p.textColor || "#64748b")}; font-size: ${num(p.fontSize, 16)}px; font-style: italic;">${text}</p></td></tr></table>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="border-left: 4px solid ${esc(p.borderColor || "#d9643a")}; background-color: ${esc(p.backgroundColor || "#f8fafc")}; padding: 16px 20px;"><div style="margin: 0; color: ${esc(p.textColor || "#64748b")}; font-size: ${num(p.fontSize, 16)}px; font-style: italic;">${richText(content)}</div></td></tr></table>`;
 }
 
 function imageHTML(p: Record<string, string>, logo: boolean): string {
@@ -484,12 +482,7 @@ function rowHTML(el: EmailElement): string {
 }
 
 function markdownHTML(content: string, p: Record<string, string>): string {
-  let html = esc(content || "");
-  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  html = html.replace(/\[(.+?)\]\((.+?)\)/g, `<a href="$2" style="color: #d9643a;">$1</a>`);
-  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
-  html = html.replace(/\n/g, "<br>");
-  return `<p style="margin: 0; font-size: ${num(p.fontSize, 16)}px; color: ${esc(p.textColor || "#333333")}; line-height: 1.6;">${html}</p>`;
+  return `<div style="margin: 0; font-size: ${num(p.fontSize, 16)}px; color: ${esc(p.textColor || "#333333")}; line-height: 1.6;">${richText(content, true)}</div>`;
 }
 
 function previewHTML(content: string): string {
@@ -501,7 +494,146 @@ function inline(text: string): string {
   out = out.replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>");
   out = out.replace(/(^|[\s(])\*([^*\n]+?)\*(?=[\s.,!?):]|$)/g, "$1<em>$2</em>");
   out = out.replace(/__([^_\n]+?)__/g, "<u>$1</u>");
+  out = out.replace(/==([^=\n]+?)==/g, '<mark style="background-color: #fdeee9; color: inherit;">$1</mark>');
+  out = out.replace(/~~([^~\n]+?)~~/g, "<s>$1</s>");
   return out;
+}
+
+export function richText(content: string, links = false): string {
+  const lines = (content || "").split("\n");
+  const parts: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const kind = lineKind(lines[i]);
+    if (kind === "ul" || kind === "ol") {
+      const items: string[] = [];
+      while (i < lines.length && lineKind(lines[i]) === kind) {
+        items.push(stripMarker(lines[i]));
+        i++;
+      }
+      const lis = items
+        .map((item) => `<li style="margin: 0 0 4px;">${formatInline(item, links)}</li>`)
+        .join("");
+      parts.push(`<${kind} style="margin: 8px 0; padding-left: 20px;">${lis}</${kind}>`);
+      continue;
+    }
+    const para: string[] = [];
+    while (i < lines.length && lineKind(lines[i]) === "text") {
+      para.push(lines[i]);
+      i++;
+    }
+    parts.push(para.map((line) => (line === "" ? "" : formatInline(line, links))).join("<br>"));
+  }
+  return parts.filter((part) => part !== "").join("<br>");
+}
+
+function formatInline(text: string, links: boolean): string {
+  let out = inline(text);
+  if (links) {
+    out = out.replace(
+      /\[(.+?)\]\((.+?)\)/g,
+      `<a href="$2" style="color: #d9643a;">$1</a>`,
+    );
+  }
+  return out;
+}
+
+function lineKind(line: string): "ul" | "ol" | "text" {
+  if (/^\s*(?:[-*]|•)\s+\S/.test(line) || /^\s*(?:[-*]|•)\s*$/.test(line)) {
+    return "ul";
+  }
+  if (/^\s*\d+[.)]\s+\S/.test(line)) {
+    return "ol";
+  }
+  return "text";
+}
+
+function stripMarker(line: string): string {
+  return line
+    .replace(/^\s*(?:(?:[-*]|•)|\d+[.)])\s+/, "")
+    .replace(/^\s*(?:[-*]|•)\s*$/, "");
+}
+
+export function applyFormat(
+  content: string,
+  start: number,
+  end: number,
+  left: string,
+  right = left,
+  placeholder = "text",
+): { value: string; start: number; end: number } {
+  const current = content || "";
+  const from = clamp(Math.min(start, end), 0, current.length);
+  const to = clamp(Math.max(start, end), 0, current.length);
+  const selected = current.slice(from, to);
+  if (selected.startsWith(left) && selected.endsWith(right) && selected.length >= left.length + right.length) {
+    const inner = selected.slice(left.length, selected.length - right.length);
+    return { value: current.slice(0, from) + inner + current.slice(to), start: from, end: from + inner.length };
+  }
+  const before = current.slice(Math.max(0, from - left.length), from);
+  const after = current.slice(to, to + right.length);
+  if (before === left && after === right) {
+    const nextFrom = from - left.length;
+    return {
+      value: current.slice(0, nextFrom) + selected + current.slice(to + right.length),
+      start: nextFrom,
+      end: nextFrom + selected.length,
+    };
+  }
+  const inner = selected || placeholder;
+  const value = current.slice(0, from) + left + inner + right + current.slice(to);
+  return { value, start: from + left.length, end: from + left.length + inner.length };
+}
+
+export function toggleBullets(
+  content: string,
+  start: number,
+  end: number,
+): { value: string; start: number; end: number } {
+  const current = content || "";
+  if (current === "") {
+    return { value: "- ", start: 2, end: 2 };
+  }
+  const from = clamp(Math.min(start, end), 0, current.length);
+  const to = clamp(Math.max(start, end), 0, current.length);
+  const lineStart = current.lastIndexOf("\n", from - 1) + 1;
+  let lineEnd = current.indexOf("\n", to);
+  if (lineEnd < 0) {
+    lineEnd = current.length;
+  }
+  if (to > from && current[to - 1] === "\n") {
+    lineEnd = to - 1;
+  }
+  const lines = current.slice(lineStart, lineEnd).split("\n");
+  const filled = lines.filter((line) => line.trim() !== "");
+  const allMarked = filled.length > 0 && filled.every((line) => lineKind(line) !== "text");
+  const nextLines = lines.map((line) => {
+    if (line.trim() === "") {
+      return line;
+    }
+    if (allMarked) {
+      return stripMarker(line);
+    }
+    if (lineKind(line) !== "text") {
+      return line;
+    }
+    const indent = line.match(/^\s*/)?.[0] ?? "";
+    return `${indent}- ${line.slice(indent.length)}`;
+  });
+  const block = nextLines.join("\n");
+  return {
+    value: current.slice(0, lineStart) + block + current.slice(lineEnd),
+    start: lineStart,
+    end: lineStart + block.length,
+  };
+}
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n));
+}
+
+export function renderBlock(el: EmailElement): string {
+  return elementHTML(el);
 }
 
 function num(value: string | undefined, fallback: number): number {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Bold, Highlighter, Italic, List, Strikethrough, Underline } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,18 +12,25 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EmptyState, PageBody, PageHeader } from "@/components/page-header";
+import {
+  type TemplateVar,
+  useTemplateVars,
+  VariablePicker,
+} from "@/components/variable-picker";
 import type { SavedEmail } from "@/lib/api";
 import {
   type BlockType,
   type EmailDesign,
   type EmailElement,
+  applyFormat,
   blockGroups,
   blockLabel,
   generateHTML,
   generateText,
-  mergeTags,
   newBlock,
   parseDesign,
+  renderBlock,
+  toggleBullets,
 } from "@/lib/email-design";
 import { fieldSelect, fieldTextarea } from "@/lib/labels";
 
@@ -115,6 +123,8 @@ function TemplateBuilder({
   const [pending, setPending] = useState(false);
   const [preview, setPreview] = useState(false);
   const [showCode, setShowCode] = useState(false);
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const vars = useTemplateVars();
 
   const selectedEl = findElement(design.elements, selected);
 
@@ -218,8 +228,21 @@ function TemplateBuilder({
           <Input id="email-name" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="flex min-w-48 flex-1 flex-col gap-1.5">
-          <Label htmlFor="email-subject">Subject</Label>
-          <Input id="email-subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="email-subject">Subject</Label>
+            <VariablePicker
+              vars={vars}
+              onInsert={(token) =>
+                setSubject((cur) => insertToken(cur, subjectRef.current, token))
+              }
+            />
+          </div>
+          <Input
+            id="email-subject"
+            ref={subjectRef}
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+          />
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={() => setPreview(true)}>
@@ -254,25 +277,8 @@ function TemplateBuilder({
         </select>
       </div>
       <p className="font-body-sm text-muted-foreground">
-        Add a block, then edit it on the right. Placeholders like {"{{contact.first_name}}"} are filled when it sends.
+        Add a block, then edit it on the right. Insert a field where the cursor is. It is filled when the email sends.
       </p>
-      <div className="flex flex-wrap gap-1.5">
-        {mergeTags.map((tag) => (
-          <button
-            key={tag}
-            type="button"
-            className="rounded-full border border-border bg-card px-2 py-0.5 font-label-sm text-muted-foreground hover:bg-muted"
-            onClick={() => {
-              if (!selectedEl) {
-                return;
-              }
-              patch(selectedEl.id, { content: `${selectedEl.content} {{${tag}}}` });
-            }}
-          >
-            {`{{${tag}}}`}
-          </button>
-        ))}
-      </div>
       <div className="grid items-start gap-4 lg:grid-cols-[220px_minmax(0,1fr)_260px]">
         <aside className="flex flex-col gap-4 rounded-md border border-border bg-card p-3">
           {blockGroups.map((group) => (
@@ -316,6 +322,7 @@ function TemplateBuilder({
           {selectedEl ? (
             <Properties
               element={selectedEl}
+              vars={vars}
               onChange={(next) => patch(selectedEl.id, next)}
               onColumns={(n) => setColumns(selectedEl.id, n)}
               onRemove={() => remove(selectedEl.id)}
@@ -366,18 +373,26 @@ function CanvasBlock({
   const active = element.id === selected;
   return (
     <div className="flex flex-col gap-2">
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => onSelect(element.id)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onSelect(element.id);
+          }
+        }}
         className={`rounded-md border px-3 py-2 text-left ${
           active ? "border-primary bg-accent" : "border-border bg-card hover:bg-muted"
         }`}
       >
         <span className="font-label-sm text-muted-foreground">{blockLabel[element.type]}</span>
-        <span className="mt-1 block whitespace-pre-wrap break-words font-body-sm text-foreground">
-          {element.content || element.props.src || element.props.alt || "Empty"}
-        </span>
-      </button>
+        <div
+          className="pointer-events-none mt-1 break-words font-body-sm text-foreground [&_ul]:list-disc [&_ol]:list-decimal"
+          dangerouslySetInnerHTML={{ __html: canvasPreview(element) }}
+        />
+      </div>
       {element.type === "row" ? (
         <div
           className="grid gap-2"
@@ -414,35 +429,59 @@ function CanvasBlock({
 
 function Properties({
   element,
+  vars,
   onChange,
   onColumns,
   onRemove,
 }: {
   element: EmailElement;
+  vars: TemplateVar[];
   onChange: (next: Partial<EmailElement>) => void;
   onColumns: (n: number) => void;
   onRemove: () => void;
 }) {
   const p = element.props;
+  const contentRef = useRef<HTMLTextAreaElement>(null);
   const prop = (key: string, value: string) => onChange({ props: { [key]: value } });
+  const hasContent = contentBlocks.has(element.type);
+  const formatted = formattedBlocks.has(element.type);
   return (
     <div className="flex flex-col gap-3">
       <p className="font-label-md text-foreground">{blockLabel[element.type]}</p>
-      {element.type !== "divider" &&
-      element.type !== "spacer" &&
-      element.type !== "image" &&
-      element.type !== "logo" &&
-      element.type !== "video" &&
-      element.type !== "social" ? (
+      {hasContent ? (
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="block-content">Content</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="block-content">Content</Label>
+            <VariablePicker
+              vars={vars}
+              onInsert={(token) =>
+                onChange({
+                  content: insertToken(element.content, contentRef.current, token),
+                })
+              }
+            />
+          </div>
+          {formatted ? (
+            <FormatBar
+              value={element.content}
+              textareaRef={contentRef}
+              bullets={bulletBlocks.has(element.type)}
+              onChange={(content) => onChange({ content })}
+            />
+          ) : null}
           <textarea
             id="block-content"
-            rows={4}
+            ref={contentRef}
+            rows={element.type === "text" ? 8 : 4}
             className={fieldTextarea}
             value={element.content}
             onChange={(e) => onChange({ content: e.target.value })}
           />
+          {bulletBlocks.has(element.type) ? (
+            <p className="font-body-sm text-muted-foreground">
+              Start a line with - for a bullet, or 1. for a number. That stays in this block.
+            </p>
+          ) : null}
         </div>
       ) : null}
       {element.type === "heading" ? (
@@ -538,6 +577,156 @@ function Properties({
       </Button>
     </div>
   );
+}
+
+const contentBlocks = new Set<BlockType>([
+  "heading",
+  "text",
+  "link",
+  "button",
+  "list",
+  "quote",
+  "markdown",
+  "section",
+  "row",
+  "footer",
+  "codeBlock",
+  "codeInline",
+  "previewText",
+]);
+
+const formattedBlocks = new Set<BlockType>([
+  "heading",
+  "text",
+  "link",
+  "button",
+  "list",
+  "quote",
+  "markdown",
+  "section",
+  "footer",
+]);
+
+const bulletBlocks = new Set<BlockType>([
+  "text",
+  "quote",
+  "markdown",
+  "section",
+  "footer",
+  "list",
+]);
+
+function FormatBar({
+  value,
+  textareaRef,
+  bullets,
+  onChange,
+}: {
+  value: string;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  bullets: boolean;
+  onChange: (value: string) => void;
+}) {
+  function apply(next: { value: string; start: number; end: number }) {
+    onChange(next.value);
+    const el = textareaRef.current;
+    setTimeout(() => {
+      el?.focus();
+      el?.setSelectionRange(next.end, next.end);
+    }, 0);
+  }
+
+  function wrap(left: string, right = left) {
+    const el = textareaRef.current;
+    apply(
+      applyFormat(
+        value,
+        el?.selectionStart ?? value.length,
+        el?.selectionEnd ?? value.length,
+        left,
+        right,
+      ),
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-0.5 rounded-md border border-border bg-muted p-0.5">
+      <Button type="button" variant="ghost" size="icon-xs" title="Bold" onMouseDown={(e) => e.preventDefault()} onClick={() => wrap("**")}>
+        <Bold />
+      </Button>
+      <Button type="button" variant="ghost" size="icon-xs" title="Italic" onMouseDown={(e) => e.preventDefault()} onClick={() => wrap("*")}>
+        <Italic />
+      </Button>
+      <Button type="button" variant="ghost" size="icon-xs" title="Underline" onMouseDown={(e) => e.preventDefault()} onClick={() => wrap("__")}>
+        <Underline />
+      </Button>
+      <Button type="button" variant="ghost" size="icon-xs" title="Highlight" onMouseDown={(e) => e.preventDefault()} onClick={() => wrap("==")}>
+        <Highlighter />
+      </Button>
+      <Button type="button" variant="ghost" size="icon-xs" title="Strikethrough" onMouseDown={(e) => e.preventDefault()} onClick={() => wrap("~~")}>
+        <Strikethrough />
+      </Button>
+      {bullets ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          title="Bullets"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            const el = textareaRef.current;
+            apply(
+              toggleBullets(
+                value,
+                el?.selectionStart ?? value.length,
+                el?.selectionEnd ?? value.length,
+              ),
+            );
+          }}
+        >
+          <List />
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+function insertToken(
+  value: string,
+  field: {
+    selectionStart: number | null;
+    selectionEnd: number | null;
+    focus: () => void;
+    setSelectionRange: (start: number, end: number) => void;
+  } | null,
+  token: string,
+): string {
+  const start = field?.selectionStart ?? value.length;
+  const end = field?.selectionEnd ?? value.length;
+  const next = value.slice(0, start) + token + value.slice(end);
+  const pos = start + token.length;
+  setTimeout(() => {
+    field?.focus();
+    field?.setSelectionRange(pos, pos);
+  }, 0);
+  return next;
+}
+
+function canvasPreview(element: EmailElement): string {
+  if (
+    !element.content &&
+    !element.props.src &&
+    !element.props.alt &&
+    element.type !== "divider" &&
+    element.type !== "spacer"
+  ) {
+    return "Empty";
+  }
+  const html = renderBlock(element);
+  if (!html || html.startsWith("<!--")) {
+    return "Empty";
+  }
+  return html;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {

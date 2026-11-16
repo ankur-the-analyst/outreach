@@ -27,6 +27,9 @@ func TestValidateRejectsUnknown(t *testing.T) {
 	if err := Validate("Hi {{contact.first_name | there}}"); err != nil {
 		t.Fatal(err)
 	}
+	if err := Validate("{{contact.linkedin_url}} {{user.name}} {{user.email}}"); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestRenderUsesNameAndFallback(t *testing.T) {
