@@ -71,7 +71,7 @@ func TestPostgresConnectPauseReconnect(t *testing.T) {
 	if err := store.Reconnect(ctx, wsID, mb.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.AssignWarmup(ctx, wsID, mb.ID, pacing.KindConservative); err != nil {
+	if err := store.AssignWarmup(ctx, wsID, mb.ID, pacing.KindConservative, 0); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.SetReplyMode(ctx, wsID, mb.ID, "auto"); err != ErrReplyMode {

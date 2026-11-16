@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -988,5 +989,22 @@ func (q *Queries) SetMailboxWarmup(ctx context.Context, arg SetMailboxWarmupPara
 		arg.WarmupProfileID,
 		arg.EffectiveDailyLimit,
 	)
+	return err
+}
+
+const updateWarmupSpec = `-- name: UpdateWarmupSpec :exec
+update warmup_profiles
+set spec = $3, version = version + 1
+where workspace_id = $1 and id = $2
+`
+
+type UpdateWarmupSpecParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Spec        json.RawMessage
+}
+
+func (q *Queries) UpdateWarmupSpec(ctx context.Context, arg UpdateWarmupSpecParams) error {
+	_, err := q.db.Exec(ctx, updateWarmupSpec, arg.WorkspaceID, arg.ID, arg.Spec)
 	return err
 }

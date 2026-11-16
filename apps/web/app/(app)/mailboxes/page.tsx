@@ -42,6 +42,7 @@ async function MailboxesBody() {
             mailboxes={mailboxes}
             usageByMailbox={usageByMailbox}
             domains={domains?.domains ?? []}
+            ramps={ramps?.profiles ?? []}
           />
           <MailboxGroups mailboxes={mailboxes} pools={pools?.pools ?? []} />
           <MailboxHealth samples={health?.samples ?? []} />

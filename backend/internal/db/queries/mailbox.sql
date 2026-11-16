@@ -18,6 +18,11 @@ from warmup_profiles
 where workspace_id = $1 and kind = $2
 limit 1;
 
+-- name: UpdateWarmupSpec :exec
+update warmup_profiles
+set spec = $3, version = version + 1
+where workspace_id = $1 and id = $2;
+
 -- name: GetWarmupProfile :one
 select workspace_id, id, name, kind, spec, version
 from warmup_profiles

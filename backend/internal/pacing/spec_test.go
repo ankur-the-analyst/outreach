@@ -14,4 +14,7 @@ func TestCustomSpecDay1(t *testing.T) {
 	if got := Ramp(spec, 1, Health{Status: StatusHealthy}); got != 4 {
 		t.Fatalf("day 1 %d", got)
 	}
+	if got := Ramp(spec, 5, Health{Status: StatusHealthy}); got != 4 {
+		t.Fatalf("later day %d", got)
+	}
 }

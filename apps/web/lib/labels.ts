@@ -179,7 +179,7 @@ export function warmupKindHint(kind: string): string {
     case "off":
       return "No climb. The mailbox’s own daily cap still applies.";
     case "custom":
-      return "Your starting number. It does not climb on its own.";
+      return "Stays at the number you set. It does not climb on its own.";
     default:
       return "";
   }

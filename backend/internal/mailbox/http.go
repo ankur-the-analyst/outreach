@@ -20,7 +20,7 @@ type Store interface {
 	Connect(ctx context.Context, workspaceID uuid.UUID, in ConnectInput) (Mailbox, error)
 	Pause(ctx context.Context, workspaceID, id uuid.UUID) error
 	Reconnect(ctx context.Context, workspaceID, id uuid.UUID) error
-	AssignWarmup(ctx context.Context, workspaceID, id uuid.UUID, kind string) error
+	AssignWarmup(ctx context.Context, workspaceID, id uuid.UUID, kind string, start int) error
 	SetReplyMode(ctx context.Context, workspaceID, id uuid.UUID, mode string) error
 	CreateSA(ctx context.Context, workspaceID uuid.UUID, in SAInput) (ServiceAccount, error)
 	ListSA(ctx context.Context, workspaceID uuid.UUID) ([]ServiceAccount, error)
@@ -352,8 +352,9 @@ func (a *API) Patch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		WarmupKind string `json:"warmup_kind"`
-		ReplyMode  string `json:"reply_mode"`
+		WarmupKind  string `json:"warmup_kind"`
+		WarmupStart int    `json:"warmup_start"`
+		ReplyMode   string `json:"reply_mode"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
@@ -372,7 +373,7 @@ func (a *API) Patch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if kind != "" {
-		if err := a.store.AssignWarmup(r.Context(), s.WorkspaceID, id, kind); err != nil {
+		if err := a.store.AssignWarmup(r.Context(), s.WorkspaceID, id, kind, in.WarmupStart); err != nil {
 			writeStoreError(w, err)
 			return
 		}

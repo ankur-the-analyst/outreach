@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LocalText } from "@/components/local-text";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { EmptyState, Pill } from "@/components/page-header";
-import type { Mailbox, SendingDomain } from "@/lib/api";
+import type { Mailbox, SendingDomain, WarmupProfile } from "@/lib/api";
 import {
   authKindLabel,
   fieldSelect,
@@ -24,7 +26,9 @@ function mailboxError(message: string): string {
     case "reply_mode must be draft or off":
       return "Pick draft replies or don't draft";
     case "not found":
-      return "Unknown send ramp";
+      return "That send ramp is not on this workspace";
+    case "start must be at least 1":
+      return "Enter how many to send each day";
     default:
       return message;
   }
@@ -34,10 +38,12 @@ export function MailboxList({
   mailboxes,
   usageByMailbox,
   domains = [],
+  ramps = [],
 }: {
   mailboxes: Mailbox[];
   usageByMailbox: Record<string, number>;
   domains?: SendingDomain[];
+  ramps?: WarmupProfile[];
 }) {
   if (mailboxes.length === 0) {
     return (
@@ -47,6 +53,7 @@ export function MailboxList({
       />
     );
   }
+  const customStart = ramps.find((ramp) => ramp.kind === "custom")?.first_day;
   return (
     <div className="flex flex-col gap-6">
       {domains.length > 0 ? (
@@ -65,6 +72,7 @@ export function MailboxList({
           key={mb.id}
           mailbox={mb}
           used={usageByMailbox[mb.id] ?? 0}
+          customStart={customStart}
         />
       ))}
     </ul>
@@ -75,9 +83,11 @@ export function MailboxList({
 function MailboxRow({
   mailbox,
   used,
+  customStart,
 }: {
   mailbox: Mailbox;
   used: number;
+  customStart?: number;
 }) {
   const router = useRouter();
   const [msg, setMsg] = useState("");
@@ -88,6 +98,7 @@ function MailboxRow({
   const [warmupKind, setWarmupKind] = useState(
     mailbox.warmup_kind || "standard",
   );
+  const [start, setStart] = useState(String(customStart ?? 10));
 
   async function post(path: string, opts?: { okMsg?: string; refresh?: boolean }) {
     setMsg("");
@@ -132,16 +143,25 @@ function MailboxRow({
     router.refresh();
   }
 
-  async function setRamp(kind: string) {
+  async function setRamp(kind: string, perDay?: number) {
     const prev = warmupKind;
     setWarmupKind(kind);
     setMsg("");
+    if (kind === "custom" && (perDay == null || !Number.isFinite(perDay) || perDay < 1)) {
+      if (perDay != null) {
+        setMsg("Enter how many to send each day");
+      }
+      return;
+    }
     setPending(true);
     const res = await fetch(`/api/v1/mailboxes/${mailbox.id}`, {
       method: "PATCH",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ warmup_kind: kind }),
+      body: JSON.stringify({
+        warmup_kind: kind,
+        warmup_start: kind === "custom" ? perDay : undefined,
+      }),
     });
     setPending(false);
     if (!res.ok) {
@@ -217,6 +237,31 @@ function MailboxRow({
           <option value="off">{warmupKindLabel("off")}</option>
           <option value="custom">{warmupKindLabel("custom")}</option>
         </select>
+        {warmupKind === "custom" ? (
+          <form
+            className="flex w-full flex-wrap items-end gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void setRamp("custom", Number(start));
+            }}
+          >
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`ramp-start-${mailbox.id}`}>Sends per day</Label>
+              <Input
+                id={`ramp-start-${mailbox.id}`}
+                type="number"
+                min={1}
+                required
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+                className="w-28"
+              />
+            </div>
+            <Button type="submit" size="sm" className="rounded-md" pending={pending}>
+              Save
+            </Button>
+          </form>
+        ) : null}
         {warmupKindHint(warmupKind) ? (
           <p className="w-full font-body-sm text-muted-foreground">
             {warmupKindHint(warmupKind)}

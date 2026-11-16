@@ -62,7 +62,7 @@ func CustomSpec(start int) (Spec, error) {
 	return Spec{
 		Start:        start,
 		Ramp:         []int{start},
-		MaxGrowth:    0.2,
+		MaxGrowth:    0,
 		IdleCounts:   false,
 		BounceGate:   0.03,
 		DeferralGate: 0.15,

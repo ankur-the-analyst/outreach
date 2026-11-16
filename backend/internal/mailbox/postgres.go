@@ -356,8 +356,13 @@ func (p *Postgres) Reconnect(ctx context.Context, workspaceID, id uuid.UUID) err
 	return p.setStatus(ctx, workspaceID, id, pacing.StatusWarming, "")
 }
 
-func (p *Postgres) AssignWarmup(ctx context.Context, workspaceID, id uuid.UUID, kind string) error {
+func (p *Postgres) AssignWarmup(ctx context.Context, workspaceID, id uuid.UUID, kind string, start int) error {
 	return p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		if kind == pacing.KindCustom {
+			if err := ensureCustomRamp(ctx, q, workspaceID, start); err != nil {
+				return err
+			}
+		}
 		if _, err := q.GetMailbox(ctx, db.GetMailboxParams{WorkspaceID: workspaceID, ID: id}); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
@@ -388,6 +393,43 @@ func (p *Postgres) AssignWarmup(ctx context.Context, workspaceID, id uuid.UUID, 
 			WarmupProfileID:     profile.ID,
 			EffectiveDailyLimit: int32(eff),
 		})
+	})
+}
+
+func ensureCustomRamp(ctx context.Context, q *db.Queries, workspaceID uuid.UUID, start int) error {
+	spec, err := pacing.CustomSpec(start)
+	if err != nil {
+		if errors.Is(err, pacing.ErrCustomStart) {
+			return ErrWarmupStart
+		}
+		return err
+	}
+	raw, err := json.Marshal(spec)
+	if err != nil {
+		return err
+	}
+	profile, err := q.GetWarmupProfileByKind(ctx, db.GetWarmupProfileByKindParams{
+		WorkspaceID: workspaceID, Kind: pacing.KindCustom,
+	})
+	if err == nil {
+		return q.UpdateWarmupSpec(ctx, db.UpdateWarmupSpecParams{
+			WorkspaceID: workspaceID, ID: profile.ID, Spec: raw,
+		})
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return err
+	}
+	newID, err := uuid.NewV7()
+	if err != nil {
+		return err
+	}
+	return q.InsertWarmupProfile(ctx, db.InsertWarmupProfileParams{
+		WorkspaceID: workspaceID,
+		ID:          newID,
+		Name:        "Custom",
+		Kind:        pacing.KindCustom,
+		Spec:        raw,
+		Version:     1,
 	})
 }
 

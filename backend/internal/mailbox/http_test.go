@@ -48,7 +48,7 @@ func (f *fakeStore) Connect(_ context.Context, _ uuid.UUID, in ConnectInput) (Ma
 }
 func (f *fakeStore) Pause(context.Context, uuid.UUID, uuid.UUID) error     { return f.err }
 func (f *fakeStore) Reconnect(context.Context, uuid.UUID, uuid.UUID) error { return f.err }
-func (f *fakeStore) AssignWarmup(context.Context, uuid.UUID, uuid.UUID, string) error {
+func (f *fakeStore) AssignWarmup(context.Context, uuid.UUID, uuid.UUID, string, int) error {
 	return f.err
 }
 func (f *fakeStore) SetReplyMode(context.Context, uuid.UUID, uuid.UUID, string) error {

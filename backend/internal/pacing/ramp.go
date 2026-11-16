@@ -37,6 +37,9 @@ func capForDay(spec Spec, sendingDay int) int {
 		if day <= len(spec.Ramp) {
 			return spec.Ramp[day-1]
 		}
+		if spec.MaxGrowth <= 0 {
+			return spec.Ramp[len(spec.Ramp)-1]
+		}
 		prev := spec.Ramp[len(spec.Ramp)-1]
 		for d := len(spec.Ramp) + 1; d <= day; d++ {
 			prev = grow(prev, spec.MaxGrowth)
