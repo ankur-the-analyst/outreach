@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fira_Sans, IBM_Plex_Sans, Noto_Serif } from "next/font/google";
 import "./globals.css";
 
@@ -23,6 +23,19 @@ const firaSans = Fira_Sans({
 export const metadata: Metadata = {
   title: "Outreach",
   description: "One-to-one outreach",
+  applicationName: "Outreach",
+  appleWebApp: {
+    capable: true,
+    title: "Outreach",
+    statusBarStyle: "default",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
