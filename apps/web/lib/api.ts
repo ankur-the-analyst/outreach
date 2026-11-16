@@ -225,6 +225,9 @@ export type Contact = {
   first_name?: string;
   last_name?: string;
   title?: string;
+  linkedin_url?: string;
+  timezone?: string;
+  region?: string;
   company_id?: string;
   role_class?: string;
   provenance: { source: string; added_by: string; at: string };

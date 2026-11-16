@@ -3,6 +3,7 @@ package contacts
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -130,5 +131,16 @@ func TestImportHTTP(t *testing.T) {
 	api.Import(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPatchInputUsesFieldNames(t *testing.T) {
+	t.Parallel()
+	var in PatchInput
+	if err := json.Unmarshal([]byte(`{"first_name":"Ada","last_name":"Lovelace","title":"Engineer","linkedin_url":"https://linkedin.example/ada","timezone":"Asia/Kolkata","region":"IN"}`), &in); err != nil {
+		t.Fatal(err)
+	}
+	if in.FirstName != "Ada" || in.LastName != "Lovelace" || in.Title != "Engineer" || in.LinkedInURL != "https://linkedin.example/ada" || in.Timezone != "Asia/Kolkata" || in.Region != "IN" {
+		t.Fatalf("%+v", in)
 	}
 }

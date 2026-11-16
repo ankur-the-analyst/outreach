@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FieldCatalog } from "@/components/field-catalog";
@@ -183,6 +189,14 @@ export function ContactBook({
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    <EditContact
+                      contact={c}
+                      onSaved={(next) =>
+                        setRows((cur) =>
+                          cur.map((row) => (row.id === next.id ? { ...row, ...next } : row)),
+                        )
+                      }
+                    />
                     <Pill
                       tone={
                         c.readiness === "blocked"
@@ -244,6 +258,143 @@ export function ContactBook({
         </SheetContent>
       </Sheet>
     </div>
+  );
+}
+
+function EditContact({
+  contact,
+  onSaved,
+}: {
+  contact: Contact;
+  onSaved: (next: Contact) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="xs"
+        className="rounded-md"
+        onClick={() => setOpen(true)}
+      >
+        Edit
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit contact</DialogTitle>
+          </DialogHeader>
+          {open ? (
+            <EditContactForm
+              contact={contact}
+              onSaved={(next) => {
+                onSaved(next);
+                setOpen(false);
+              }}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function EditContactForm({
+  contact,
+  onSaved,
+}: {
+  contact: Contact;
+  onSaved: (next: Contact) => void;
+}) {
+  const [firstName, setFirstName] = useState(contact.first_name ?? "");
+  const [lastName, setLastName] = useState(contact.last_name ?? "");
+  const [title, setTitle] = useState(contact.title ?? "");
+  const [linkedin, setLinkedin] = useState(contact.linkedin_url ?? "");
+  const [timezone, setTimezone] = useState(contact.timezone ?? "");
+  const [region, setRegion] = useState(contact.region ?? "");
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setPending(true);
+    const res = await fetch(`/api/v1/contacts/${contact.id}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        first_name: firstName,
+        last_name: lastName,
+        title,
+        linkedin_url: linkedin,
+        timezone,
+        region,
+      }),
+    });
+    setPending(false);
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as
+        | { error?: { message?: string } }
+        | null;
+      setError(data?.error?.message ?? "Could not save this contact");
+      return;
+    }
+    onSaved((await res.json()) as Contact);
+  }
+
+  return (
+    <form
+      onSubmit={pending ? (e) => e.preventDefault() : onSubmit}
+      className="flex flex-col gap-4"
+    >
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="edit-email">Email</Label>
+        <Input id="edit-email" value={contact.email} disabled />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="edit-first">First name</Label>
+        <Input
+          id="edit-first"
+          value={firstName}
+          onChange={(e) => setFirstName(e.target.value)}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="edit-last">Last name</Label>
+        <Input id="edit-last" value={lastName} onChange={(e) => setLastName(e.target.value)} />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="edit-title">Title</Label>
+        <Input id="edit-title" value={title} onChange={(e) => setTitle(e.target.value)} />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="edit-linkedin">LinkedIn</Label>
+        <Input
+          id="edit-linkedin"
+          type="url"
+          value={linkedin}
+          onChange={(e) => setLinkedin(e.target.value)}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="edit-timezone">Timezone</Label>
+        <Input
+          id="edit-timezone"
+          value={timezone}
+          onChange={(e) => setTimezone(e.target.value)}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="edit-region">Region</Label>
+        <Input id="edit-region" value={region} onChange={(e) => setRegion(e.target.value)} />
+      </div>
+      {error ? <p className="font-body-md text-destructive">{error}</p> : null}
+      <Button type="submit" className="w-fit rounded-md" pending={pending}>
+        Save
+      </Button>
+    </form>
   );
 }
 

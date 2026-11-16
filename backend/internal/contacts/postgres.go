@@ -63,12 +63,12 @@ type CreateInput struct {
 }
 
 type PatchInput struct {
-	FirstName   string
-	LastName    string
-	Title       string
-	LinkedInURL string
-	Timezone    string
-	Region      string
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	Title       string `json:"title"`
+	LinkedInURL string `json:"linkedin_url"`
+	Timezone    string `json:"timezone"`
+	Region      string `json:"region"`
 }
 
 type Postgres struct {
