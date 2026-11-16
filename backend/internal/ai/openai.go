@@ -12,6 +12,7 @@ import (
 )
 
 const openaiDefaultBase = "https://api.openai.com/v1"
+const openRouterBase = "https://openrouter.ai/api/v1"
 
 type OpenAI struct {
 	Model   string

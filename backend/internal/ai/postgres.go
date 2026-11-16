@@ -68,6 +68,10 @@ func (p *Postgres) Put(ctx context.Context, workspaceID uuid.UUID, in PutInput) 
 	if err := validatePut(in, existing); err != nil {
 		return Settings{}, err
 	}
+	spec, _ := Lookup(in.Kind)
+	if !spec.NeedsBaseURL {
+		in.BaseURL = ""
+	}
 	in.APIKey = strings.TrimSpace(in.APIKey)
 	in.BaseURL = strings.TrimSpace(in.BaseURL)
 	in.ComposeModel = strings.TrimSpace(in.ComposeModel)

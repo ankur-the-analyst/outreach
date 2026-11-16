@@ -28,7 +28,7 @@ Monorepo: Next.js + TypeScript web app; Go **api** (HTTP, auth, CRUD, public uns
 
 **Jobs, not an event bus.** A write that needs work inserts a River job in the same transaction. No `events_outbox` dispatcher in Now. If subscribers multiply, an outbox is Next; handlers should stay idempotent so that swap is easy.
 
-**Provider abstraction.** Core never switches on a vendor name. Adapters register capabilities (chat, JSON, embeddings). Workspace maps roles (`compose`, `analyze`, `classify`, `reply`, `embed`) to a provider + model, with one fallback. Launch: `openai`, `google` (AI Studio / Gemini), `anthropic`, `openai_compat`. `embed` cannot resolve to Anthropic.
+**Provider abstraction.** Core never switches on a vendor name. Adapters register capabilities (chat, JSON, embeddings). Workspace maps roles (`compose`, `analyze`, `classify`, `reply`, `embed`) to a provider + model, with one fallback. Launch: `openai`, `google` (AI Studio / Gemini), `anthropic`, `openrouter` (OpenAI-compatible API at a fixed host; the operator types the model id), `openai_compat`. `embed` cannot resolve to Anthropic.
 
 ## 2. Key decisions
 

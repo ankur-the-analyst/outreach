@@ -14,7 +14,7 @@ func FillKey(b Binding, plat Platform) Binding {
 		return b
 	}
 	switch b.Kind {
-	case KindOpenAI, KindCompat:
+	case KindOpenAI, KindCompat, KindOpenRouter:
 		b.APIKey = plat.OpenAIAPIKey
 	case KindGoogle:
 		b.APIKey = plat.GeminiAPIKey

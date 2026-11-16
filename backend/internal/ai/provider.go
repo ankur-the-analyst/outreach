@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 )
 
 var (
@@ -30,11 +31,12 @@ const (
 type Kind string
 
 const (
-	KindOpenAI    Kind = "openai"
-	KindGoogle    Kind = "google"
-	KindAnthropic Kind = "anthropic"
-	KindCompat    Kind = "openai_compat"
-	KindFake      Kind = "fake"
+	KindOpenAI     Kind = "openai"
+	KindGoogle     Kind = "google"
+	KindAnthropic  Kind = "anthropic"
+	KindOpenRouter Kind = "openrouter"
+	KindCompat     Kind = "openai_compat"
+	KindFake       Kind = "fake"
 )
 
 type Request struct {
@@ -84,11 +86,15 @@ func New(b Binding) (Provider, error) {
 		return &Fake{Model: b.Model}, nil
 	case KindAnthropic:
 		return Anthropic{Model: b.Model}, nil
-	case KindOpenAI, KindCompat:
+	case KindOpenAI, KindCompat, KindOpenRouter:
 		if b.APIKey == "" {
 			return nil, ErrNoKey
 		}
-		return &OpenAI{Model: b.Model, APIKey: b.APIKey, BaseURL: b.BaseURL}, nil
+		base := b.BaseURL
+		if b.Kind == KindOpenRouter && strings.TrimSpace(base) == "" {
+			base = openRouterBase
+		}
+		return &OpenAI{Model: b.Model, APIKey: b.APIKey, BaseURL: base}, nil
 	case KindGoogle:
 		if b.APIKey == "" {
 			return nil, ErrNoKey

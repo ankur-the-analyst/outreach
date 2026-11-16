@@ -53,9 +53,15 @@ export function AISettingsForm({
   function onKind(next: string) {
     setKind(next);
     const p = providers.find((x) => x.kind === next);
-    if (!p?.custom_models) {
+    if (p?.custom_models) {
+      setComposeModel("");
+      setEmbedModel("");
+    } else {
       setComposeModel(p?.compose_models?.[0] ?? "");
       setEmbedModel(p?.embed_models?.[0] ?? "");
+    }
+    if (!p?.needs_base_url) {
+      setBaseURL("");
     }
   }
 
@@ -146,6 +152,7 @@ export function AISettingsForm({
             required
             value={composeModel}
             onChange={(e) => setComposeModel(e.target.value)}
+            placeholder={kind === "openrouter" ? "openai/gpt-4o-mini" : undefined}
           />
         ) : (
           <select
@@ -172,6 +179,7 @@ export function AISettingsForm({
               required
               value={embedModel}
               onChange={(e) => setEmbedModel(e.target.value)}
+              placeholder={kind === "openrouter" ? "openai/text-embedding-3-small" : undefined}
             />
           ) : (
             <select

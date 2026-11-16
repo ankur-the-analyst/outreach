@@ -67,7 +67,7 @@ func keyHint(key string) string {
 }
 
 func splitKindModel(s string) (Kind, string, bool) {
-	for _, k := range []Kind{KindCompat, KindAnthropic, KindOpenAI, KindGoogle, KindFake} {
+	for _, k := range []Kind{KindCompat, KindOpenRouter, KindAnthropic, KindOpenAI, KindGoogle, KindFake} {
 		p := string(k) + ":"
 		if strings.HasPrefix(s, p) {
 			return k, s[len(p):], true

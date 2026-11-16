@@ -39,4 +39,8 @@ func TestCheckModelUsesCatalog(t *testing.T) {
 	if err := checkModel(compat, RoleCompose, "local-llama"); err != nil {
 		t.Fatal(err)
 	}
+	router, ok := Lookup(KindOpenRouter)
+	if !ok || !router.CustomModels || !router.Embed || router.NeedsBaseURL {
+		t.Fatalf("%+v", router)
+	}
 }

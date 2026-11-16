@@ -52,6 +52,12 @@ var registry = []ProviderSpec{
 		EmbedModels: []string{},
 	},
 	{
+		Kind:         KindOpenRouter,
+		Label:        "OpenRouter",
+		Embed:        true,
+		CustomModels: true,
+	},
+	{
 		Kind:         KindCompat,
 		Label:        "OpenAI-compatible",
 		NeedsBaseURL: true,
