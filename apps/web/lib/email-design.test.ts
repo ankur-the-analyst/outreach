@@ -1,6 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyFormat, applyKind, formatKindFromKey, richText, toggleBullets } from "./email-design.ts";
+import {
+  applyFormat,
+  applyKind,
+  formatKindFromKey,
+  historyPush,
+  historyRedo,
+  historyStart,
+  historyUndo,
+  richText,
+  toggleBullets,
+  wrapLink,
+} from "./email-design.ts";
 
 test("one text block keeps paragraphs and bullets together", () => {
   const html = richText("Hello\n\n- First\n- Second\n\nThanks");
@@ -35,6 +46,23 @@ test("formatter keys map to bold, italic, and bullets", () => {
   assert.equal(formatKindFromKey("*", true, false), null);
   const wrapped = applyKind("bold", "Hello", 0, 5);
   assert.equal(wrapped.value, "**Hello**");
+});
+
+test("a link marker becomes a hyperlink", () => {
+  const html = richText("See [the role](https://jobs.example/1).");
+  assert.match(html, /<a href="https:\/\/jobs\.example\/1"/);
+  assert.match(html, />the role<\/a>/);
+});
+
+test("undo returns the previous text and redo puts it back", () => {
+  let history = historyStart("Hello");
+  history = historyPush(history, "Hello there");
+  history = historyUndo(history);
+  assert.equal(history.stack[history.index], "Hello");
+  history = historyRedo(history);
+  assert.equal(history.stack[history.index], "Hello there");
+  const linked = wrapLink("See more", 4, 8, "https://x.test");
+  assert.equal(linked.value, "See [more](https://x.test)");
 });
 
 test("bullet button marks the current lines", () => {

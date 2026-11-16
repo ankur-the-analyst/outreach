@@ -500,7 +500,59 @@ function inline(text: string): string {
   out = out.replace(/__([^_\n]+?)__/g, "<u>$1</u>");
   out = out.replace(/==([^=\n]+?)==/g, '<mark style="background-color: #fdeee9; color: inherit;">$1</mark>');
   out = out.replace(/~~([^~\n]+?)~~/g, "<s>$1</s>");
+  out = out.replace(/\[(.+?)\]\((.+?)\)/g, `<a href="$2" style="color: #d9643a;">$1</a>`);
   return out;
+}
+
+export type EditHistory = { stack: string[]; index: number };
+
+export function historyStart(value: string): EditHistory {
+  return { stack: [value], index: 0 };
+}
+
+export function historyPush(history: EditHistory, value: string): EditHistory {
+  if (history.stack[history.index] === value) {
+    return history;
+  }
+  const stack = history.stack.slice(0, history.index + 1);
+  stack.push(value);
+  if (stack.length > 100) {
+    stack.shift();
+  }
+  return { stack, index: stack.length - 1 };
+}
+
+export function historyUndo(history: EditHistory): EditHistory {
+  if (history.index <= 0) {
+    return history;
+  }
+  return { ...history, index: history.index - 1 };
+}
+
+export function historyRedo(history: EditHistory): EditHistory {
+  if (history.index >= history.stack.length - 1) {
+    return history;
+  }
+  return { ...history, index: history.index + 1 };
+}
+
+export function wrapLink(
+  content: string,
+  start: number,
+  end: number,
+  url: string,
+): { value: string; start: number; end: number } {
+  const current = content || "";
+  const from = Math.max(0, Math.min(start, end, current.length));
+  const to = Math.max(0, Math.min(Math.max(start, end), current.length));
+  const label = current.slice(from, to) || "link";
+  const href = url.trim() || "https://";
+  const token = `[${label}](${href})`;
+  return {
+    value: current.slice(0, from) + token + current.slice(to),
+    start: from,
+    end: from + token.length,
+  };
 }
 
 export function richText(content: string, links = false): string {

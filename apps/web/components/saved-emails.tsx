@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Bold, Highlighter, Italic, List, Strikethrough, Underline } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bold, Highlighter, Italic, Link2, List, Strikethrough, Underline } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,42 +27,74 @@ import {
   blockGroups,
   blockLabel,
   emailFonts,
+  type EditHistory,
   type FormatKind,
   formatKindFromKey,
   generateHTML,
   generateText,
+  historyPush,
+  historyRedo,
+  historyStart,
+  historyUndo,
   newBlock,
   parseDesign,
   renderBlock,
+  wrapLink,
 } from "@/lib/email-design";
 import { fieldSelect, fieldTextarea } from "@/lib/labels";
 
-export function SavedEmails({ emails }: { emails: SavedEmail[] }) {
+export function SavedEmails({
+  emails,
+  template,
+}: {
+  emails: SavedEmail[];
+  template: string | null;
+}) {
+  const router = useRouter();
+  const editing = template;
   const [rows, setRows] = useState(emails);
-  const [editing, setEditing] = useState<string | "new" | null>(null);
+  const [toast, setToast] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
 
   useEffect(() => {
     setRows(emails);
   }, [emails]);
 
+  useEffect(() => {
+    if (!toast) {
+      return;
+    }
+    const timer = window.setTimeout(() => setToast(null), 3200);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+  useEffect(() => {
+    if (editing && editing !== "new" && !rows.some((row) => row.id === editing)) {
+      router.replace("/emails");
+    }
+  }, [editing, rows, router]);
+
   const current = editing && editing !== "new" ? rows.find((e) => e.id === editing) : null;
+
+  function openTemplate(id: "new" | string) {
+    router.push(`/emails?template=${encodeURIComponent(id)}`);
+  }
 
   return (
     <>
       <PageHeader
         title="Email templates"
         actions={
-          <Button type="button" onClick={() => setEditing("new")}>
+          <Button type="button" onClick={() => openTemplate("new")}>
             New template
           </Button>
         }
       />
       <PageBody>
-        {editing ? (
+        {editing === "new" || current ? (
           <TemplateBuilder
             key={editing}
             initial={current ?? undefined}
-            onCancel={() => setEditing(null)}
+            onCancel={() => router.push("/emails")}
             onSaved={(saved) => {
               setRows((cur) => {
                 const i = cur.findIndex((e) => e.id === saved.id);
@@ -72,15 +105,17 @@ export function SavedEmails({ emails }: { emails: SavedEmail[] }) {
                 }
                 return [saved, ...cur];
               });
-              setEditing(saved.id);
+              setToast({ tone: "ok", text: "Template saved" });
+              router.replace(`/emails?template=${encodeURIComponent(saved.id)}`);
             }}
+            onFailed={(text) => setToast({ tone: "bad", text })}
           />
         ) : rows.length === 0 ? (
           <EmptyState
             title="No email templates yet"
             description="Build the email here, then pick it when you start a campaign."
             action={
-              <Button type="button" onClick={() => setEditing("new")}>
+              <Button type="button" onClick={() => openTemplate("new")}>
                 New template
               </Button>
             }
@@ -92,7 +127,7 @@ export function SavedEmails({ emails }: { emails: SavedEmail[] }) {
                 <button
                   type="button"
                   className="flex w-full flex-col items-start gap-0.5 rounded-md border border-border bg-card px-4 py-3 text-left hover:bg-muted"
-                  onClick={() => setEditing(e.id)}
+                  onClick={() => openTemplate(e.id)}
                 >
                   <span className="font-headline-sm text-foreground">{e.name}</span>
                   <span className="font-body-sm text-muted-foreground">{e.subject}</span>
@@ -102,6 +137,16 @@ export function SavedEmails({ emails }: { emails: SavedEmail[] }) {
           </ul>
         )}
       </PageBody>
+      {toast ? (
+        <p
+          role={toast.tone === "bad" ? "alert" : "status"}
+          className={`fixed bottom-4 left-1/2 z-50 max-w-sm -translate-x-1/2 rounded-md border bg-card px-3 py-2 font-body-sm shadow-sm ${
+            toast.tone === "bad" ? "border-destructive text-destructive" : "border-border text-foreground"
+          }`}
+        >
+          {toast.text}
+        </p>
+      ) : null}
     </>
   );
 }
@@ -110,10 +155,12 @@ function TemplateBuilder({
   initial,
   onCancel,
   onSaved,
+  onFailed,
 }: {
   initial?: SavedEmail;
   onCancel: () => void;
   onSaved: (e: SavedEmail) => void;
+  onFailed: (text: string) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [subject, setSubject] = useState(initial?.subject ?? "Hi {{contact.first_name}}");
@@ -214,7 +261,9 @@ function TemplateBuilder({
     setPending(false);
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
-      setError(data?.error?.message ?? "Could not save this template");
+      const text = data?.error?.message ?? "Could not save this template";
+      setError(text);
+      onFailed(text);
       return;
     }
     onSaved((await res.json()) as SavedEmail);
@@ -474,9 +523,50 @@ function Properties({
 }) {
   const p = element.props;
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  const history = useRef<EditHistory & { id: string }>({
+    ...historyStart(element.content),
+    id: element.id,
+  });
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("https://");
   const prop = (key: string, value: string) => onChange({ props: { [key]: value } });
   const hasContent = contentBlocks.has(element.type);
   const formatted = formattedBlocks.has(element.type);
+
+  if (history.current.id !== element.id) {
+    history.current = { ...historyStart(element.content), id: element.id };
+  }
+
+  function setContent(content: string) {
+    history.current = { ...historyPush(history.current, content), id: element.id };
+    onChange({ content });
+    return content;
+  }
+
+  function stepHistory(direction: "undo" | "redo") {
+    const next = direction === "undo" ? historyUndo(history.current) : historyRedo(history.current);
+    history.current = { ...next, id: element.id };
+    onChange({ content: next.stack[next.index] });
+    const pos = next.stack[next.index].length;
+    setTimeout(() => {
+      contentRef.current?.focus();
+      contentRef.current?.setSelectionRange(pos, pos);
+    }, 0);
+  }
+
+  function applyLink() {
+    const el = contentRef.current;
+    const start = el?.selectionStart ?? element.content.length;
+    const end = el?.selectionEnd ?? element.content.length;
+    const next = wrapLink(element.content, start, end, linkUrl);
+    setContent(next.value);
+    setLinkOpen(false);
+    setTimeout(() => {
+      el?.focus();
+      el?.setSelectionRange(next.end, next.end);
+    }, 0);
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <p className="font-label-md text-foreground">{blockLabel[element.type]}</p>
@@ -487,9 +577,7 @@ function Properties({
             <VariablePicker
               vars={vars}
               onInsert={(token) =>
-                onChange({
-                  content: insertToken(element.content, contentRef.current, token),
-                })
+                setContent(insertToken(element.content, contentRef.current, token))
               }
             />
           </div>
@@ -497,11 +585,29 @@ function Properties({
             <FormatBar
               bullets={bulletBlocks.has(element.type)}
               onFormat={(kind) =>
-                runFormat(kind, element.content, contentRef.current, (content) =>
-                  onChange({ content }),
-                )
+                runFormat(kind, element.content, contentRef.current, setContent)
               }
+              onLink={() => setLinkOpen((open) => !open)}
             />
+          ) : null}
+          {formatted && linkOpen ? (
+            <form
+              className="flex flex-wrap items-center gap-1.5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                applyLink();
+              }}
+            >
+              <Input
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder="https://"
+                aria-label="Link address"
+              />
+              <Button type="submit" size="sm">
+                Add link
+              </Button>
+            </form>
           ) : null}
           <textarea
             id="block-content"
@@ -509,11 +615,27 @@ function Properties({
             rows={element.type === "text" ? 8 : 4}
             className={fieldTextarea}
             value={element.content}
-            onChange={(e) => onChange({ content: e.target.value })}
+            onChange={(e) => setContent(e.target.value)}
             onKeyDown={
               formatted
                 ? (e) => {
                     if (!(e.metaKey || e.ctrlKey) || e.altKey) {
+                      return;
+                    }
+                    const key = e.key.toLowerCase();
+                    if (key === "z") {
+                      e.preventDefault();
+                      stepHistory(e.shiftKey ? "redo" : "undo");
+                      return;
+                    }
+                    if (key === "y") {
+                      e.preventDefault();
+                      stepHistory("redo");
+                      return;
+                    }
+                    if (key === "k" && !e.shiftKey) {
+                      e.preventDefault();
+                      setLinkOpen(true);
                       return;
                     }
                     const kind = formatKindFromKey(
@@ -525,9 +647,7 @@ function Properties({
                       return;
                     }
                     e.preventDefault();
-                    runFormat(kind, element.content, contentRef.current, (content) =>
-                      onChange({ content }),
-                    );
+                    runFormat(kind, element.content, contentRef.current, setContent);
                   }
                 : undefined
             }
@@ -692,9 +812,11 @@ function runFormat(
 function FormatBar({
   bullets,
   onFormat,
+  onLink,
 }: {
   bullets: boolean;
   onFormat: (kind: FormatKind) => void;
+  onLink: () => void;
 }) {
   return (
     <div className="flex flex-wrap gap-0.5 rounded-md border border-border bg-muted p-0.5">
@@ -712,6 +834,9 @@ function FormatBar({
       </Button>
       <Button type="button" variant="ghost" size="icon-xs" title="Strikethrough (⌘⇧X)" onMouseDown={(e) => e.preventDefault()} onClick={() => onFormat("strike")}>
         <Strikethrough />
+      </Button>
+      <Button type="button" variant="ghost" size="icon-xs" title="Link (⌘K)" onMouseDown={(e) => e.preventDefault()} onClick={onLink}>
+        <Link2 />
       </Button>
       {bullets ? (
         <Button
