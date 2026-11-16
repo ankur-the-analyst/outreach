@@ -114,6 +114,10 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 	if err := p.checkCustom(ctx, workspaceID, in.Custom); err != nil {
 		return Contact{}, err
 	}
+	cfg, err := p.Dedup(ctx, workspaceID)
+	if err != nil {
+		return Contact{}, err
+	}
 	id, err := uuid.NewV7()
 	if err != nil {
 		return Contact{}, err
@@ -126,7 +130,20 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 		return Contact{}, err
 	}
 	var out Contact
+	var updated bool
 	err = p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		existing, err := q.GetContactByEmail(ctx, db.GetContactByEmailParams{WorkspaceID: workspaceID, Email: email})
+		if err == nil {
+			if cfg.Action != "update" {
+				return ErrDuplicate
+			}
+			out, err = p.mergeExisting(ctx, q, workspaceID, existing, in, cfg.Overwrite)
+			updated = err == nil
+			return err
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
 		var companyID *uuid.UUID
 		if name := strings.TrimSpace(in.Company); name != "" || domainOf(email) != "" {
 			cid, err := upsertCompany(ctx, q, workspaceID, domainOf(email), name)
@@ -158,9 +175,34 @@ func (p *Postgres) Create(ctx context.Context, workspaceID uuid.UUID, in CreateI
 		return nil
 	})
 	if isUnique(err) {
+		if cfg.Action == "update" {
+			return p.mergeByEmail(ctx, workspaceID, in, cfg.Overwrite)
+		}
 		return Contact{}, ErrDuplicate
 	}
-	return out, err
+	if err != nil {
+		return Contact{}, err
+	}
+	if updated {
+		return out, Updated{Contact: out}
+	}
+	return out, nil
+}
+
+func (p *Postgres) mergeByEmail(ctx context.Context, workspaceID uuid.UUID, in CreateInput, overwrite bool) (Contact, error) {
+	var out Contact
+	err := p.pool.WithGUC(ctx, db.GUC{WorkspaceID: workspaceID}, func(ctx context.Context, q *db.Queries) error {
+		existing, err := q.GetContactByEmail(ctx, db.GetContactByEmailParams{WorkspaceID: workspaceID, Email: strings.ToLower(strings.TrimSpace(in.Email))})
+		if err != nil {
+			return err
+		}
+		out, err = p.mergeExisting(ctx, q, workspaceID, existing, in, overwrite)
+		return err
+	})
+	if err != nil {
+		return Contact{}, err
+	}
+	return out, Updated{Contact: out}
 }
 
 func (p *Postgres) List(ctx context.Context, workspaceID uuid.UUID, after *uuid.UUID, limit int) (Page, error) {

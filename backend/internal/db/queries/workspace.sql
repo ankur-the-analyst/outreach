@@ -22,6 +22,16 @@ update workspaces
 set sends_paused = $2
 where id = $1;
 
+-- name: GetContactDedup :one
+select contact_dedup
+from workspaces
+where id = $1;
+
+-- name: SetContactDedup :exec
+update workspaces
+set contact_dedup = $2
+where id = $1;
+
 -- name: GetMembership :one
 select workspace_id, user_id, role
 from memberships

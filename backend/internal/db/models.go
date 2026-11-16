@@ -572,11 +572,12 @@ type WarmupProfile struct {
 }
 
 type Workspace struct {
-	ID          uuid.UUID
-	Name        string
-	SendsPaused bool
-	CreatedAt   pgtype.Timestamptz
-	Attrs       json.RawMessage
+	ID           uuid.UUID
+	Name         string
+	SendsPaused  bool
+	CreatedAt    pgtype.Timestamptz
+	Attrs        json.RawMessage
+	ContactDedup json.RawMessage
 }
 
 type WorkspaceAi struct {

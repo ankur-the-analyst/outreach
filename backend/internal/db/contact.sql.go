@@ -176,6 +176,60 @@ func (q *Queries) GetContact(ctx context.Context, arg GetContactParams) (GetCont
 	return i, err
 }
 
+const getContactByEmail = `-- name: GetContactByEmail :one
+select
+  workspace_id, id, email, first_name, last_name, title, company_id,
+  linkedin_url, timezone, region, role_class, provenance, readiness, created_at, custom
+from contacts
+where workspace_id = $1 and email = $2
+`
+
+type GetContactByEmailParams struct {
+	WorkspaceID uuid.UUID
+	Email       string
+}
+
+type GetContactByEmailRow struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Email       string
+	FirstName   pgtype.Text
+	LastName    pgtype.Text
+	Title       pgtype.Text
+	CompanyID   *uuid.UUID
+	LinkedinUrl pgtype.Text
+	Timezone    pgtype.Text
+	Region      pgtype.Text
+	RoleClass   pgtype.Text
+	Provenance  json.RawMessage
+	Readiness   string
+	CreatedAt   pgtype.Timestamptz
+	Custom      json.RawMessage
+}
+
+func (q *Queries) GetContactByEmail(ctx context.Context, arg GetContactByEmailParams) (GetContactByEmailRow, error) {
+	row := q.db.QueryRow(ctx, getContactByEmail, arg.WorkspaceID, arg.Email)
+	var i GetContactByEmailRow
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.Email,
+		&i.FirstName,
+		&i.LastName,
+		&i.Title,
+		&i.CompanyID,
+		&i.LinkedinUrl,
+		&i.Timezone,
+		&i.Region,
+		&i.RoleClass,
+		&i.Provenance,
+		&i.Readiness,
+		&i.CreatedAt,
+		&i.Custom,
+	)
+	return i, err
+}
+
 const insertCompany = `-- name: InsertCompany :one
 insert into companies (workspace_id, id, domain, name)
 values ($1, $2, $3, $4)
@@ -372,6 +426,85 @@ func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]L
 		return nil, err
 	}
 	return items, nil
+}
+
+const mergeContact = `-- name: MergeContact :one
+update contacts
+set first_name = $3,
+    last_name = $4,
+    title = $5,
+    linkedin_url = $6,
+    timezone = $7,
+    region = $8,
+    company_id = coalesce($9, company_id),
+    custom = $10
+where workspace_id = $1 and id = $2
+returning
+  workspace_id, id, email, first_name, last_name, title, company_id,
+  linkedin_url, timezone, region, role_class, provenance, readiness, created_at
+`
+
+type MergeContactParams struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	FirstName   pgtype.Text
+	LastName    pgtype.Text
+	Title       pgtype.Text
+	LinkedinUrl pgtype.Text
+	Timezone    pgtype.Text
+	Region      pgtype.Text
+	CompanyID   *uuid.UUID
+	Custom      json.RawMessage
+}
+
+type MergeContactRow struct {
+	WorkspaceID uuid.UUID
+	ID          uuid.UUID
+	Email       string
+	FirstName   pgtype.Text
+	LastName    pgtype.Text
+	Title       pgtype.Text
+	CompanyID   *uuid.UUID
+	LinkedinUrl pgtype.Text
+	Timezone    pgtype.Text
+	Region      pgtype.Text
+	RoleClass   pgtype.Text
+	Provenance  json.RawMessage
+	Readiness   string
+	CreatedAt   pgtype.Timestamptz
+}
+
+func (q *Queries) MergeContact(ctx context.Context, arg MergeContactParams) (MergeContactRow, error) {
+	row := q.db.QueryRow(ctx, mergeContact,
+		arg.WorkspaceID,
+		arg.ID,
+		arg.FirstName,
+		arg.LastName,
+		arg.Title,
+		arg.LinkedinUrl,
+		arg.Timezone,
+		arg.Region,
+		arg.CompanyID,
+		arg.Custom,
+	)
+	var i MergeContactRow
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.ID,
+		&i.Email,
+		&i.FirstName,
+		&i.LastName,
+		&i.Title,
+		&i.CompanyID,
+		&i.LinkedinUrl,
+		&i.Timezone,
+		&i.Region,
+		&i.RoleClass,
+		&i.Provenance,
+		&i.Readiness,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const updateContact = `-- name: UpdateContact :one

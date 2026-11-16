@@ -42,6 +42,28 @@ select
 from contacts
 where workspace_id = $1 and id = $2;
 
+-- name: GetContactByEmail :one
+select
+  workspace_id, id, email, first_name, last_name, title, company_id,
+  linkedin_url, timezone, region, role_class, provenance, readiness, created_at, custom
+from contacts
+where workspace_id = $1 and email = $2;
+
+-- name: MergeContact :one
+update contacts
+set first_name = $3,
+    last_name = $4,
+    title = $5,
+    linkedin_url = $6,
+    timezone = $7,
+    region = $8,
+    company_id = coalesce(sqlc.narg('company_id'), company_id),
+    custom = sqlc.arg('custom')
+where workspace_id = $1 and id = $2
+returning
+  workspace_id, id, email, first_name, last_name, title, company_id,
+  linkedin_url, timezone, region, role_class, provenance, readiness, created_at;
+
 -- name: UpdateContact :one
 update contacts
 set first_name = $3, last_name = $4, title = $5, linkedin_url = $6, timezone = $7, region = $8

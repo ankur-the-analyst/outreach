@@ -258,6 +258,8 @@ func main() {
 	mux.Handle("POST /api/v1/contacts", a.Require(http.HandlerFunc(ct.Create)))
 	mux.Handle("POST /api/v1/contacts/preview", a.Require(http.HandlerFunc(ct.Preview)))
 	mux.Handle("POST /api/v1/contacts/import", a.Require(http.HandlerFunc(ct.Import)))
+	mux.Handle("GET /api/v1/settings/contact-duplicates", a.Require(http.HandlerFunc(ct.GetDedup)))
+	mux.Handle("PUT /api/v1/settings/contact-duplicates", a.Require(http.HandlerFunc(ct.PutDedup)))
 	mux.Handle("GET /api/v1/contacts/{id}", a.Require(http.HandlerFunc(ct.Get)))
 	mux.Handle("PATCH /api/v1/contacts/{id}", a.Require(http.HandlerFunc(ct.Patch)))
 	mux.Handle("DELETE /api/v1/contacts/{id}", a.Require(http.HandlerFunc(ct.Delete)))

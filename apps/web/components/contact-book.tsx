@@ -765,7 +765,7 @@ function CSVPreview() {
       setError(data?.error?.message ?? "Import failed");
       return;
     }
-    const data = (await res.json()) as { created?: number; skipped?: number };
+    const data = (await res.json()) as { created?: number; updated?: number; skipped?: number };
     setRows([]);
     setCsv("");
     setFileName("");
@@ -775,7 +775,7 @@ function CSVPreview() {
     if (inputRef.current) {
       inputRef.current.value = "";
     }
-    setDone(`Added ${data.created ?? 0}, skipped ${data.skipped ?? 0}`);
+    setDone(`Added ${data.created ?? 0}, updated ${data.updated ?? 0}, skipped ${data.skipped ?? 0}`);
     router.refresh();
   }
 

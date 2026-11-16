@@ -10,7 +10,7 @@ import (
 func TestApplyImportSkipsBadAndFileDupes(t *testing.T) {
 	t.Parallel()
 	var got []string
-	created, skipped, err := applyImport([]PreviewRow{
+	created, _, skipped, err := applyImport([]PreviewRow{
 		{Email: "ada@acme.com"},
 		{Email: "ADA@acme.com"},
 		{Email: ""},
@@ -33,7 +33,7 @@ func TestApplyImportSkipsBadAndFileDupes(t *testing.T) {
 
 func TestApplyImportSkipsExisting(t *testing.T) {
 	t.Parallel()
-	created, skipped, err := applyImport([]PreviewRow{
+	created, _, skipped, err := applyImport([]PreviewRow{
 		{Email: "ada@acme.com"},
 		{Email: "bob@acme.com"},
 	}, func(row PreviewRow) error {
@@ -59,7 +59,7 @@ func TestImportRequiresEmailColumn(t *testing.T) {
 func TestApplyImportStopsOnOtherError(t *testing.T) {
 	t.Parallel()
 	boom := errors.New("db down")
-	_, _, err := applyImport([]PreviewRow{{Email: "ada@acme.com"}}, func(PreviewRow) error {
+	_, _, _, err := applyImport([]PreviewRow{{Email: "ada@acme.com"}}, func(PreviewRow) error {
 		return boom
 	})
 	if !errors.Is(err, boom) {

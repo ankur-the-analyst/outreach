@@ -22,6 +22,8 @@ type Store interface {
 	Patch(ctx context.Context, workspaceID, id uuid.UUID, in PatchInput) (Contact, error)
 	Delete(ctx context.Context, workspaceID, id uuid.UUID) error
 	Erase(ctx context.Context, workspaceID, id uuid.UUID) error
+	Dedup(ctx context.Context, workspaceID uuid.UUID) (Dedup, error)
+	SetDedup(ctx context.Context, workspaceID uuid.UUID, in Dedup) (Dedup, error)
 }
 
 type API struct {
@@ -97,6 +99,11 @@ func (a *API) Create(w http.ResponseWriter, r *http.Request) {
 		Company: in.Company, LinkedInURL: in.LinkedInURL, Timezone: in.Timezone, Region: in.Region,
 		Source: source, AddedBy: s.UserID, Custom: in.Custom,
 	})
+	var up Updated
+	if errors.As(err, &up) {
+		writeJSON(w, http.StatusOK, up.Contact)
+		return
+	}
 	if err != nil {
 		writeStoreError(w, err)
 		return
@@ -259,6 +266,42 @@ func (a *API) member(w http.ResponseWriter, r *http.Request) (auth.Session, bool
 		return auth.Session{}, false
 	}
 	return s, true
+}
+
+func (a *API) GetDedup(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.member(w, r)
+	if !ok {
+		return
+	}
+	d, err := a.store.Dedup(r.Context(), s.WorkspaceID)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, d)
+}
+
+func (a *API) PutDedup(w http.ResponseWriter, r *http.Request) {
+	s, ok := a.edit(w, r)
+	if !ok {
+		return
+	}
+	role, err := a.store.Membership(r.Context(), s.WorkspaceID, s.UserID)
+	if err != nil || role != "owner" {
+		writeError(w, http.StatusForbidden, "forbidden", "only an owner can change this")
+		return
+	}
+	var in Dedup
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", "invalid json")
+		return
+	}
+	d, err := a.store.SetDedup(r.Context(), s.WorkspaceID, in)
+	if err != nil {
+		writeStoreError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, d)
 }
 
 func (a *API) edit(w http.ResponseWriter, r *http.Request) (auth.Session, bool) {

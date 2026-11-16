@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -16,6 +16,7 @@ import {
 import { AISettingsForm } from "@/components/ai-settings";
 import { FieldCatalog } from "@/components/field-catalog";
 import { SenderIdentityForm } from "@/components/sender-identity-form";
+import { fieldSelect } from "@/lib/labels";
 import type { Member, ModelSettings, SenderIdentity, Workspace } from "@/lib/api";
 
 function roleLabel(role: string): string {
@@ -50,6 +51,7 @@ export function SettingsBoard({
             paused={workspace?.sends_paused ?? false}
             canEdit={owner}
           />
+          <DuplicateRule canEdit={owner} />
           <SenderIdentityForm identity={identity} />
           <AISettingsForm settings={models} />
           <FieldCatalog
@@ -64,6 +66,86 @@ export function SettingsBoard({
         </div>
       </PageBody>
     </div>
+  );
+}
+
+function DuplicateRule({ canEdit }: { canEdit: boolean }) {
+  const [action, setAction] = useState("prevent");
+  const [overwrite, setOverwrite] = useState(false);
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/v1/settings/contact-duplicates", { credentials: "include" });
+      if (!res.ok) {
+        return;
+      }
+      const data = (await res.json()) as { action?: string; overwrite?: boolean };
+      if (data.action === "update") {
+        setAction("update");
+        setOverwrite(Boolean(data.overwrite));
+      }
+    })();
+  }, []);
+
+  const value = action === "update" && overwrite ? "replace" : action;
+
+  async function onSave(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setPending(true);
+    const next = value === "replace" ? "update" : value;
+    const res = await fetch("/api/v1/settings/contact-duplicates", {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: next, overwrite: value === "replace" }),
+    });
+    setPending(false);
+    if (!res.ok) {
+      setError("Could not save");
+      return;
+    }
+    setAction(next);
+    setOverwrite(value === "replace");
+  }
+
+  return (
+    <Panel
+      title="Repeated email"
+      description="One address stays one person in this workspace. Choose what happens when that address is added again."
+    >
+      <form onSubmit={onSave} className="flex flex-col gap-3">
+        <select
+          aria-label="When this email already exists"
+          value={value}
+          disabled={!canEdit}
+          onChange={(e) => {
+            const v = e.target.value;
+            setAction(v === "replace" ? "update" : v);
+            setOverwrite(v === "replace");
+          }}
+          className={fieldSelect}
+        >
+          <option value="prevent">Keep the person already saved</option>
+          <option value="update">Fill blanks on that person</option>
+          <option value="replace">Replace filled values</option>
+        </select>
+        {canEdit ? (
+          <Button type="submit" className="w-fit rounded-md" pending={pending}>
+            Save
+          </Button>
+        ) : (
+          <p className="font-body-sm text-muted-foreground">Only an owner can change this.</p>
+        )}
+        {error ? (
+          <p role="alert" className="font-body-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </form>
+    </Panel>
   );
 }
 

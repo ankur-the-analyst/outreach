@@ -11,10 +11,11 @@ import (
 
 type ImportResult struct {
 	Created int `json:"created"`
+	Updated int `json:"updated"`
 	Skipped int `json:"skipped"`
 }
 
-func applyImport(rows []PreviewRow, create func(PreviewRow) error) (created, skipped int, err error) {
+func applyImport(rows []PreviewRow, create func(PreviewRow) error) (created, updated, skipped int, err error) {
 	seen := map[string]struct{}{}
 	for _, row := range rows {
 		email := strings.ToLower(strings.TrimSpace(row.Email))
@@ -27,17 +28,23 @@ func applyImport(rows []PreviewRow, create func(PreviewRow) error) (created, ski
 			continue
 		}
 		if err := create(row); err != nil {
+			var up Updated
+			if errors.As(err, &up) {
+				seen[email] = struct{}{}
+				updated++
+				continue
+			}
 			if errors.Is(err, ErrDuplicate) {
 				seen[email] = struct{}{}
 				skipped++
 				continue
 			}
-			return created, skipped, err
+			return created, updated, skipped, err
 		}
 		seen[email] = struct{}{}
 		created++
 	}
-	return created, skipped, nil
+	return created, updated, skipped, nil
 }
 
 func (p *Postgres) Import(ctx context.Context, workspaceID, userID uuid.UUID, source, csv string, columns ColumnMap) (ImportResult, error) {
@@ -60,7 +67,7 @@ func (p *Postgres) Import(ctx context.Context, workspaceID, userID uuid.UUID, so
 	if strings.TrimSpace(parsed.Columns["email"]) == "" {
 		return ImportResult{}, ErrMapEmail
 	}
-	created, skipped, err := applyImport(parsed.Rows, func(row PreviewRow) error {
+	created, updated, skipped, err := applyImport(parsed.Rows, func(row PreviewRow) error {
 		_, err := p.Create(ctx, workspaceID, CreateInput{
 			Email:       row.Email,
 			FirstName:   row.FirstName,
@@ -76,5 +83,5 @@ func (p *Postgres) Import(ctx context.Context, workspaceID, userID uuid.UUID, so
 		})
 		return err
 	})
-	return ImportResult{Created: created, Skipped: skipped}, err
+	return ImportResult{Created: created, Updated: updated, Skipped: skipped}, err
 }

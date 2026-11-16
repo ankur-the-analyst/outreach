@@ -65,6 +65,19 @@ func (q *Queries) DeleteWorkspace(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const getContactDedup = `-- name: GetContactDedup :one
+select contact_dedup
+from workspaces
+where id = $1
+`
+
+func (q *Queries) GetContactDedup(ctx context.Context, id uuid.UUID) (json.RawMessage, error) {
+	row := q.db.QueryRow(ctx, getContactDedup, id)
+	var contact_dedup json.RawMessage
+	err := row.Scan(&contact_dedup)
+	return contact_dedup, err
+}
+
 const getMembership = `-- name: GetMembership :one
 select workspace_id, user_id, role
 from memberships
@@ -187,6 +200,22 @@ func (q *Queries) ListMembers(ctx context.Context, workspaceID uuid.UUID) ([]Lis
 		return nil, err
 	}
 	return items, nil
+}
+
+const setContactDedup = `-- name: SetContactDedup :exec
+update workspaces
+set contact_dedup = $2
+where id = $1
+`
+
+type SetContactDedupParams struct {
+	ID           uuid.UUID
+	ContactDedup json.RawMessage
+}
+
+func (q *Queries) SetContactDedup(ctx context.Context, arg SetContactDedupParams) error {
+	_, err := q.db.Exec(ctx, setContactDedup, arg.ID, arg.ContactDedup)
+	return err
 }
 
 const setSendsPaused = `-- name: SetSendsPaused :exec

@@ -617,6 +617,8 @@ Also: `companies.custom jsonb not null default '{}'`, `memberships.attrs jsonb n
 
 **`{{user.key}}` at draft time.** Enrolment has no author. Merge reads `memberships.attrs` for `role = owner` (one row) into `user.<key>`. Approver-specific values are a later pass, when approve re-renders the draft. Contact custom values stay on `contact.<key>` and in the compose notes. Do not add CRM pipeline fields (status, priority, source) as contact builtins.
 
+One person per email per workspace stays a unique key. The workspace chooses what a repeat does: `prevent` (default) refuses the add, `update` fills empty name, title, company, and contact fields on that person. `overwrite` replaces values that are already filled. A second row with the same email is never inserted. Every contact read and write filters `workspace_id` from the session and runs under the `app.workspace_id` GUC, so another tenant's rows stay invisible. Match is email only. Name and phone are not duplicate keys.
+
 ### 14.3 CSV map
 
 **Choice:** client sends `columns: {field_key: csv_header}`. Server does not persist mapping (HLD: session only). Guess aliases + def labels; **never invent `email`**.

@@ -46,6 +46,12 @@ func (f *fakeStore) Patch(context.Context, uuid.UUID, uuid.UUID, PatchInput) (Co
 }
 func (f *fakeStore) Delete(context.Context, uuid.UUID, uuid.UUID) error { return nil }
 func (f *fakeStore) Erase(context.Context, uuid.UUID, uuid.UUID) error  { return f.err }
+func (f *fakeStore) Dedup(context.Context, uuid.UUID) (Dedup, error) {
+	return Dedup{Action: "prevent"}, f.err
+}
+func (f *fakeStore) SetDedup(context.Context, uuid.UUID, Dedup) (Dedup, error) {
+	return Dedup{Action: "prevent"}, f.err
+}
 
 func TestCreateRejectsEmptyProvenance(t *testing.T) {
 	t.Parallel()
