@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyFormat, richText, toggleBullets } from "./email-design.ts";
+import { applyFormat, applyKind, formatKindFromKey, richText, toggleBullets } from "./email-design.ts";
 
 test("one text block keeps paragraphs and bullets together", () => {
   const html = richText("Hello\n\n- First\n- Second\n\nThanks");
@@ -9,7 +9,13 @@ test("one text block keeps paragraphs and bullets together", () => {
   assert.match(html, /<li[^>]*>First<\/li>/);
   assert.match(html, /<li[^>]*>Second<\/li>/);
   assert.match(html, /Thanks/);
-  assert.equal(html.includes("<ul"), true);
+});
+
+test("a wrapped bullet stays in the same point", () => {
+  const html = richText("- A long point\nthat continues\n- Next");
+  assert.match(html, /<li[^>]*>A long point<br>that continues<\/li>/);
+  assert.match(html, /<li[^>]*>Next<\/li>/);
+  assert.equal(html.match(/<ul/g)?.length, 1);
 });
 
 test("bold wraps the selection and a second click removes it", () => {
@@ -17,6 +23,18 @@ test("bold wraps the selection and a second click removes it", () => {
   assert.equal(wrapped.value, "**Hello**");
   const plain = applyFormat(wrapped.value, 0, wrapped.value.length, "**");
   assert.equal(plain.value, "Hello");
+});
+
+test("formatter keys map to bold, italic, and bullets", () => {
+  assert.equal(formatKindFromKey("b", false, true), "bold");
+  assert.equal(formatKindFromKey("i", false, true), "italic");
+  assert.equal(formatKindFromKey("u", false, true), "underline");
+  assert.equal(formatKindFromKey("h", true, true), "highlight");
+  assert.equal(formatKindFromKey("x", true, true), "strike");
+  assert.equal(formatKindFromKey("*", true, true), "bullets");
+  assert.equal(formatKindFromKey("*", true, false), null);
+  const wrapped = applyKind("bold", "Hello", 0, 5);
+  assert.equal(wrapped.value, "**Hello**");
 });
 
 test("bullet button marks the current lines", () => {

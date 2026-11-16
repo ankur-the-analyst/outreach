@@ -41,6 +41,16 @@ export type EmailDesign = {
   elements: EmailElement[];
 };
 
+export const emailFonts = [
+  { label: "Arial", value: "Arial, Helvetica, sans-serif" },
+  { label: "Georgia", value: "Georgia, serif" },
+  { label: "Times New Roman", value: '"Times New Roman", Times, serif' },
+  { label: "Verdana", value: "Verdana, Geneva, sans-serif" },
+  { label: "Trebuchet MS", value: '"Trebuchet MS", sans-serif' },
+  { label: "Tahoma", value: "Tahoma, Geneva, sans-serif" },
+  { label: "Courier New", value: '"Courier New", Courier, monospace' },
+];
+
 export const defaultSettings: EmailSettings = {
   backgroundColor: "#f4f4f6",
   contentBackgroundColor: "#ffffff",
@@ -257,7 +267,7 @@ export function generateHTML(design: EmailDesign): string {
     .join("\n");
   const body = elements
     .filter((el) => el.type !== "previewText")
-    .map((el) => wrapElement(el, s.layout === "plain"))
+    .map((el) => wrapElement(el, s.layout === "plain", s.fontFamily))
     .join("\n");
   if (s.layout === "plain") {
     return `<!DOCTYPE html>
@@ -285,7 +295,7 @@ ${preview}
       <td align="center" style="padding: 20px 10px;">
         <table role="presentation" width="${width}" cellpadding="0" cellspacing="0" style="background-color: ${esc(s.contentBackgroundColor)}; max-width: ${width}px; width: 100%;">
           <tr>
-            <td style="padding: ${pad}px;">
+            <td style="padding: ${pad}px; font-family: ${esc(s.fontFamily)};">
 ${body}
             </td>
           </tr>
@@ -297,18 +307,19 @@ ${body}
 </html>`;
 }
 
-function wrapElement(el: EmailElement, plain: boolean): string {
+function wrapElement(el: EmailElement, plain: boolean, font: string): string {
   const inner = elementHTML(el);
   const top = Number.parseInt(el.props.paddingTop || "0", 10) || 0;
   const bottom = Number.parseInt(el.props.paddingBottom || "0", 10) || 0;
+  const family = `font-family: ${esc(font)};`;
   if (plain) {
     const spacing =
       top || bottom ? `margin: ${top}px 0 ${bottom}px 0;` : "margin: 0 0 12px 0;";
-    return `<div style="${spacing}">${inner}</div>`;
+    return `<div style="${spacing} ${family}">${inner}</div>`;
   }
   const pad =
     top || bottom ? `padding: ${top}px 0 ${bottom}px 0;` : "padding: 0 0 12px 0;";
-  return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="${pad}">${inner}</td></tr></table>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td style="${pad} ${family}">${inner}</td></tr></table>`;
 }
 
 export function generateText(design: EmailDesign): string {
@@ -403,15 +414,8 @@ function buttonHTML(content: string, p: Record<string, string>): string {
 }
 
 function listHTML(content: string, p: Record<string, string>): string {
-  const items = (content || "- Item")
-    .split("\n")
-    .map((item) => item.replace(/^[-*]\s*/, "").trim())
-    .filter(Boolean);
   const tag = p.type === "ordered" ? "ol" : "ul";
-  const lis = items
-    .map((item) => `<li style="margin-bottom: 4px;">${inline(item)}</li>`)
-    .join("");
-  return `<${tag} style="margin: 0; padding-left: 20px; color: ${esc(p.color || "#333333")}; font-size: ${num(p.fontSize, 16)}px;">${lis}</${tag}>`;
+  return bulletList(content || "- Item", tag, false, `color: ${esc(p.color || "#333333")}; font-size: ${num(p.fontSize, 16)}px;`);
 }
 
 function quoteHTML(content: string, p: Record<string, string>): string {
@@ -506,15 +510,12 @@ export function richText(content: string, links = false): string {
   while (i < lines.length) {
     const kind = lineKind(lines[i]);
     if (kind === "ul" || kind === "ol") {
-      const items: string[] = [];
-      while (i < lines.length && lineKind(lines[i]) === kind) {
-        items.push(stripMarker(lines[i]));
+      const chunk: string[] = [];
+      while (i < lines.length && lines[i].trim() !== "" && lineKind(lines[i]) !== otherList(kind)) {
+        chunk.push(lines[i]);
         i++;
       }
-      const lis = items
-        .map((item) => `<li style="margin: 0 0 4px;">${formatInline(item, links)}</li>`)
-        .join("");
-      parts.push(`<${kind} style="margin: 8px 0; padding-left: 20px;">${lis}</${kind}>`);
+      parts.push(bulletList(chunk.join("\n"), kind, links, ""));
       continue;
     }
     const para: string[] = [];
@@ -524,7 +525,38 @@ export function richText(content: string, links = false): string {
     }
     parts.push(para.map((line) => (line === "" ? "" : formatInline(line, links))).join("<br>"));
   }
-  return parts.filter((part) => part !== "").join("<br>");
+  return parts.filter((part) => part !== "").join("");
+}
+
+function otherList(kind: "ul" | "ol"): "ul" | "ol" {
+  return kind === "ul" ? "ol" : "ul";
+}
+
+function bulletList(content: string, tag: "ul" | "ol", links: boolean, extra: string): string {
+  const items = groupItems(content);
+  const lis = items
+    .map((item) => {
+      const html = item.map((line) => formatInline(line, links)).join("<br>");
+      return `<li style="margin: 0; padding: 0;">${html}</li>`;
+    })
+    .join("");
+  return `<${tag} style="margin: 0; padding: 0 0 0 18px; line-height: 1.35; ${extra}">${lis}</${tag}>`;
+}
+
+function groupItems(content: string): string[][] {
+  const lines = content.split("\n");
+  const items: string[][] = [];
+  for (const line of lines) {
+    if (line.trim() === "") {
+      continue;
+    }
+    if (lineKind(line) === "text" && items.length > 0) {
+      items[items.length - 1].push(line.trim());
+      continue;
+    }
+    items.push([stripMarker(line)]);
+  }
+  return items.filter((item) => item.some((line) => line !== ""));
 }
 
 function formatInline(text: string, links: boolean): string {
@@ -552,6 +584,55 @@ function stripMarker(line: string): string {
   return line
     .replace(/^\s*(?:(?:[-*]|•)|\d+[.)])\s+/, "")
     .replace(/^\s*(?:[-*]|•)\s*$/, "");
+}
+
+export type FormatKind = "bold" | "italic" | "underline" | "highlight" | "strike" | "bullets";
+
+const formatMarkers: Record<Exclude<FormatKind, "bullets">, [string, string]> = {
+  bold: ["**", "**"],
+  italic: ["*", "*"],
+  underline: ["__", "__"],
+  highlight: ["==", "=="],
+  strike: ["~~", "~~"],
+};
+
+export function formatKindFromKey(key: string, shift: boolean, bullets: boolean): FormatKind | null {
+  const k = key.toLowerCase();
+  if (shift) {
+    if (k === "h") {
+      return "highlight";
+    }
+    if (k === "x") {
+      return "strike";
+    }
+    if (bullets && (k === "8" || k === "*" || k === "l")) {
+      return "bullets";
+    }
+    return null;
+  }
+  if (k === "b") {
+    return "bold";
+  }
+  if (k === "i") {
+    return "italic";
+  }
+  if (k === "u") {
+    return "underline";
+  }
+  return null;
+}
+
+export function applyKind(
+  kind: FormatKind,
+  content: string,
+  start: number,
+  end: number,
+): { value: string; start: number; end: number } {
+  if (kind === "bullets") {
+    return toggleBullets(content, start, end);
+  }
+  const [left, right] = formatMarkers[kind];
+  return applyFormat(content, start, end, left, right);
 }
 
 export function applyFormat(

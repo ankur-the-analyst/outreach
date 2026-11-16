@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Bold, Highlighter, Italic, List, Strikethrough, Underline } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,15 +22,17 @@ import {
   type BlockType,
   type EmailDesign,
   type EmailElement,
-  applyFormat,
+  applyKind,
   blockGroups,
   blockLabel,
+  emailFonts,
+  type FormatKind,
+  formatKindFromKey,
   generateHTML,
   generateText,
   newBlock,
   parseDesign,
   renderBlock,
-  toggleBullets,
 } from "@/lib/email-design";
 import { fieldSelect, fieldTextarea } from "@/lib/labels";
 
@@ -259,22 +261,44 @@ function TemplateBuilder({
           </Button>
         </div>
       </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="email-layout">Layout</Label>
-        <select
-          id="email-layout"
-          className={`${fieldSelect} max-w-xs`}
-          value={design.settings.layout}
-          onChange={(e) =>
-            setDesign((d) => ({
-              ...d,
-              settings: { ...d.settings, layout: e.target.value },
-            }))
-          }
-        >
-          <option value="boxed">Boxed</option>
-          <option value="plain">Plain</option>
-        </select>
+      <div className="flex flex-wrap gap-3">
+        <div className="flex min-w-40 flex-col gap-1.5">
+          <Label htmlFor="email-layout">Layout</Label>
+          <select
+            id="email-layout"
+            className={fieldSelect}
+            value={design.settings.layout}
+            onChange={(e) =>
+              setDesign((d) => ({
+                ...d,
+                settings: { ...d.settings, layout: e.target.value },
+              }))
+            }
+          >
+            <option value="boxed">Boxed</option>
+            <option value="plain">Plain</option>
+          </select>
+        </div>
+        <div className="flex min-w-40 flex-col gap-1.5">
+          <Label htmlFor="email-font">Font</Label>
+          <select
+            id="email-font"
+            className={fieldSelect}
+            value={design.settings.fontFamily}
+            onChange={(e) =>
+              setDesign((d) => ({
+                ...d,
+                settings: { ...d.settings, fontFamily: e.target.value },
+              }))
+            }
+          >
+            {emailFonts.map((font) => (
+              <option key={font.value} value={font.value}>
+                {font.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <p className="font-body-sm text-muted-foreground">
         Add a block, then edit it on the right. Insert a field where the cursor is. It is filled when the email sends.
@@ -304,12 +328,16 @@ function TemplateBuilder({
           ) : (
             <div
               className="mx-auto flex max-w-[600px] flex-col gap-2 bg-card p-4"
-              style={{ backgroundColor: design.settings.contentBackgroundColor }}
+              style={{
+                backgroundColor: design.settings.contentBackgroundColor,
+                fontFamily: design.settings.fontFamily,
+              }}
             >
               {design.elements.map((el) => (
                 <CanvasBlock
                   key={el.id}
                   element={el}
+                  fontFamily={design.settings.fontFamily}
                   selected={selected}
                   onSelect={setSelected}
                   onAddToColumn={addToColumn}
@@ -361,11 +389,13 @@ function TemplateBuilder({
 
 function CanvasBlock({
   element,
+  fontFamily,
   selected,
   onSelect,
   onAddToColumn,
 }: {
   element: EmailElement;
+  fontFamily: string;
   selected: string | null;
   onSelect: (id: string) => void;
   onAddToColumn: (rowID: string, column: number, type: BlockType) => void;
@@ -389,7 +419,8 @@ function CanvasBlock({
       >
         <span className="font-label-sm text-muted-foreground">{blockLabel[element.type]}</span>
         <div
-          className="pointer-events-none mt-1 break-words font-body-sm text-foreground [&_ul]:list-disc [&_ol]:list-decimal"
+          className="pointer-events-none mt-1 break-words text-sm text-foreground [&_ul]:list-disc [&_ol]:list-decimal"
+          style={{ fontFamily }}
           dangerouslySetInnerHTML={{ __html: canvasPreview(element) }}
         />
       </div>
@@ -406,6 +437,7 @@ function CanvasBlock({
                 <CanvasBlock
                   key={child.id}
                   element={child}
+                  fontFamily={fontFamily}
                   selected={selected}
                   onSelect={onSelect}
                   onAddToColumn={onAddToColumn}
@@ -463,10 +495,12 @@ function Properties({
           </div>
           {formatted ? (
             <FormatBar
-              value={element.content}
-              textareaRef={contentRef}
               bullets={bulletBlocks.has(element.type)}
-              onChange={(content) => onChange({ content })}
+              onFormat={(kind) =>
+                runFormat(kind, element.content, contentRef.current, (content) =>
+                  onChange({ content }),
+                )
+              }
             />
           ) : null}
           <textarea
@@ -476,6 +510,27 @@ function Properties({
             className={fieldTextarea}
             value={element.content}
             onChange={(e) => onChange({ content: e.target.value })}
+            onKeyDown={
+              formatted
+                ? (e) => {
+                    if (!(e.metaKey || e.ctrlKey) || e.altKey) {
+                      return;
+                    }
+                    const kind = formatKindFromKey(
+                      e.key,
+                      e.shiftKey,
+                      bulletBlocks.has(element.type),
+                    );
+                    if (!kind) {
+                      return;
+                    }
+                    e.preventDefault();
+                    runFormat(kind, element.content, contentRef.current, (content) =>
+                      onChange({ content }),
+                    );
+                  }
+                : undefined
+            }
           />
           {bulletBlocks.has(element.type) ? (
             <p className="font-body-sm text-muted-foreground">
@@ -616,54 +671,46 @@ const bulletBlocks = new Set<BlockType>([
   "list",
 ]);
 
+function runFormat(
+  kind: FormatKind,
+  value: string,
+  el: HTMLTextAreaElement | null,
+  onChange: (value: string) => void,
+) {
+  const start = el?.selectionStart ?? value.length;
+  const end = el?.selectionEnd ?? value.length;
+  const next = applyKind(kind, value, start, end);
+  onChange(next.value);
+  const from = kind === "bullets" ? next.end : next.start;
+  const to = next.end;
+  setTimeout(() => {
+    el?.focus();
+    el?.setSelectionRange(from, to);
+  }, 0);
+}
+
 function FormatBar({
-  value,
-  textareaRef,
   bullets,
-  onChange,
+  onFormat,
 }: {
-  value: string;
-  textareaRef: RefObject<HTMLTextAreaElement | null>;
   bullets: boolean;
-  onChange: (value: string) => void;
+  onFormat: (kind: FormatKind) => void;
 }) {
-  function apply(next: { value: string; start: number; end: number }) {
-    onChange(next.value);
-    const el = textareaRef.current;
-    setTimeout(() => {
-      el?.focus();
-      el?.setSelectionRange(next.end, next.end);
-    }, 0);
-  }
-
-  function wrap(left: string, right = left) {
-    const el = textareaRef.current;
-    apply(
-      applyFormat(
-        value,
-        el?.selectionStart ?? value.length,
-        el?.selectionEnd ?? value.length,
-        left,
-        right,
-      ),
-    );
-  }
-
   return (
     <div className="flex flex-wrap gap-0.5 rounded-md border border-border bg-muted p-0.5">
-      <Button type="button" variant="ghost" size="icon-xs" title="Bold" onMouseDown={(e) => e.preventDefault()} onClick={() => wrap("**")}>
+      <Button type="button" variant="ghost" size="icon-xs" title="Bold (⌘B)" onMouseDown={(e) => e.preventDefault()} onClick={() => onFormat("bold")}>
         <Bold />
       </Button>
-      <Button type="button" variant="ghost" size="icon-xs" title="Italic" onMouseDown={(e) => e.preventDefault()} onClick={() => wrap("*")}>
+      <Button type="button" variant="ghost" size="icon-xs" title="Italic (⌘I)" onMouseDown={(e) => e.preventDefault()} onClick={() => onFormat("italic")}>
         <Italic />
       </Button>
-      <Button type="button" variant="ghost" size="icon-xs" title="Underline" onMouseDown={(e) => e.preventDefault()} onClick={() => wrap("__")}>
+      <Button type="button" variant="ghost" size="icon-xs" title="Underline (⌘U)" onMouseDown={(e) => e.preventDefault()} onClick={() => onFormat("underline")}>
         <Underline />
       </Button>
-      <Button type="button" variant="ghost" size="icon-xs" title="Highlight" onMouseDown={(e) => e.preventDefault()} onClick={() => wrap("==")}>
+      <Button type="button" variant="ghost" size="icon-xs" title="Highlight (⌘⇧H)" onMouseDown={(e) => e.preventDefault()} onClick={() => onFormat("highlight")}>
         <Highlighter />
       </Button>
-      <Button type="button" variant="ghost" size="icon-xs" title="Strikethrough" onMouseDown={(e) => e.preventDefault()} onClick={() => wrap("~~")}>
+      <Button type="button" variant="ghost" size="icon-xs" title="Strikethrough (⌘⇧X)" onMouseDown={(e) => e.preventDefault()} onClick={() => onFormat("strike")}>
         <Strikethrough />
       </Button>
       {bullets ? (
@@ -671,18 +718,9 @@ function FormatBar({
           type="button"
           variant="ghost"
           size="icon-xs"
-          title="Bullets"
+          title="Bullets (⌘⇧8)"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            const el = textareaRef.current;
-            apply(
-              toggleBullets(
-                value,
-                el?.selectionStart ?? value.length,
-                el?.selectionEnd ?? value.length,
-              ),
-            );
-          }}
+          onClick={() => onFormat("bullets")}
         >
           <List />
         </Button>
