@@ -30,6 +30,7 @@ import type {
   Mailbox,
   MailboxPool,
   Profile,
+  SavedEmail,
 } from "@/lib/api";
 import {
   campaignPersonStatus,
@@ -137,6 +138,18 @@ export function CampaignBoard({
   const [morePending, setMorePending] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [addFor, setAddFor] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<SavedEmail[]>([]);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch("/api/v1/templates", { credentials: "include" });
+      if (!res.ok) {
+        return;
+      }
+      const data = (await res.json()) as { templates?: SavedEmail[] };
+      setTemplates(data.templates ?? []);
+    })();
+  }, []);
 
   useEffect(() => {
     setRows(campaigns);
@@ -255,6 +268,7 @@ export function CampaignBoard({
                 jobs={jobs}
                 profiles={profiles}
                 people={people[c.id] ?? []}
+                templates={templates}
                 onAdd={() => setAddFor(c.id)}
               />
             ))
@@ -283,6 +297,8 @@ export function CampaignBoard({
               mailboxes={mailboxes}
               pools={pools}
               profiles={profiles}
+              templates={templates}
+              onTemplates={setTemplates}
               onDone={() => setCreateOpen(false)}
             />
           </div>
@@ -324,10 +340,12 @@ function CampaignCard({
   jobs,
   profiles,
   people,
+  templates,
   onAdd,
 }: {
   campaign: Campaign;
   mailboxes: Mailbox[];
+  templates: SavedEmail[];
   pools?: MailboxPool[];
   contacts: Contact[];
   jobs: Job[];
@@ -415,10 +433,16 @@ function CampaignCard({
                   ) : null}
                   {step.content === "template" ? (
                     <span className="ml-2 rounded-sm bg-accent px-1.5 py-0.5 font-label-sm text-primary">
-                      Email template
+                      {templates.find((t) => t.id === step.template_id)?.name ||
+                        "Email template"}
                     </span>
                   ) : null}
                 </p>
+                {step.content === "template" ? (
+                  <TemplatePreview
+                    template={templates.find((t) => t.id === step.template_id)}
+                  />
+                ) : null}
               </div>
             )}
           </li>
@@ -562,11 +586,15 @@ function CreateCampaign({
   mailboxes,
   pools = [],
   profiles,
+  templates,
+  onTemplates,
   onDone,
 }: {
   mailboxes: Mailbox[];
   pools?: MailboxPool[];
   profiles: Profile[];
+  templates: SavedEmail[];
+  onTemplates: (next: SavedEmail[]) => void;
   onDone: () => void;
 }) {
   const router = useRouter();
@@ -579,8 +607,12 @@ function CreateCampaign({
   const [profileID, setProfileID] = useState("");
   const [perDay, setPerDay] = useState("5");
   const [strategy, setStrategy] = useState("round_robin");
-  const [saved, setSaved] = useState<{ id: string; name: string }[]>([]);
+  const [saved, setSaved] = useState<SavedEmail[]>(templates);
   const [templateID, setTemplateID] = useState("");
+
+  useEffect(() => {
+    setSaved(templates);
+  }, [templates]);
   const [newName, setNewName] = useState("");
   const [newSubject, setNewSubject] = useState(
     "Hello {{contact.first_name | there}}",
@@ -590,17 +622,6 @@ function CreateCampaign({
   );
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-
-  useEffect(() => {
-    void (async () => {
-      const res = await fetch("/api/v1/templates", { credentials: "include" });
-      if (!res.ok) {
-        return;
-      }
-      const data = (await res.json()) as { templates?: { id: string; name: string }[] };
-      setSaved(data.templates ?? []);
-    })();
-  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -779,6 +800,9 @@ function CreateCampaign({
             </option>
           ))}
         </select>
+        {templateID ? (
+          <TemplatePreview template={saved.find((t) => t.id === templateID)} />
+        ) : null}
       </div>
       <div className="flex flex-col gap-3 rounded-md border border-border bg-muted p-3">
         <p className="font-label-md text-foreground">
@@ -839,8 +863,10 @@ function CreateCampaign({
               setError(data?.error?.message ?? "Could not save template");
               return;
             }
-            const t = (await res.json()) as { id: string; name: string };
-            setSaved((cur) => [t, ...cur]);
+            const t = (await res.json()) as SavedEmail;
+            const next = [t, ...saved.filter((row) => row.id !== t.id)];
+            setSaved(next);
+            onTemplates(next);
             setTemplateID(t.id);
             setNewName("");
           }}
@@ -859,6 +885,39 @@ function CreateCampaign({
       </div>
     </form>
   );
+}
+
+function TemplatePreview({ template }: { template?: SavedEmail }) {
+  if (!template) {
+    return (
+      <p className="mt-2 font-body-sm text-muted-foreground">
+        This email template is no longer available.
+      </p>
+    );
+  }
+  const doc = template.body_html?.trim()
+    ? template.body_html
+    : textLetter(template.body_text);
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      <p className="font-body-sm text-foreground">{template.subject}</p>
+      <iframe
+        title={template.name}
+        sandbox=""
+        srcDoc={doc}
+        className="h-56 w-full rounded-md border border-border bg-card"
+      />
+    </div>
+  );
+}
+
+function textLetter(text: string): string {
+  const body = (text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br>");
+  return `<!DOCTYPE html><html><body style="margin:12px;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1e2024;">${body}</body></html>`;
 }
 
 function AddPerson({
